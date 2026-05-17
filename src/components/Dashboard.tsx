@@ -6,48 +6,108 @@ interface DashboardProps {
   agendamentos: Agendamento[];
   onUpdateStatus: (id: string, newStatus: StatusJornada) => void;
   onOpenProntuario: (clienteId: string) => void;
-  onAddAgendamento: (agendamento: Omit<Agendamento, 'id'>) => void;
+  onAddAgendamento: (
+    agendamento: Omit<Agendamento, 'id'>,
+    extra?: { telefone?: string }
+  ) => void;
   userName?: string;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ 
-  agendamentos, 
-  onUpdateStatus, 
+function addMinutesToTime(hhmm: string, minutes: number): string {
+  const [h, m] = hhmm.split(':').map((x) => parseInt(x, 10));
+  if (Number.isNaN(h) || Number.isNaN(m)) return hhmm;
+  const total = h * 60 + m + minutes;
+  const wrapped = ((total % (24 * 60)) + 24 * 60) % (24 * 60);
+  const hh = String(Math.floor(wrapped / 60)).padStart(2, '0');
+  const mm = String(wrapped % 60).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
+export const Dashboard: React.FC<DashboardProps> = ({
+  agendamentos,
+  onUpdateStatus,
   onOpenProntuario,
   onAddAgendamento,
-  userName
+  userName,
 }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newNome, setNewNome] = useState('');
+  const [newTelefone, setNewTelefone] = useState('');
   const [newProcedimento, setNewProcedimento] = useState('Toxina Botulínica (Botox)');
   const [newHora, setNewHora] = useState('14:30');
+  const [newData, setNewData] = useState<string>(() => new Date().toISOString().split('T')[0]);
+
+  // DnD state
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<StatusJornada | null>(null);
 
   const colunas: { id: StatusJornada; label: string; desc: string }[] = [
     { id: 'agendada', label: 'Confirmadas para Hoje', desc: 'Próximos agendamentos' },
     { id: 'chegou', label: 'Chegaram na Clínica', desc: 'Em recepção / aguardando' },
     { id: 'atendimento', label: 'Em Cabine', desc: 'Procedimento em andamento' },
-    { id: 'checkout', label: 'Checkout / Conclusão', desc: 'Pós-procedimento imediato' }
+    { id: 'checkout', label: 'Checkout / Conclusão', desc: 'Pós-procedimento imediato' },
   ];
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newNome.trim()) return;
 
-    onAddAgendamento({
-      clienteId: 'c' + (Math.random() * 1000).toFixed(0),
-      clienteNome: newNome,
-      data: new Date().toISOString().split('T')[0],
-      horaInicio: newHora,
-      horaFim: '15:30',
-      profissional: 'Dra. Helena Martins',
-      sala: 'Cabine 01 - Clínica',
-      procedimento: newProcedimento,
-      status: 'agendada',
-      valor: 1200
-    });
+    onAddAgendamento(
+      {
+        clienteId: 'c_' + Math.random().toString(36).slice(2, 10),
+        clienteNome: newNome.trim(),
+        data: newData,
+        horaInicio: newHora,
+        horaFim: addMinutesToTime(newHora, 60),
+        profissional: 'Dra. Helena Martins',
+        sala: 'Cabine 01 - Clínica',
+        procedimento: newProcedimento,
+        status: 'agendada',
+        valor: 1200,
+      },
+      { telefone: newTelefone.trim() || undefined }
+    );
 
     setNewNome('');
+    setNewTelefone('');
     setShowAddModal(false);
+  };
+
+  // ============================================================
+  // KANBAN DnD HANDLERS
+  // ============================================================
+  const handleDragStart = (e: React.DragEvent<HTMLDivElement>, id: string) => {
+    setDragId(id);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', id);
+  };
+
+  const handleDragEnd = () => {
+    setDragId(null);
+    setDragOverCol(null);
+  };
+
+  const handleDragOverColumn = (
+    e: React.DragEvent<HTMLDivElement>,
+    colId: StatusJornada
+  ) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverCol !== colId) setDragOverCol(colId);
+  };
+
+  const handleDropOnColumn = (
+    e: React.DragEvent<HTMLDivElement>,
+    colId: StatusJornada
+  ) => {
+    e.preventDefault();
+    const id = e.dataTransfer.getData('text/plain') || dragId;
+    setDragOverCol(null);
+    setDragId(null);
+    if (!id) return;
+    const item = agendamentos.find((a) => a.id === id);
+    if (!item || item.status === colId) return;
+    onUpdateStatus(id, colId);
   };
 
   /**
@@ -68,7 +128,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             Acompanhe a jornada de cuidados e proporcione uma experiência memorável.
           </p>
         </div>
-        <button 
+        <button
           onClick={() => setShowAddModal(true)}
           className="btn btn-primary"
         >
@@ -81,9 +141,22 @@ export const Dashboard: React.FC<DashboardProps> = ({
       <div className="esteira-container">
         {colunas.map((col) => {
           const colAgendamentos = agendamentos.filter((a) => a.status === col.id);
+          const isHover = dragOverCol === col.id;
 
           return (
-            <div key={col.id} className="esteira-coluna">
+            <div
+              key={col.id}
+              className="esteira-coluna"
+              onDragOver={(e) => handleDragOverColumn(e, col.id)}
+              onDragLeave={() => setDragOverCol((prev) => (prev === col.id ? null : prev))}
+              onDrop={(e) => handleDropOnColumn(e, col.id)}
+              style={{
+                outline: isHover ? '2px dashed var(--color-primary)' : 'none',
+                outlineOffset: isHover ? '-4px' : 0,
+                backgroundColor: isHover ? 'var(--color-primary-light)' : undefined,
+                transition: 'var(--transition-smooth)',
+              }}
+            >
               <div className="esteira-coluna-header">
                 <div>
                   <h3 className="esteira-coluna-titulo">{col.label}</h3>
@@ -94,12 +167,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
               <div className="esteira-cards-list">
                 {colAgendamentos.length === 0 ? (
-                  <div style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center', 
-                    height: '120px', 
-                    border: '1px dashed #E0E0E0', 
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '120px',
+                    border: '1px dashed #E0E0E0',
                     borderRadius: 'var(--border-radius-md)',
                     color: 'var(--color-text-muted)',
                     fontSize: '12px',
@@ -107,29 +180,38 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     padding: '16px',
                     backgroundColor: '#FFFFFF'
                   }}>
-                    Sem atendimentos nesta etapa
+                    {isHover ? 'Solte aqui para mover' : 'Sem atendimentos nesta etapa'}
                   </div>
                 ) : (
                   colAgendamentos.map((item) => {
                     const isOverWait = col.id === 'chegou' && (item.tempoEsperaMinutos ?? 0) >= 10;
+                    const isDragging = dragId === item.id;
                     return (
-                      <div key={item.id} className="esteira-card">
+                      <div
+                        key={item.id}
+                        className={`esteira-card ${isDragging ? 'active-drag' : ''}`}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, item.id)}
+                        onDragEnd={handleDragEnd}
+                        style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
+                      >
                         <div className="esteira-card-header">
-                          <img 
-                            src={item.clienteFoto || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'} 
-                            alt={item.clienteNome} 
+                          <img
+                            src={item.clienteFoto || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
+                            alt={item.clienteNome}
                             className="esteira-card-avatar"
+                            draggable={false}
                           />
                           <div>
-                            <span 
-                              className="esteira-card-nome" 
+                            <span
+                              className="esteira-card-nome"
                               onClick={() => onOpenProntuario(item.clienteId)}
                               style={{ cursor: 'pointer', textDecoration: 'underline' }}
                             >
                               {item.clienteNome}
                             </span>
                             <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
-                              {item.horaInicio} • {item.profissional.split(' ')[1]}
+                              {item.horaInicio} • {item.profissional.split(' ')[1] || item.profissional}
                             </div>
                           </div>
                         </div>
@@ -164,9 +246,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                           {/* Trigger state changes visually */}
                           <div style={{ display: 'flex', gap: '4px' }}>
                             {col.id === 'agendada' && (
-                              <button 
+                              <button
                                 onClick={() => onUpdateStatus(item.id, 'chegou')}
-                                className="btn btn-secondary" 
+                                className="btn btn-secondary"
                                 style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '10px' }}
                                 title="Marcar Chegada"
                               >
@@ -174,9 +256,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                               </button>
                             )}
                             {col.id === 'chegou' && (
-                              <button 
+                              <button
                                 onClick={() => onUpdateStatus(item.id, 'atendimento')}
-                                className="btn btn-primary" 
+                                className="btn btn-primary"
                                 style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '10px' }}
                                 title="Iniciar Atendimento"
                               >
@@ -184,9 +266,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                               </button>
                             )}
                             {col.id === 'atendimento' && (
-                              <button 
+                              <button
                                 onClick={() => onUpdateStatus(item.id, 'checkout')}
-                                className="btn btn-secondary" 
+                                className="btn btn-secondary"
                                 style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '10px' }}
                                 title="Enviar para Checkout"
                               >
@@ -194,9 +276,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                               </button>
                             )}
                             {col.id === 'checkout' && (
-                              <button 
+                              <button
                                 onClick={() => onUpdateStatus(item.id, 'finalizada')}
-                                className="btn btn-primary" 
+                                className="btn btn-primary"
                                 style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '10px', backgroundColor: 'var(--color-success)' }}
                                 title="Finalizar e Cobrar"
                               >
@@ -229,24 +311,36 @@ export const Dashboard: React.FC<DashboardProps> = ({
           justifyContent: 'center',
           zIndex: 1000
         }}>
-          <div className="card" style={{ width: '400px', padding: '32px' }}>
+          <div className="card" style={{ width: '440px', padding: '32px' }}>
             <h3 style={{ marginBottom: '20px' }}>Agendar Cuidados</h3>
             <form onSubmit={handleCreate}>
               <div className="form-group">
                 <label className="form-label">Nome da Cliente</label>
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  value={newNome} 
-                  onChange={(e) => setNewNome(e.target.value)} 
-                  placeholder="Ex: Amanda Santos" 
+                <input
+                  type="text"
+                  className="form-input"
+                  value={newNome}
+                  onChange={(e) => setNewNome(e.target.value)}
+                  placeholder="Ex: Amanda Santos"
                   required
                 />
               </div>
 
               <div className="form-group">
+                <label className="form-label">Telefone</label>
+                <input
+                  type="tel"
+                  className="form-input"
+                  value={newTelefone}
+                  onChange={(e) => setNewTelefone(e.target.value)}
+                  placeholder="(11) 99999-0000"
+                  pattern="^[0-9()\\-\\s\\+]{8,}$"
+                />
+              </div>
+
+              <div className="form-group">
                 <label className="form-label">Procedimento</label>
-                <select 
+                <select
                   className="form-select"
                   value={newProcedimento}
                   onChange={(e) => setNewProcedimento(e.target.value)}
@@ -259,19 +353,32 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </select>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Horário de Início</label>
-                <input 
-                  type="time" 
-                  className="form-input"
-                  value={newHora}
-                  onChange={(e) => setNewHora(e.target.value)}
-                />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-group">
+                  <label className="form-label">Dia</label>
+                  <input
+                    type="date"
+                    className="form-input"
+                    value={newData}
+                    onChange={(e) => setNewData(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Horário de Início</label>
+                  <input
+                    type="time"
+                    className="form-input"
+                    value={newHora}
+                    onChange={(e) => setNewHora(e.target.value)}
+                  />
+                </div>
               </div>
 
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setShowAddModal(false)}
                   className="btn btn-outline"
                 >

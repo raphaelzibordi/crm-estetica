@@ -106,12 +106,17 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
 
   return (
     <div style={{
-      minHeight: '100vh',
+      position: 'fixed',
+      inset: 0,
+      width: '100vw',
+      height: '100vh',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: 'var(--color-bg)',
-      padding: '24px'
+      backgroundColor: 'var(--bg-primary)',
+      padding: '24px',
+      overflow: 'auto',
+      zIndex: 1
     }}>
       <div className="card" style={{
         width: '100%',

@@ -133,7 +133,10 @@ function App() {
   // ============================================================
   // CRIAÇÃO DE AGENDAMENTO
   // ============================================================
-  const handleAddAgendamento = async (newAgendamento: Omit<Agendamento, 'id'>) => {
+  const handleAddAgendamento = async (
+    newAgendamento: Omit<Agendamento, 'id'>,
+    extra?: { telefone?: string }
+  ) => {
     if (!session?.user?.id) return;
     try {
       let finalClienteId = newAgendamento.clienteId;
@@ -149,7 +152,7 @@ function App() {
         const novoCliente = await api.createCliente(
           {
             nome: newAgendamento.clienteNome,
-            telefone: '(00) 00000-0000',
+            telefone: extra?.telefone || '',
             email: '',
             dataNascimento: '',
             fotoUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150',
@@ -170,7 +173,11 @@ function App() {
         session.user.id
       );
 
-      await loadAgendamentosDoDia();
+      // Recarrega só se o agendamento criado for para HOJE (o dashboard só mostra hoje)
+      const hoje = new Date().toISOString().split('T')[0];
+      if (newAgendamento.data === hoje) {
+        await loadAgendamentosDoDia();
+      }
     } catch (err) {
       console.error('Erro ao criar agendamento:', err);
       const msg =
@@ -272,7 +279,12 @@ function App() {
         )}
 
         {currentTab === 'agenda' && (
-          <Agenda agendamentos={agendamentos} onAddAgendamento={handleAddAgendamento} />
+          <Agenda
+            userId={session.user.id}
+            agendamentos={agendamentos}
+            onAddAgendamento={handleAddAgendamento}
+            onOpenProntuario={handleOpenProntuario}
+          />
         )}
 
         {currentTab === 'prontuario' && (

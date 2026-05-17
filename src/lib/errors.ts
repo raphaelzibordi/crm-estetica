@@ -19,7 +19,11 @@ const AUTH_MESSAGES: Record<string, string> = {
   'password should be at least 6 characters': 'A senha precisa ter no mínimo 6 caracteres.',
   'invalid email': 'Informe um e-mail válido.',
   'email rate limit exceeded':
-    'Muitos cadastros recentes deste e-mail. Aguarde alguns minutos para tentar novamente.',
+    'O servidor de e-mail atingiu o limite temporário. Tente novamente em ~1 hora ou desative a confirmação por e-mail no painel do Supabase (Authentication → Providers → Email).',
+  'over email send rate limit':
+    'Muitos e-mails enviados em sequência. Aguarde alguns minutos ou desative a confirmação por e-mail no Supabase em ambiente de desenvolvimento.',
+  'signup is disabled': 'Cadastros estão desativados temporariamente. Procure o administrador.',
+  'for security purposes, you can only request this': 'Por segurança, aguarde alguns segundos antes de tentar novamente.',
 };
 
 const POSTGREST_HTTP_TO_STATUS: Record<string, number> = {
