@@ -9,13 +9,14 @@ import { Auth } from './components/Auth';
 import { mockAgendamentosDia } from './data/mockData';
 import type { Agendamento, StatusJornada } from './types';
 import { supabase } from './lib/supabase';
+import { api } from './lib/api';
 
 function App() {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
-  const [agendamentos, setAgendamentos] = useState<Agendamento[]>(mockAgendamentosDia);
+  const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [selectedClienteId, setSelectedClienteId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -32,6 +33,22 @@ function App() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (session?.user?.id) {
+      loadData();
+    }
+  }, [session]);
+
+  const loadData = async () => {
+    try {
+      const hoje = new Date().toISOString().split('T')[0];
+      const data = await api.getAgendamentos(session.user.id, hoje);
+      setAgendamentos(data);
+    } catch (err) {
+      console.error('Erro ao carregar agendamentos:', err);
+    }
+  };
 
   // State Management: Update status in the clinical flow
   const handleUpdateStatus = (id: string, newStatus: StatusJornada) => {
@@ -57,15 +74,47 @@ function App() {
         return a;
       })
     );
+    
+    // Persist in Supabase
+    try {
+      const updates: any = { status: newStatus };
+      if (newStatus === 'chegou') updates.horarioChegada = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      await api.updateAgendamentoStatus(id, updates);
+    } catch (err) {
+      console.error('Erro ao atualizar status', err);
+    }
   };
 
   // State Management: Add a new appointment in the agenda or flow
-  const handleAddAgendamento = (newAgendamento: Omit<Agendamento, 'id'>) => {
-    const created: Agendamento = {
-      ...newAgendamento,
-      id: 'a_' + Date.now()
-    };
-    setAgendamentos((prev) => [...prev, created]);
+  const handleAddAgendamento = async (newAgendamento: Omit<Agendamento, 'id'>) => {
+    try {
+      let finalClienteId = newAgendamento.clienteId;
+      
+      // If temporary ID, create real client
+      if (finalClienteId.startsWith('c')) {
+        const novoCliente = await api.createCliente({
+          nome: newAgendamento.clienteNome,
+          telefone: '(00) 00000-0000',
+          email: 'novo@cliente.com',
+          dataNascimento: '1990-01-01',
+          fotoUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150',
+          dataUltimaVisita: new Date().toISOString().split('T')[0]
+        }, session.user.id);
+        finalClienteId = novoCliente.id;
+      }
+
+      const createdFromDb = await api.createAgendamento({
+        ...newAgendamento,
+        clienteId: finalClienteId
+      }, session.user.id);
+      
+      // Reload from DB to get the join (clienteNome, etc)
+      loadData();
+      
+    } catch (err) {
+      console.error('Erro ao criar agendamento', err);
+      alert('Erro ao criar agendamento no banco.');
+    }
   };
 
   // UX Shortcut: Click on client name in dashboard redirects straight to medical records
@@ -109,15 +158,16 @@ function App() {
         {currentTab === 'prontuario' && (
           <Prontuario 
             selectedClienteId={selectedClienteId} 
+            userId={session.user.id}
           />
         )}
 
         {currentTab === 'comunicacao' && (
-          <Comunicacao />
+          <Comunicacao userId={session.user.id} />
         )}
 
         {currentTab === 'gestao' && (
-          <Gestao />
+          <Gestao userId={session.user.id} />
         )}
       </main>
     </div>

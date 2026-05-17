@@ -1,53 +1,95 @@
-import React, { useState } from 'react';
-import type { ProntuarioEstetico, EvolucaoClinica } from '../types';
-import { mockClientes, mockProntuarios } from '../data/mockData';
+import React, { useState, useEffect } from 'react';
+import type { Cliente, ProntuarioEstetico, EvolucaoClinica } from '../types';
 import { FileText, Camera, Plus } from 'lucide-react';
+import { api } from '../lib/api';
 
 interface ProntuarioProps {
   selectedClienteId: string | null;
+  userId: string;
   onClose?: () => void;
 }
 
-export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId }) => {
-  const [activeClienteId, setActiveClienteId] = useState<string>(selectedClienteId || mockClientes[0].id);
-  const [prontuariosState, setProntuariosState] = useState<Record<string, ProntuarioEstetico>>(mockProntuarios);
+export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userId }) => {
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [activeClienteId, setActiveClienteId] = useState<string>(selectedClienteId || '');
+  const [evolucoes, setEvolucoes] = useState<EvolucaoClinica[]>([]);
+  const [loadingClientes, setLoadingClientes] = useState(true);
   
   // States for adding a new clinical evolution
   const [newEvolucaoText, setNewEvolucaoText] = useState('');
   const [newEvolucaoProc, setNewEvolucaoProc] = useState('Toxina Botulínica (Botox)');
   const [newEvolucaoObs, setNewEvolucaoObs] = useState('');
 
-  const currentCliente = mockClientes.find(c => c.id === activeClienteId) || mockClientes[0];
-  const currentProntuario = prontuariosState[currentCliente.id] || { clienteId: currentCliente.id, evolucoes: [], galeria: [] };
+  useEffect(() => {
+    loadClientes();
+  }, [userId]);
 
-  const handleAddEvolucao = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newEvolucaoText.trim()) return;
+  useEffect(() => {
+    if (activeClienteId) {
+      loadEvolucoes(activeClienteId);
+    }
+  }, [activeClienteId, userId]);
 
-    const newEvolucao: EvolucaoClinica = {
-      id: 'ev_' + Date.now(),
-      data: new Date().toISOString().split('T')[0],
-      profissional: 'Dra. Helena Martins',
-      procedimento: newEvolucaoProc,
-      relatoNatural: newEvolucaoText,
-      observacoesTecnicas: newEvolucaoObs || 'Sem intercorrências técnicas.'
-    };
-
-    setProntuariosState(prev => {
-      const existing = prev[currentCliente.id] || { clienteId: currentCliente.id, evolucoes: [], galeria: [] };
-      return {
-        ...prev,
-        [currentCliente.id]: {
-          ...existing,
-          evolucoes: [newEvolucao, ...existing.evolucoes]
-        }
-      };
-    });
-
-    setNewEvolucaoText('');
-    setNewEvolucaoObs('');
-    alert('Evolução clínica registrada com sucesso no prontuário.');
+  const loadClientes = async () => {
+    try {
+      const data = await api.getClientes(userId);
+      setClientes(data);
+      if (data.length > 0 && !activeClienteId) {
+        setActiveClienteId(data[0].id);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingClientes(false);
+    }
   };
+
+  const loadEvolucoes = async (clienteId: string) => {
+    try {
+      const data = await api.getEvolucoes(userId, clienteId);
+      setEvolucoes(data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const currentCliente = clientes.find(c => c.id === activeClienteId);
+  const currentProntuario = { clienteId: activeClienteId, evolucoes, galeria: [] };
+
+  const handleAddEvolucao = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newEvolucaoText.trim() || !activeClienteId) return;
+
+    try {
+      await api.createEvolucao(activeClienteId, {
+        data: new Date().toISOString().split('T')[0],
+        profissional: 'Profissional Logado', // could fetch from session
+        procedimento: newEvolucaoProc,
+        relatoNatural: newEvolucaoText,
+        observacoesTecnicas: newEvolucaoObs || 'Sem intercorrências técnicas.'
+      }, userId);
+
+      setNewEvolucaoText('');
+      setNewEvolucaoObs('');
+      alert('Evolução clínica registrada com sucesso no prontuário.');
+      loadEvolucoes(activeClienteId);
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao registrar evolução.');
+    }
+  };
+
+  if (loadingClientes) {
+    return <div>Carregando prontuários...</div>;
+  }
+
+  if (clientes.length === 0) {
+    return (
+      <div style={{ padding: '40px', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+        Nenhuma cliente cadastrada no seu perfil ainda. Crie novos agendamentos para registrar clientes.
+      </div>
+    );
+  }
 
   /**
    * UX Design Decision: Natural Language & Visual Side-by-Side
@@ -75,7 +117,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId }) => 
             Selecione a Cliente
           </h4>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {mockClientes.map(cliente => (
+            {clientes.map(cliente => (
               <button
                 key={cliente.id}
                 onClick={() => {
@@ -97,13 +139,13 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId }) => 
                 }}
               >
                 <img 
-                  src={cliente.fotoUrl} 
+                  src={cliente.fotoUrl || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150'} 
                   alt={cliente.nome} 
                   style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }}
                 />
                 <div>
                   <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-main)' }}>{cliente.nome}</div>
-                  <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Última visita: {cliente.dataUltimaVisita}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Última visita: {cliente.dataUltimaVisita ? new Date(cliente.dataUltimaVisita).toLocaleDateString('pt-BR') : 'N/A'}</div>
                 </div>
               </button>
             ))}
@@ -113,32 +155,33 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId }) => 
         {/* Right Side: Prontuário Details */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
           
-          {/* Cliente Info Card */}
-          <div className="card" style={{ padding: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-              <img 
-                src={currentCliente.fotoUrl} 
-                alt={currentCliente.nome} 
-                style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--color-primary)' }}
-              />
-              <div>
-                <h2 style={{ fontSize: '22px', fontWeight: 600, marginBottom: '6px' }}>{currentCliente.nome}</h2>
-                <div style={{ display: 'flex', gap: '16px', fontSize: '13px', color: 'var(--color-text-muted)' }}>
-                  <span>Nasc: {new Date(currentCliente.dataNascimento).toLocaleDateString('pt-BR')}</span>
-                  <span>•</span>
-                  <span>Contato: {currentCliente.telefone}</span>
-                  <span>•</span>
-                  <span>E-mail: {currentCliente.email}</span>
+          {currentCliente && (
+            <div className="card" style={{ padding: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                <img 
+                  src={currentCliente.fotoUrl || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150'} 
+                  alt={currentCliente.nome} 
+                  style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--color-primary)' }}
+                />
+                <div>
+                  <h2 style={{ fontSize: '22px', fontWeight: 600, marginBottom: '6px' }}>{currentCliente.nome}</h2>
+                  <div style={{ display: 'flex', gap: '16px', fontSize: '13px', color: 'var(--color-text-muted)' }}>
+                    <span>Nasc: {currentCliente.dataNascimento ? new Date(currentCliente.dataNascimento).toLocaleDateString('pt-BR') : 'N/A'}</span>
+                    <span>•</span>
+                    <span>Contato: {currentCliente.telefone}</span>
+                    <span>•</span>
+                    <span>E-mail: {currentCliente.email}</span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div style={{ display: 'flex', gap: '8px' }}>
-              {currentCliente.tags.map(tag => (
-                <span key={tag} className="badge badge-sage">{tag}</span>
-              ))}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {(currentCliente.tags || []).map((tag: string) => (
+                  <span key={tag} className="badge badge-sage">{tag}</span>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Galeria Antes e Depois */}
           <div className="card" style={{ padding: '32px' }}>

@@ -1,38 +1,65 @@
-import React, { useState } from 'react';
-import { mockEstoque, mockFinanceiro } from '../data/mockData';
+import React, { useState, useEffect } from 'react';
+import { mockFinanceiro } from '../data/mockData';
 import type { ItemEstoque } from '../types';
 import { TrendingUp, AlertTriangle, DollarSign, Wallet, FileSpreadsheet } from 'lucide-react';
+import { api } from '../lib/api';
 
-export const Gestao: React.FC = () => {
-  const [estoqueState, setEstoqueState] = useState<ItemEstoque[]>(mockEstoque);
+interface GestaoProps {
+  userId: string;
+}
 
-  const handleRestock = (id: string) => {
-    setEstoqueState(prev => prev.map(item => {
-      if (item.id === id) {
-        return {
-          ...item,
-          quantidade: item.quantidade + 10,
-          status: 'normal',
-          ultimaReposicao: new Date().toISOString().split('T')[0]
-        };
-      }
-      return item;
-    }));
-    alert('Compra/Reposição registrada! +10 unidades adicionadas ao estoque.');
+export const Gestao: React.FC<GestaoProps> = ({ userId }) => {
+  const [estoqueState, setEstoqueState] = useState<ItemEstoque[]>([]);
+
+  useEffect(() => {
+    loadEstoque();
+  }, [userId]);
+
+  const loadEstoque = async () => {
+    try {
+      const data = await api.getEstoque(userId);
+      setEstoqueState(data);
+    } catch (err) {
+      console.error('Erro ao carregar estoque', err);
+    }
   };
 
-  const handleSubtract = (id: string) => {
-    setEstoqueState(prev => prev.map(item => {
-      if (item.id === id) {
-        const newQty = Math.max(0, item.quantidade - 1);
-        return {
-          ...item,
-          quantidade: newQty,
-          status: newQty <= item.quantidadeMinima ? 'critico' : 'normal'
-        };
-      }
-      return item;
-    }));
+  const handleRestock = async (id: string) => {
+    try {
+      const item = estoqueState.find(i => i.id === id);
+      if (!item) return;
+
+      const newQty = item.quantidade + 10;
+      const newStatus = 'normal';
+      const novaData = new Date().toISOString().split('T')[0];
+
+      // Optimistic update
+      setEstoqueState(prev => prev.map(i => i.id === id ? { ...i, quantidade: newQty, status: newStatus, ultimaReposicao: novaData } : i));
+      
+      await api.updateEstoque(id, newQty, newStatus, novaData);
+      alert('Compra/Reposição registrada! +10 unidades adicionadas ao estoque.');
+    } catch (err) {
+      console.error(err);
+      loadEstoque(); // rollback on error
+    }
+  };
+
+  const handleSubtract = async (id: string) => {
+    try {
+      const item = estoqueState.find(i => i.id === id);
+      if (!item) return;
+
+      const newQty = Math.max(0, item.quantidade - 1);
+      const newStatus = newQty <= item.quantidadeMinima ? 'critico' : 'normal';
+
+      // Optimistic update
+      setEstoqueState(prev => prev.map(i => i.id === id ? { ...i, quantidade: newQty, status: newStatus } : i));
+
+      await api.updateEstoque(id, newQty, newStatus);
+    } catch (err) {
+      console.error(err);
+      loadEstoque(); // rollback on error
+    }
   };
 
   const faturamentoLiquido = mockFinanceiro.faturamentoTotal - mockFinanceiro.comissoesPagas;
