@@ -6,14 +6,14 @@ import { Prontuario } from './components/Prontuario';
 import { Comunicacao } from './components/Comunicacao';
 import { Gestao } from './components/Gestao';
 import { Auth } from './components/Auth';
-import { mockAgendamentosDia } from './data/mockData';
 import type { Agendamento, StatusJornada } from './types';
 import { supabase } from './lib/supabase';
 import { api } from './lib/api';
 
 function App() {
-  const [session, setSession] = useState<any>(null);
+  const [session, setSession] = useState<{ user: { id: string; user_metadata?: any } } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [darkMode, setDarkMode] = useState(false);
 
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
@@ -43,7 +43,7 @@ function App() {
   const loadData = async () => {
     try {
       const hoje = new Date().toISOString().split('T')[0];
-      const data = await api.getAgendamentos(session.user.id, hoje);
+      const data = await api.getAgendamentos(session!.user.id, hoje);
       setAgendamentos(data);
     } catch (err) {
       console.error('Erro ao carregar agendamentos:', err);
@@ -51,7 +51,7 @@ function App() {
   };
 
   // State Management: Update status in the clinical flow
-  const handleUpdateStatus = (id: string, newStatus: StatusJornada) => {
+  const handleUpdateStatus = async (id: string, newStatus: StatusJornada) => {
     setAgendamentos((prev) =>
       prev.map((a) => {
         if (a.id === id) {
@@ -99,15 +99,15 @@ function App() {
           dataNascimento: '1990-01-01',
           fotoUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150',
           dataUltimaVisita: new Date().toISOString().split('T')[0]
-        }, session.user.id);
+        }, session!.user.id);
         finalClienteId = novoCliente.id;
       }
 
-      const createdFromDb = await api.createAgendamento({
+      await api.createAgendamento({
         ...newAgendamento,
         clienteId: finalClienteId
-      }, session.user.id);
-      
+      }, session!.user.id);
+
       // Reload from DB to get the join (clienteNome, etc)
       loadData();
       
@@ -135,16 +135,23 @@ function App() {
   const userName = session.user?.user_metadata?.nome_clinica || 'Lumina Clinics';
 
   return (
-    <div className="app-container">
+    <div className={`app-container ${darkMode ? 'dark-theme' : ''}`}>
       <Sidebar currentTab={currentTab} setCurrentTab={setCurrentTab} userName={userName} />
 
-      <main className="main-content">
+      <main className="main-content" style={{ position: 'relative' }}>
+        <button 
+          onClick={() => setDarkMode(!darkMode)}
+          style={{ position: 'absolute', top: '24px', right: '32px', background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '8px 12px', cursor: 'pointer', zIndex: 100, color: 'var(--color-text-main)' }}
+        >
+          {darkMode ? '☀️ Light Mode' : '🌙 Dark Mode'}
+        </button>
         {currentTab === 'dashboard' && (
           <Dashboard 
             agendamentos={agendamentos} 
             onUpdateStatus={handleUpdateStatus} 
             onOpenProntuario={handleOpenProntuario}
             onAddAgendamento={handleAddAgendamento}
+            userName={userName}
           />
         )}
 

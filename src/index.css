@@ -26,6 +26,24 @@
   --border-radius-lg: 16px;
 }
 
+.dark-theme {
+  --bg-primary: #121212;
+  --bg-card: #1E1E1E;
+  --color-primary: #7EA191; /* Lighter Sage Green for contrast */
+  --color-primary-light: #2A3632; /* Darker tinted background */
+  --color-primary-dark: #A3C4B6;
+  --color-text-main: #EAEAEA;
+  --color-text-muted: #A0A8A4;
+  --color-border: #333333;
+  --color-border-hover: #4D4D4D;
+  --color-warning: #D98E73;
+  --color-warning-light: #4A3027;
+  --color-success: #7EA191;
+  --color-success-light: #2A3632;
+  --shadow-subtle: 0 4px 20px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.2);
+  --shadow-active: 0 8px 30px rgba(95, 125, 117, 0.15);
+}
+
 * {
   box-sizing: border-box;
   margin: 0;

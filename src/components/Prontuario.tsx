@@ -1,7 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import type { Cliente, ProntuarioEstetico, EvolucaoClinica } from '../types';
+import type { Cliente, EvolucaoClinica } from '../types';
 import { FileText, Camera, Plus } from 'lucide-react';
 import { api } from '../lib/api';
+
+interface GaleriaItem {
+  id: string;
+  imagemAntes: string;
+  dataAntes: string;
+  imagemDepois: string;
+  dataDepois: string;
+  descricao: string;
+}
 
 interface ProntuarioProps {
   selectedClienteId: string | null;
@@ -54,7 +63,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
   };
 
   const currentCliente = clientes.find(c => c.id === activeClienteId);
-  const currentProntuario = { clienteId: activeClienteId, evolucoes, galeria: [] };
+  const currentProntuario: { clienteId: string | null; evolucoes: EvolucaoClinica[]; galeria: GaleriaItem[] } = { clienteId: activeClienteId, evolucoes, galeria: [] };
 
   const handleAddEvolucao = async (e: React.FormEvent) => {
     e.preventDefault();

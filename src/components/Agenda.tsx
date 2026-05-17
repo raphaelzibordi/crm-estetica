@@ -285,9 +285,9 @@ export const Agenda: React.FC<AgendaProps> = ({ agendamentos, onAddAgendamento }
             </div>
           )}
 
-        </div>
-
       </div>
+    </div>
     </div>
   );
 };
+

@@ -2,7 +2,11 @@ import React, { useState } from 'react';
 import { mockClientesRetorno, mockTemplatesMensagens } from '../data/mockData';
 import { MessageSquare, Send, Heart, AlertCircle } from 'lucide-react';
 
-export const Comunicacao: React.FC = () => {
+interface ComunicacaoProps {
+  userId: string;
+}
+
+export const Comunicacao: React.FC<ComunicacaoProps> = () => {
   const [selectedAlertaIdx, setSelectedAlertaIdx] = useState<number>(0);
   const [editingText, setEditingText] = useState<string>('');
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');

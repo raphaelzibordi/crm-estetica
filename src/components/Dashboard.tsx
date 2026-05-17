@@ -7,13 +7,15 @@ interface DashboardProps {
   onUpdateStatus: (id: string, newStatus: StatusJornada) => void;
   onOpenProntuario: (clienteId: string) => void;
   onAddAgendamento: (agendamento: Omit<Agendamento, 'id'>) => void;
+  userName?: string;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ 
   agendamentos, 
   onUpdateStatus, 
   onOpenProntuario,
-  onAddAgendamento
+  onAddAgendamento,
+  userName
 }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newNome, setNewNome] = useState('');
@@ -60,7 +62,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
         <div>
           <h1 style={{ fontSize: '28px', color: 'var(--color-text-main)', marginBottom: '6px' }}>
-            Olá, Helena! Aqui está o ritmo da clínica hoje.
+            Olá, {userName || 'Helena'}! Aqui está o ritmo da clínica hoje.
           </h1>
           <p style={{ color: 'var(--color-text-muted)', fontSize: '14px' }}>
             Acompanhe a jornada de cuidados e proporcione uma experiência memorável.
@@ -71,7 +73,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           className="btn btn-primary"
         >
           <UserPlus size={16} />
-          <span>Acolher Nova Cliente</span>
+          <span>Acolher nova/novo paciente</span>
         </button>
       </div>
 
