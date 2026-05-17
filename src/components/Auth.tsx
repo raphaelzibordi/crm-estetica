@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
+import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { humanizeError } from '../lib/errors';
 import { Sparkles, User, Mail, Lock, Phone, MapPin, ArrowRight } from 'lucide-react';
 
 interface AuthProps {
-  onLogin: (session: any) => void;
+  onLogin: (session: Session | null) => void;
 }
 
 export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
 
   // Form states
   const [email, setEmail] = useState('');
@@ -18,52 +21,84 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const [telefone, setTelefone] = useState('');
   const [endereco, setEndereco] = useState('');
 
+  const resetForm = () => {
+    setEmail('');
+    setPassword('');
+    setNomeClinica('');
+    setTelefone('');
+    setEndereco('');
+  };
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setInfo(null);
 
     try {
       if (isLogin) {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
+        const { data, error: authError } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
           password,
         });
-        if (error) throw error;
+        if (authError) throw authError;
+        if (!data.session) {
+          throw new Error('Sessão inválida retornada pelo servidor.');
+        }
         onLogin(data.session);
       } else {
+        // Validações mínimas no client antes de bater no Supabase
+        if (!nomeClinica.trim()) throw new Error('Informe o nome da clínica.');
+        if (!endereco.trim()) throw new Error('Informe o endereço da clínica.');
+        if (!telefone.trim()) throw new Error('Informe um telefone de contato.');
+        if (password.length < 6)
+          throw new Error('A senha precisa ter no mínimo 6 caracteres.');
+
         const { data: authData, error: authError } = await supabase.auth.signUp({
-          email,
+          email: email.trim(),
           password,
           options: {
             data: {
               nome_clinica: nomeClinica,
               telefone,
-              endereco
-            }
-          }
+              endereco,
+            },
+          },
         });
         if (authError) throw authError;
-        
-        // Se precisar criar o registro na tabela usuarios explicitamente (opcional se houver trigger no Supabase)
-        if (authData.user) {
-          const { error: dbError } = await supabase.from('usuarios').insert([
-            {
-              id: authData.user.id,
-              nome_clinica: nomeClinica,
-              telefone,
-              endereco,
-              email
-            }
-          ]);
-          if (dbError) console.error('Erro ao salvar perfil no banco:', dbError);
-        }
 
-        alert('Cadastro realizado com sucesso! Você já pode fazer login.');
-        setIsLogin(true);
+        // Caso o projeto Supabase tenha confirmação de e-mail ativa, NÃO há sessão
+        // — o insert na tabela `usuarios` falharia por RLS. O ideal é o trigger
+        // `on_auth_user_created` (ver supabase_schema.sql).
+        // Se já houver sessão (confirmação desativada), tentamos criar o perfil.
+        if (authData.session && authData.user) {
+          const { error: dbError } = await supabase
+            .from('usuarios')
+            .upsert(
+              {
+                id: authData.user.id,
+                nome_clinica: nomeClinica,
+                telefone,
+                endereco,
+                email: email.trim(),
+              },
+              { onConflict: 'id' }
+            );
+          if (dbError) {
+            console.error('[Lumina] Erro ao salvar perfil no banco:', dbError);
+          }
+          onLogin(authData.session);
+        } else {
+          setInfo(
+            'Cadastro criado! Confirme seu e-mail para liberar o acesso ao Lumina e em seguida faça login.'
+          );
+          resetForm();
+          setIsLogin(true);
+        }
       }
-    } catch (err: any) {
-      setError(err.message || 'Ocorreu um erro durante a autenticação.');
+    } catch (err: unknown) {
+      const friendly = humanizeError(err);
+      setError(friendly.message);
     } finally {
       setLoading(false);
     }
@@ -85,7 +120,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
         animation: 'fadeIn 0.6s ease-out',
         boxShadow: '0 20px 40px rgba(0,0,0,0.08)'
       }}>
-        
+
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '56px', height: '56px', borderRadius: '50%', backgroundColor: 'var(--color-primary-light)', color: 'var(--color-primary)', marginBottom: '16px' }}>
             <Sparkles size={28} />
@@ -102,8 +137,14 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           </div>
         )}
 
+        {info && (
+          <div style={{ padding: '12px', backgroundColor: '#ECFDF5', color: '#065F46', borderRadius: '6px', fontSize: '13px', marginBottom: '24px', textAlign: 'center' }}>
+            {info}
+          </div>
+        )}
+
         <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          
+
           {!isLogin && (
             <>
               <div className="form-group" style={{ marginBottom: 0 }}>
@@ -154,9 +195,9 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
 
         <div style={{ marginTop: '32px', textAlign: 'center', fontSize: '14px', color: 'var(--color-text-muted)' }}>
           {isLogin ? 'Ainda não possui uma conta? ' : 'Já faz parte do Lumina? '}
-          <button 
-            type="button" 
-            onClick={() => { setIsLogin(!isLogin); setError(null); }}
+          <button
+            type="button"
+            onClick={() => { setIsLogin(!isLogin); setError(null); setInfo(null); }}
             style={{ background: 'none', border: 'none', color: 'var(--color-primary)', fontWeight: 600, cursor: 'pointer', padding: 0 }}
           >
             {isLogin ? 'Cadastre-se aqui' : 'Faça login'}

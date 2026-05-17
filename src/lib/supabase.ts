@@ -1,7 +1,33 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-// Fallback to empty strings to prevent crash if env vars are missing during dev
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? '';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const isSupabaseConfigured =
+  Boolean(supabaseUrl) && Boolean(supabaseAnonKey) && supabaseUrl.startsWith('http');
+
+if (!isSupabaseConfigured) {
+  console.error(
+    '[Lumina] Variáveis de ambiente do Supabase ausentes ou inválidas. ' +
+      'Verifique VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no arquivo .env.'
+  );
+}
+
+export const supabase: SupabaseClient = createClient(
+  supabaseUrl || 'http://invalid.local',
+  supabaseAnonKey || 'invalid-key',
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      storageKey: 'lumina.auth.session',
+      flowType: 'pkce',
+    },
+    global: {
+      headers: {
+        'X-Client-Info': 'lumina-crm-web',
+      },
+    },
+  }
+);

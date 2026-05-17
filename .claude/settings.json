@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(npm run *)",
+      "Bash(npm -v)",
+      "Bash(awk -F= '{print $1\"=\"\\(length\\($2\\)>20?substr\\($2,1,12\\)\"...[\"length\\($2\\)\" chars]\":$2\\)}' .env)"
+    ]
+  }
+}

@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import type { Session } from '@supabase/supabase-js';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { Agenda } from './components/Agenda';
@@ -7,11 +8,12 @@ import { Comunicacao } from './components/Comunicacao';
 import { Gestao } from './components/Gestao';
 import { Auth } from './components/Auth';
 import type { Agendamento, StatusJornada } from './types';
-import { supabase } from './lib/supabase';
+import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { api } from './lib/api';
+import { ApiError, isUnauthorized } from './lib/errors';
 
 function App() {
-  const [session, setSession] = useState<{ user: { id: string; user_metadata?: any } } | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
 
@@ -19,136 +21,250 @@ function App() {
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [selectedClienteId, setSelectedClienteId] = useState<string | null>(null);
 
+  // ============================================================
+  // GUARDA DE ROTA: bloqueio de acesso sem token válido
+  // ============================================================
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
-    });
+    let unsub = () => {};
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
+    (async () => {
+      try {
+        const {
+          data: { session: current },
+          error,
+        } = await supabase.auth.getSession();
+        if (error) {
+          console.error('[Lumina] Falha ao recuperar sessão:', error.message);
+        }
+        setSession(current ?? null);
+      } catch (err) {
+        console.error('[Lumina] Erro inesperado ao validar sessão:', err);
+        setSession(null);
+      } finally {
+        setLoading(false);
+      }
 
-    return () => subscription.unsubscribe();
+      const { data } = supabase.auth.onAuthStateChange((event, nextSession) => {
+        setSession(nextSession);
+
+        // Sessão revogada / expirada → limpa o estado e força tela de login
+        if (event === 'SIGNED_OUT' || (!nextSession && event !== 'INITIAL_SESSION')) {
+          setAgendamentos([]);
+          setSelectedClienteId(null);
+          setCurrentTab('dashboard');
+        }
+      });
+      unsub = () => data.subscription.unsubscribe();
+    })();
+
+    return () => unsub();
   }, []);
 
-  useEffect(() => {
-    if (session?.user?.id) {
-      loadData();
+  // ============================================================
+  // Carga inicial de dados quando há sessão válida
+  // ============================================================
+  const handleUnauthorized = useCallback(async (err: unknown) => {
+    if (isUnauthorized(err)) {
+      console.warn('[Lumina] Sessão expirada — efetuando signOut forçado.');
+      await supabase.auth.signOut();
+      setSession(null);
     }
-  }, [session]);
+  }, []);
 
-  const loadData = async () => {
+  const loadAgendamentosDoDia = useCallback(async () => {
+    if (!session?.user?.id) return;
     try {
       const hoje = new Date().toISOString().split('T')[0];
-      const data = await api.getAgendamentos(session!.user.id, hoje);
+      const data = await api.getAgendamentos(session.user.id, hoje);
       setAgendamentos(data);
     } catch (err) {
       console.error('Erro ao carregar agendamentos:', err);
+      await handleUnauthorized(err);
     }
-  };
+  }, [session?.user?.id, handleUnauthorized]);
 
-  // State Management: Update status in the clinical flow
+  useEffect(() => {
+    if (session?.user?.id) {
+      loadAgendamentosDoDia();
+    }
+  }, [session?.user?.id, loadAgendamentosDoDia]);
+
+  // ============================================================
+  // ATUALIZAÇÃO DE STATUS DA JORNADA
+  // ============================================================
   const handleUpdateStatus = async (id: string, newStatus: StatusJornada) => {
+    const horaAgora = new Date().toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    // Atualização otimista
     setAgendamentos((prev) =>
       prev.map((a) => {
-        if (a.id === id) {
-          const updated: Agendamento = { ...a, status: newStatus };
-          
-          // Custom flow automation: set arrival time & waiting times
-          if (newStatus === 'chegou') {
-            updated.horarioChegada = new Date().toLocaleTimeString('pt-BR', {
-              hour: '2-digit',
-              minute: '2-digit'
-            });
-            updated.tempoEsperaMinutos = 0;
-          } else if (newStatus === 'atendimento') {
-            // Keep previous waiting time or compute actual duration
-            updated.tempoEsperaMinutos = a.tempoEsperaMinutos || 10;
-          }
-          
-          return updated;
+        if (a.id !== id) return a;
+        const updated: Agendamento = { ...a, status: newStatus };
+        if (newStatus === 'chegou') {
+          updated.horarioChegada = horaAgora;
+          updated.tempoEsperaMinutos = 0;
+        } else if (newStatus === 'atendimento') {
+          updated.tempoEsperaMinutos = a.tempoEsperaMinutos ?? 10;
         }
-        return a;
+        return updated;
       })
     );
-    
-    // Persist in Supabase
+
     try {
-      const updates: any = { status: newStatus };
-      if (newStatus === 'chegou') updates.horarioChegada = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-      await api.updateAgendamentoStatus(id, updates);
+      const updates: Partial<Agendamento> = { status: newStatus };
+      if (newStatus === 'chegou') {
+        updates.horarioChegada = horaAgora;
+        updates.tempoEsperaMinutos = 0;
+      }
+      await api.updateAgendamentoStatus(id, updates, session?.user.id);
     } catch (err) {
-      console.error('Erro ao atualizar status', err);
+      console.error('Erro ao atualizar status:', err);
+      const msg = err instanceof ApiError ? err.message : 'Falha ao atualizar o status.';
+      alert(msg);
+      // Reverte estado em caso de falha
+      loadAgendamentosDoDia();
+      await handleUnauthorized(err);
     }
   };
 
-  // State Management: Add a new appointment in the agenda or flow
+  // ============================================================
+  // CRIAÇÃO DE AGENDAMENTO
+  // ============================================================
   const handleAddAgendamento = async (newAgendamento: Omit<Agendamento, 'id'>) => {
+    if (!session?.user?.id) return;
     try {
       let finalClienteId = newAgendamento.clienteId;
-      
-      // If temporary ID, create real client
-      if (finalClienteId.startsWith('c')) {
-        const novoCliente = await api.createCliente({
-          nome: newAgendamento.clienteNome,
-          telefone: '(00) 00000-0000',
-          email: 'novo@cliente.com',
-          dataNascimento: '1990-01-01',
-          fotoUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150',
-          dataUltimaVisita: new Date().toISOString().split('T')[0]
-        }, session!.user.id);
+
+      // IDs temporários (`c123`, `c_temp`) significam que o cliente
+      // foi criado em runtime no front e ainda não existe no banco.
+      const isTempId =
+        !finalClienteId ||
+        finalClienteId.startsWith('c_') ||
+        /^c\d+$/.test(finalClienteId);
+
+      if (isTempId) {
+        const novoCliente = await api.createCliente(
+          {
+            nome: newAgendamento.clienteNome,
+            telefone: '(00) 00000-0000',
+            email: '',
+            dataNascimento: '',
+            fotoUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150',
+            dataUltimaVisita: new Date().toISOString().split('T')[0],
+            statusRetencao: 'em_dia',
+            tags: [],
+          },
+          session.user.id
+        );
         finalClienteId = novoCliente.id;
       }
 
-      await api.createAgendamento({
-        ...newAgendamento,
-        clienteId: finalClienteId
-      }, session!.user.id);
+      await api.createAgendamento(
+        {
+          ...newAgendamento,
+          clienteId: finalClienteId,
+        },
+        session.user.id
+      );
 
-      // Reload from DB to get the join (clienteNome, etc)
-      loadData();
-      
+      await loadAgendamentosDoDia();
     } catch (err) {
-      console.error('Erro ao criar agendamento', err);
-      alert('Erro ao criar agendamento no banco.');
+      console.error('Erro ao criar agendamento:', err);
+      const msg =
+        err instanceof ApiError ? err.message : 'Erro ao criar agendamento no banco.';
+      alert(msg);
+      await handleUnauthorized(err);
     }
   };
 
-  // UX Shortcut: Click on client name in dashboard redirects straight to medical records
   const handleOpenProntuario = (clienteId: string) => {
     setSelectedClienteId(clienteId);
     setCurrentTab('prontuario');
   };
 
+  // ============================================================
+  // RENDERIZAÇÃO
+  // ============================================================
+  if (!isSupabaseConfigured) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '100vh',
+          padding: '24px',
+          textAlign: 'center',
+          backgroundColor: 'var(--color-bg)',
+          color: 'var(--color-text-main)',
+          gap: '12px',
+        }}
+      >
+        <strong>Configuração ausente</strong>
+        <span style={{ maxWidth: '480px', color: 'var(--color-text-muted)', fontSize: '14px' }}>
+          As variáveis <code>VITE_SUPABASE_URL</code> e <code>VITE_SUPABASE_ANON_KEY</code> não
+          foram encontradas. Configure o arquivo <code>.env</code> e reinicie o servidor.
+        </span>
+      </div>
+    );
+  }
+
   if (loading) {
-    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: 'var(--color-bg)' }}>Carregando Lumina...</div>;
+    return (
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '100vh',
+          backgroundColor: 'var(--color-bg)',
+        }}
+      >
+        Carregando Lumina...
+      </div>
+    );
   }
 
-  if (!session) {
-    return <Auth onLogin={setSession} />;
+  // GUARDA DE ROTA: sem sessão válida → tela de login obrigatória
+  if (!session || !session.user) {
+    return <Auth onLogin={(s) => setSession(s)} />;
   }
 
-  // Pass user info down (can fetch specific user profile later)
-  const userName = session.user?.user_metadata?.nome_clinica || 'Lumina Clinics';
+  const userName =
+    (session.user.user_metadata as { nome_clinica?: string } | undefined)?.nome_clinica ||
+    'Lumina Clinics';
 
   return (
     <div className={`app-container ${darkMode ? 'dark-theme' : ''}`}>
       <Sidebar currentTab={currentTab} setCurrentTab={setCurrentTab} userName={userName} />
 
       <main className="main-content" style={{ position: 'relative' }}>
-        <button 
+        <button
           onClick={() => setDarkMode(!darkMode)}
-          style={{ position: 'absolute', top: '24px', right: '32px', background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '8px 12px', cursor: 'pointer', zIndex: 100, color: 'var(--color-text-main)' }}
+          style={{
+            position: 'absolute',
+            top: '24px',
+            right: '32px',
+            background: 'var(--color-bg)',
+            border: '1px solid var(--color-border)',
+            borderRadius: '8px',
+            padding: '8px 12px',
+            cursor: 'pointer',
+            zIndex: 100,
+            color: 'var(--color-text-main)',
+          }}
         >
           {darkMode ? '☀️ Light Mode' : '🌙 Dark Mode'}
         </button>
+
         {currentTab === 'dashboard' && (
-          <Dashboard 
-            agendamentos={agendamentos} 
-            onUpdateStatus={handleUpdateStatus} 
+          <Dashboard
+            agendamentos={agendamentos}
+            onUpdateStatus={handleUpdateStatus}
             onOpenProntuario={handleOpenProntuario}
             onAddAgendamento={handleAddAgendamento}
             userName={userName}
@@ -156,26 +272,16 @@ function App() {
         )}
 
         {currentTab === 'agenda' && (
-          <Agenda 
-            agendamentos={agendamentos} 
-            onAddAgendamento={handleAddAgendamento}
-          />
+          <Agenda agendamentos={agendamentos} onAddAgendamento={handleAddAgendamento} />
         )}
 
         {currentTab === 'prontuario' && (
-          <Prontuario 
-            selectedClienteId={selectedClienteId} 
-            userId={session.user.id}
-          />
+          <Prontuario selectedClienteId={selectedClienteId} userId={session.user.id} />
         )}
 
-        {currentTab === 'comunicacao' && (
-          <Comunicacao userId={session.user.id} />
-        )}
+        {currentTab === 'comunicacao' && <Comunicacao userId={session.user.id} />}
 
-        {currentTab === 'gestao' && (
-          <Gestao userId={session.user.id} />
-        )}
+        {currentTab === 'gestao' && <Gestao userId={session.user.id} />}
       </main>
     </div>
   );
