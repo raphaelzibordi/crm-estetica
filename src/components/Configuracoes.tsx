@@ -6,6 +6,7 @@ import type { MembroEquipe } from '../types';
 interface ConfiguracoesProps {
   userId: string;
   userName?: string;
+  onProfileUpdate?: (update: { nome?: string; fotoUrl?: string }) => void;
 }
 
 type ActiveTab = 'perfil' | 'equipe';
@@ -21,11 +22,18 @@ const CARGOS_SUGERIDOS = [
   'Dermatologista',
 ];
 
-export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName }) => {
+export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, onProfileUpdate }) => {
   const [tab, setTab] = useState<ActiveTab>('perfil');
 
-  // ── Perfil state ──
+  // ── Perfil pessoal ──
   const [nomePerfil, setNomePerfil] = useState(userName || '');
+  const [telefonePessoal, setTelefonePessoal] = useState('');
+  const [dataNascimento, setDataNascimento] = useState('');
+  const [fotoUrl, setFotoUrl] = useState('');
+  const [savingFoto, setSavingFoto] = useState(false);
+  const fotoInputRef = React.useRef<HTMLInputElement>(null);
+
+  // ── Dados da clínica ──
   const [nomeClinica, setNomeClinica] = useState('');
   const [telefoneClinica, setTelefoneClinica] = useState('');
   const [enderecoClinica, setEnderecoClinica] = useState('');
@@ -51,6 +59,36 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName }
     catch (e) { console.error('Erro ao carregar equipe', e); }
   };
 
+  // ── Upload de foto de perfil ──
+  const handleFotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      alert('A imagem deve ter no máximo 2 MB.');
+      return;
+    }
+    setSavingFoto(true);
+    try {
+      const url = await api.uploadFotoPerfil(file, userId);
+      await api.upsertPerfil({ foto_url: url }, userId);
+      setFotoUrl(url);
+      onProfileUpdate?.({ fotoUrl: url });
+    } catch (err: any) {
+      alert(`Erro ao enviar foto: ${err?.message || err}`);
+    } finally {
+      setSavingFoto(false);
+      if (fotoInputRef.current) fotoInputRef.current.value = '';
+    }
+  };
+
+  const formatTelefone = (v: string) => {
+    const n = v.replace(/\D/g, '').slice(0, 11);
+    if (n.length <= 2)  return n.length ? `(${n}` : '';
+    if (n.length <= 6)  return `(${n.slice(0,2)}) ${n.slice(2)}`;
+    if (n.length <= 10) return `(${n.slice(0,2)}) ${n.slice(2,6)}-${n.slice(6)}`;
+    return `(${n.slice(0,2)}) ${n.slice(2,7)}-${n.slice(7)}`;
+  };
+
   const loadPerfil = async () => {
     try {
       const data = await api.getPerfil(userId);
@@ -59,6 +97,10 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName }
         setTelefoneClinica(data.telefone || '');
         setEnderecoClinica(data.endereco || '');
         setEmailClinica(data.email || '');
+        setNomePerfil(data.nome || userName || '');
+        setTelefonePessoal(data.telefone_pessoal || '');
+        setDataNascimento(data.data_nascimento || '');
+        setFotoUrl(data.foto_url || '');
       }
     } catch (e) { console.error(e); }
   };
@@ -68,11 +110,15 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName }
     setSavingPerfil(true);
     try {
       await api.upsertPerfil({
+        nome: nomePerfil,
         nome_clinica: nomeClinica,
         telefone: telefoneClinica,
+        telefone_pessoal: telefonePessoal.replace(/\D/g, '') ? telefonePessoal : undefined,
         endereco: enderecoClinica,
         email: emailClinica,
+        data_nascimento: dataNascimento || undefined,
       }, userId);
+      onProfileUpdate?.({ nome: nomePerfil });
       setPerfilOk(true);
       setTimeout(() => setPerfilOk(false), 3000);
     } catch (err: any) {
@@ -98,6 +144,7 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName }
     setSavingMembro(true);
     try {
       if (editingMembroId) {
+        // Edição: atualiza apenas os campos no banco (sem alterar a conta auth).
         const atualizado = await api.updateMembroEquipe(
           editingMembroId,
           { nome: mNome, email: mEmail, cargo: mCargo },
@@ -105,11 +152,20 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName }
         );
         setEquipe(prev => prev.map(m => (m.id === editingMembroId ? atualizado : m)));
       } else {
-        const novo = await api.createMembroEquipe(
-          { nome: mNome, email: mEmail, cargo: mCargo, ativo: true },
+        // Criação: cria a conta Supabase Auth + registro na tabela equipe.
+        if (!mSenha || mSenha.length < 6) {
+          alert('A senha provisória deve ter ao menos 6 caracteres.');
+          return;
+        }
+        const novo = await api.criarMembroEquipeComAcesso(
+          { nome: mNome, email: mEmail, senha: mSenha, cargo: mCargo },
           userId
         );
         setEquipe(prev => [...prev, novo]);
+        alert(
+          `Membro criado com sucesso!\n\nUm e-mail de confirmação foi enviado para ${mEmail}.\n` +
+          'O membro deverá confirmar o e-mail antes de fazer login.'
+        );
       }
       setShowMembroModal(false);
     } catch (err: any) {
@@ -188,18 +244,82 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName }
             </div>
           </div>
 
-          {/* Dados do Usuário */}
+          {/* Dados pessoais do usuário */}
           <div className="card" style={{ padding: '28px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
               <User size={16} style={{ color: 'var(--color-primary)' }} />
               <h3 style={{ fontSize: '16px', fontWeight: 600 }}>Meu Perfil</h3>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <div className="form-group">
-                <label className="form-label">Seu Nome / Nome na Plataforma</label>
-                <input className="form-input" value={nomePerfil} onChange={e => setNomePerfil(e.target.value)} placeholder="Dra. Helena Martins" />
+
+            {/* Avatar upload */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '24px' }}>
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                {fotoUrl ? (
+                  <img
+                    src={fotoUrl}
+                    alt="Foto de perfil"
+                    style={{ width: 72, height: 72, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--color-border)' }}
+                  />
+                ) : (
+                  <div style={{
+                    width: 72, height: 72, borderRadius: '50%',
+                    background: 'var(--color-primary-light)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: 'var(--color-primary)', fontWeight: 700, fontSize: '24px',
+                    border: '2px solid var(--color-border)',
+                  }}>
+                    {(nomePerfil || 'U').charAt(0).toUpperCase()}
+                  </div>
+                )}
+              </div>
+              <div>
+                <input
+                  ref={fotoInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  style={{ display: 'none' }}
+                  onChange={handleFotoUpload}
+                />
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  style={{ fontSize: '12px', padding: '6px 14px' }}
+                  onClick={() => fotoInputRef.current?.click()}
+                  disabled={savingFoto}
+                >
+                  {savingFoto ? 'Enviando...' : 'Alterar Foto'}
+                </button>
+                <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+                  JPEG, PNG ou WebP · Máx. 2 MB
+                </p>
               </div>
             </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div className="form-group">
+                <label className="form-label">Seu Nome</label>
+                <input className="form-input" value={nomePerfil} onChange={e => setNomePerfil(e.target.value)} placeholder="Dra. Helena Martins" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Telefone Pessoal</label>
+                <input
+                  className="form-input"
+                  value={telefonePessoal}
+                  onChange={e => setTelefonePessoal(formatTelefone(e.target.value))}
+                  placeholder="(11) 99999-9999"
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Data de Nascimento</label>
+                <input
+                  type="date"
+                  className="form-input"
+                  value={dataNascimento}
+                  onChange={e => setDataNascimento(e.target.value)}
+                />
+              </div>
+            </div>
+
             <div style={{ marginTop: '12px', padding: '12px', background: '#f8f8f6', borderRadius: '8px', fontSize: '12px', color: 'var(--color-text-muted)' }}>
               <Shield size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />
               Para alterar sua senha ou e-mail de acesso, utilize a opção de recuperação de senha na tela de login.

@@ -1,10 +1,25 @@
+export type UserRole = 'dono' | 'equipe';
+
 export interface Usuario {
-  id: string; // Supabase auth.users id
-  nome_clinica: string;
-  telefone: string;
+  id: string;
+  nome: string;            // nome pessoal
+  nomeClinica: string;
+  telefone: string;        // telefone da clínica
+  telefonePessoal: string;
   endereco: string;
   email: string;
+  dataNascimento: string;
+  fotoUrl: string;
+  role: UserRole;
+  ownerId: string | null;  // preenchido quando role = 'equipe'
   created_at?: string;
+}
+
+export interface UserProfile {
+  nome: string;
+  fotoUrl: string;
+  role: UserRole;
+  tenantId: string; // owner's user_id (for equipe) or own user_id (for dono)
 }
 
 export interface Cliente {

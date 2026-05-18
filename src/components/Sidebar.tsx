@@ -9,27 +9,41 @@ import {
   LogOut,
   ChevronUp,
   Settings,
+  User,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import type { UserRole } from '../types';
 
 interface SidebarProps {
   currentTab: string;
   setCurrentTab: (tab: string) => void;
   userName?: string;
+  userPhotoUrl?: string;
+  userRole?: UserRole;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, userName }) => {
+const ALL_MENU_ITEMS = [
+  { id: 'dashboard',   label: 'Jornada da Cliente', icon: LayoutDashboard, donoOnly: false },
+  { id: 'agenda',      label: 'Agenda Inteligente', icon: CalendarRange,   donoOnly: false },
+  { id: 'prontuario',  label: 'Prontuário Visual',  icon: ClipboardList,   donoOnly: false },
+  { id: 'comunicacao', label: 'CRM & Retenção',     icon: MessageSquareHeart, donoOnly: true },
+  { id: 'gestao',      label: 'Gestão da Clínica',  icon: TrendingUp,      donoOnly: true },
+];
+
+export const Sidebar: React.FC<SidebarProps> = ({
+  currentTab,
+  setCurrentTab,
+  userName,
+  userPhotoUrl,
+  userRole = 'dono',
+}) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const footerRef = useRef<HTMLDivElement | null>(null);
 
-  const menuItems = [
-    { id: 'dashboard', label: 'Jornada da Cliente', icon: LayoutDashboard },
-    { id: 'agenda', label: 'Agenda Inteligente', icon: CalendarRange },
-    { id: 'prontuario', label: 'Prontuário Visual', icon: ClipboardList },
-    { id: 'comunicacao', label: 'CRM & Retenção', icon: MessageSquareHeart },
-    { id: 'gestao', label: 'Gestão da Clínica', icon: TrendingUp },
-  ];
+  const menuItems = ALL_MENU_ITEMS.filter(
+    (item) => !item.donoOnly || userRole === 'dono'
+  );
 
   // Fecha o popover ao clicar fora
   useEffect(() => {
@@ -110,31 +124,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, use
               animation: 'fadeIn 0.15s ease-out',
             }}
           >
-            {/* Configurações */}
-            <button
-              type="button"
-              onClick={() => { setCurrentTab('configuracoes'); setMenuOpen(false); }}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                padding: '10px 12px',
-                background: 'transparent',
-                border: 'none',
-                borderRadius: 'var(--border-radius-sm)',
-                color: 'var(--color-text-main)',
-                fontSize: '13px',
-                fontWeight: 500,
-                cursor: 'pointer',
-                transition: 'var(--transition-smooth)',
-              }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-primary-light)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-            >
-              <Settings size={16} />
-              <span>Configurações</span>
-            </button>
+            {/* Configurações (apenas para dono) */}
+            {userRole === 'dono' && (
+              <button
+                type="button"
+                onClick={() => { setCurrentTab('configuracoes'); setMenuOpen(false); }}
+                style={{
+                  width: '100%', display: 'flex', alignItems: 'center', gap: '10px',
+                  padding: '10px 12px', background: 'transparent', border: 'none',
+                  borderRadius: 'var(--border-radius-sm)', color: 'var(--color-text-main)',
+                  fontSize: '13px', fontWeight: 500, cursor: 'pointer',
+                  transition: 'var(--transition-smooth)',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-primary-light)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                <Settings size={16} />
+                <span>Configurações</span>
+              </button>
+            )}
 
             {/* Linha divisora */}
             <div style={{ height: '1px', background: 'var(--color-border)', margin: '4px 6px' }} />
@@ -188,14 +196,30 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, use
           aria-expanded={menuOpen}
           aria-haspopup="menu"
         >
-          <img
-            src="https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=150"
-            alt="Dra. Helena Martins"
-            className="user-avatar"
-          />
+          {userPhotoUrl ? (
+            <img
+              src={userPhotoUrl}
+              alt={userName || 'Perfil'}
+              className="user-avatar"
+              style={{ objectFit: 'cover' }}
+            />
+          ) : (
+            <div
+              className="user-avatar"
+              style={{
+                background: 'var(--color-primary-light)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: 'var(--color-primary)',
+              }}
+            >
+              <User size={18} />
+            </div>
+          )}
           <div className="user-info" style={{ flex: 1 }}>
-            <span className="user-name">{userName || 'Dra. Helena Martins'}</span>
-            <span className="user-role">Diretora Clínica</span>
+            <span className="user-name">{userName || 'Usuário'}</span>
+            <span className="user-role">
+              {userRole === 'equipe' ? 'Membro da Equipe' : 'Dono da Clínica'}
+            </span>
           </div>
           <ChevronUp
             size={14}

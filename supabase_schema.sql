@@ -349,3 +349,163 @@ begin
     perform public.seed_default_data(rec.id);
   end loop;
 end $$;
+
+-- =================================================================
+-- 13. Novos campos em usuarios: perfil pessoal + controle de acesso
+-- =================================================================
+alter table public.usuarios
+  add column if not exists nome             text,
+  add column if not exists data_nascimento  date,
+  add column if not exists foto_url         text,
+  add column if not exists role             text not null default 'dono',
+  add column if not exists owner_id         uuid references public.usuarios(id);
+
+-- Garante que donos existentes mantenham role = 'dono'
+update public.usuarios set role = 'dono' where role is null or role = '';
+
+-- =================================================================
+-- 14. Trigger atualizado: lê role e owner_id do user_metadata
+--     e semeia dados apenas para o dono da clínica (role = 'dono').
+-- =================================================================
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.usuarios (id, email, nome_clinica, telefone, endereco, role, owner_id)
+  values (
+    new.id,
+    new.email,
+    coalesce(new.raw_user_meta_data->>'nome_clinica', ''),
+    coalesce(new.raw_user_meta_data->>'telefone', ''),
+    coalesce(new.raw_user_meta_data->>'endereco', ''),
+    coalesce(new.raw_user_meta_data->>'role', 'dono'),
+    (new.raw_user_meta_data->>'owner_id')::uuid
+  )
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+create or replace function public.handle_new_usuario_seed()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  -- Somente o dono da clínica recebe dados iniciais de seed.
+  if new.role = 'dono' then
+    perform public.seed_default_data(new.id);
+  end if;
+  return new;
+end;
+$$;
+
+-- =================================================================
+-- 15. Função auxiliar: resolve o tenant efetivo para membros da equipe.
+--     Membros da equipe operam sobre os dados do seu dono (owner_id).
+-- =================================================================
+create or replace function public.get_tenant_id()
+returns uuid
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(
+    (select owner_id from public.usuarios
+      where id = auth.uid() and role = 'equipe'),
+    auth.uid()
+  );
+$$;
+
+-- =================================================================
+-- 16. Políticas RLS atualizadas: donos acessam seus dados, membros
+--     da equipe acessam os dados do dono via get_tenant_id().
+-- =================================================================
+
+-- usuarios: dono vê/altera o próprio perfil; membro vê também o perfil do dono
+drop policy if exists "Users can view own profile"   on public.usuarios;
+drop policy if exists "Users can update own profile" on public.usuarios;
+drop policy if exists "Users can insert own profile" on public.usuarios;
+
+create policy "usuarios_select" on public.usuarios for select
+  using (
+    id = auth.uid()
+    or id = (select owner_id from public.usuarios where id = auth.uid() and role = 'equipe')
+  );
+create policy "usuarios_update" on public.usuarios for update
+  using (id = auth.uid());
+create policy "usuarios_insert" on public.usuarios for insert
+  with check (id = auth.uid());
+
+-- clientes
+drop policy if exists "Users can manage their own clients" on public.clientes;
+create policy "clientes_all" on public.clientes for all
+  using  (user_id = public.get_tenant_id())
+  with check (user_id = public.get_tenant_id());
+
+-- agendamentos
+drop policy if exists "Users can manage their own appointments" on public.agendamentos;
+create policy "agendamentos_all" on public.agendamentos for all
+  using  (user_id = public.get_tenant_id())
+  with check (user_id = public.get_tenant_id());
+
+-- prontuarios_evolucoes
+drop policy if exists "Users can manage their own evolutions" on public.prontuarios_evolucoes;
+create policy "evolucoes_all" on public.prontuarios_evolucoes for all
+  using  (user_id = public.get_tenant_id())
+  with check (user_id = public.get_tenant_id());
+
+-- estoque
+drop policy if exists "Users can manage their own stock" on public.estoque;
+create policy "estoque_all" on public.estoque for all
+  using  (user_id = public.get_tenant_id())
+  with check (user_id = public.get_tenant_id());
+
+-- procedimentos
+drop policy if exists "Users can manage their own procedures" on public.procedimentos;
+create policy "procedimentos_all" on public.procedimentos for all
+  using  (user_id = public.get_tenant_id())
+  with check (user_id = public.get_tenant_id());
+
+-- templates_mensagens
+drop policy if exists "Users can manage their own templates" on public.templates_mensagens;
+create policy "templates_all" on public.templates_mensagens for all
+  using  (user_id = public.get_tenant_id())
+  with check (user_id = public.get_tenant_id());
+
+-- galeria_antes_depois
+drop policy if exists "Users can manage their own gallery" on public.galeria_antes_depois;
+create policy "galeria_all" on public.galeria_antes_depois for all
+  using  (user_id = public.get_tenant_id())
+  with check (user_id = public.get_tenant_id());
+
+-- equipe
+drop policy if exists "Users can manage their own team" on public.equipe;
+create policy "equipe_all" on public.equipe for all
+  using  (user_id = public.get_tenant_id())
+  with check (user_id = public.get_tenant_id());
+
+-- =================================================================
+-- 17. Storage bucket para fotos de perfil (execute uma vez no painel
+--     Supabase: Storage → New bucket → "avatars" → Public = true).
+--     O SQL abaixo cria o bucket e as políticas de acesso se o schema
+--     storage estiver disponível neste contexto.
+-- =================================================================
+insert into storage.buckets (id, name, public)
+values ('avatars', 'avatars', true)
+on conflict (id) do nothing;
+
+drop policy if exists "Avatar upload by owner"  on storage.objects;
+drop policy if exists "Avatar public read"       on storage.objects;
+
+create policy "Avatar upload by owner" on storage.objects
+  for insert with check (
+    bucket_id = 'avatars' and auth.uid()::text = (storage.foldername(name))[1]
+  );
+create policy "Avatar public read" on storage.objects
+  for select using (bucket_id = 'avatars');

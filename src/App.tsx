@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
@@ -8,19 +8,37 @@ import { Comunicacao } from './components/Comunicacao';
 import { Gestao } from './components/Gestao';
 import { Auth } from './components/Auth';
 import { Configuracoes } from './components/Configuracoes';
-import type { Agendamento, StatusJornada } from './types';
+import type { Agendamento, StatusJornada, UserRole } from './types';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { api } from './lib/api';
 import { ApiError, isUnauthorized } from './lib/errors';
+
+// Abas que membros da equipe NÃO podem acessar.
+const TABS_BLOQUEADAS_EQUIPE = new Set(['comunicacao', 'gestao', 'configuracoes']);
 
 function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Perfil do usuário logado (resolvido após sessão).
+  const [userRole, setUserRole]     = useState<UserRole>('dono');
+  const [userPhotoUrl, setUserPhotoUrl] = useState('');
+  const [userName, setUserName]     = useState('');
+  const [tenantId, setTenantId]     = useState<string>(''); // ID usado em todas as chamadas de API
 
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [selectedClienteId, setSelectedClienteId] = useState<string | null>(null);
+
+  // Guarda de rota para membros da equipe: redireciona para 'dashboard' se tentarem
+  // acessar aba bloqueada (inclusive via setCurrentTab direto).
+  const setCurrentTabSafe = useCallback((tab: string) => {
+    if (userRole === 'equipe' && TABS_BLOQUEADAS_EQUIPE.has(tab)) return;
+    setCurrentTab(tab);
+  }, [userRole]);
+
+  // Evita loop: só busca perfil quando session.user.id muda.
+  const lastProfileUid = useRef<string | null>(null);
 
   // ============================================================
   // GUARDA DE ROTA: bloqueio de acesso sem token válido
@@ -48,11 +66,15 @@ function App() {
       const { data } = supabase.auth.onAuthStateChange((event, nextSession) => {
         setSession(nextSession);
 
-        // Sessão revogada / expirada → limpa o estado e força tela de login
         if (event === 'SIGNED_OUT' || (!nextSession && event !== 'INITIAL_SESSION')) {
           setAgendamentos([]);
           setSelectedClienteId(null);
           setCurrentTab('dashboard');
+          setUserRole('dono');
+          setUserPhotoUrl('');
+          setUserName('');
+          setTenantId('');
+          lastProfileUid.current = null;
         }
       });
       unsub = () => data.subscription.unsubscribe();
@@ -60,6 +82,39 @@ function App() {
 
     return () => unsub();
   }, []);
+
+  // ============================================================
+  // Carga do perfil do usuário (role, foto, nome, tenantId)
+  // ============================================================
+  useEffect(() => {
+    const uid = session?.user?.id;
+    if (!uid || lastProfileUid.current === uid) return;
+    lastProfileUid.current = uid;
+
+    (async () => {
+      try {
+        const profile = await api.getUserProfile(uid);
+        setUserRole(profile.role);
+        setUserPhotoUrl(profile.fotoUrl);
+        setTenantId(profile.tenantId);
+        // Prioridade: nome do perfil > metadata do auth > fallback
+        setUserName(
+          profile.nome ||
+          (session.user.user_metadata as any)?.nome_clinica ||
+          'Lumina'
+        );
+        // Membro da equipe na aba bloqueada: redireciona.
+        if (profile.role === 'equipe' && TABS_BLOQUEADAS_EQUIPE.has(currentTab)) {
+          setCurrentTab('dashboard');
+        }
+      } catch (err) {
+        console.error('[Lumina] Erro ao carregar perfil:', err);
+        // Fallback seguro: trata como dono sem foto
+        setTenantId(uid);
+        setUserName((session.user.user_metadata as any)?.nome_clinica || 'Lumina');
+      }
+    })();
+  }, [session?.user?.id, currentTab]);
 
   // ============================================================
   // Carga inicial de dados quando há sessão válida
@@ -73,22 +128,20 @@ function App() {
   }, []);
 
   const loadAgendamentosDoDia = useCallback(async () => {
-    if (!session?.user?.id) return;
+    if (!tenantId) return;
     try {
       const hoje = new Date().toISOString().split('T')[0];
-      const data = await api.getAgendamentos(session.user.id, hoje);
+      const data = await api.getAgendamentos(tenantId, hoje);
       setAgendamentos(data);
     } catch (err) {
       console.error('Erro ao carregar agendamentos:', err);
       await handleUnauthorized(err);
     }
-  }, [session?.user?.id, handleUnauthorized]);
+  }, [tenantId, handleUnauthorized]);
 
   useEffect(() => {
-    if (session?.user?.id) {
-      loadAgendamentosDoDia();
-    }
-  }, [session?.user?.id, loadAgendamentosDoDia]);
+    if (tenantId) loadAgendamentosDoDia();
+  }, [tenantId, loadAgendamentosDoDia]);
 
   // ============================================================
   // ATUALIZAÇÃO DE STATUS DA JORNADA
@@ -129,7 +182,7 @@ function App() {
       if (newStatus === 'finalizada' && extras?.metodoPagamento) {
         updates.metodoPagamento = extras.metodoPagamento;
       }
-      await api.updateAgendamentoStatus(id, updates, session?.user.id);
+      await api.updateAgendamentoStatus(id, updates, tenantId || session?.user.id);
     } catch (err) {
       console.error('Erro ao atualizar status:', err);
       const msg = err instanceof ApiError ? err.message : 'Falha ao atualizar o status.';
@@ -147,12 +200,10 @@ function App() {
     newAgendamento: Omit<Agendamento, 'id'>,
     extra?: { telefone?: string }
   ) => {
-    if (!session?.user?.id) return;
+    if (!tenantId) return;
     try {
       let finalClienteId = newAgendamento.clienteId;
 
-      // IDs temporários (`c123`, `c_temp`) significam que o cliente
-      // foi criado em runtime no front e ainda não existe no banco.
       const isTempId =
         !finalClienteId ||
         finalClienteId.startsWith('c_') ||
@@ -170,28 +221,18 @@ function App() {
             statusRetencao: 'em_dia',
             tags: [],
           },
-          session.user.id
+          tenantId
         );
         finalClienteId = novoCliente.id;
       }
 
-      await api.createAgendamento(
-        {
-          ...newAgendamento,
-          clienteId: finalClienteId,
-        },
-        session.user.id
-      );
+      await api.createAgendamento({ ...newAgendamento, clienteId: finalClienteId }, tenantId);
 
-      // Recarrega só se o agendamento criado for para HOJE (o dashboard só mostra hoje)
       const hoje = new Date().toISOString().split('T')[0];
-      if (newAgendamento.data === hoje) {
-        await loadAgendamentosDoDia();
-      }
+      if (newAgendamento.data === hoje) await loadAgendamentosDoDia();
     } catch (err) {
       console.error('Erro ao criar agendamento:', err);
-      const msg =
-        err instanceof ApiError ? err.message : 'Erro ao criar agendamento no banco.';
+      const msg = err instanceof ApiError ? err.message : 'Erro ao criar agendamento no banco.';
       alert(msg);
       await handleUnauthorized(err);
     }
@@ -203,9 +244,9 @@ function App() {
   };
 
   const handleDeleteAgendamento = async (id: string) => {
-    if (!session?.user?.id) return;
+    if (!tenantId) return;
     try {
-      await api.deleteAgendamento(id, session.user.id);
+      await api.deleteAgendamento(id, tenantId);
       await loadAgendamentosDoDia();
     } catch (err) {
       console.error('Erro ao deletar agendamento:', err);
@@ -264,13 +305,18 @@ function App() {
     return <Auth onLogin={(s) => setSession(s)} />;
   }
 
-  const userName =
-    (session.user.user_metadata as { nome_clinica?: string } | undefined)?.nome_clinica ||
-    'Lumina Clinics';
+  // Enquanto o perfil ainda não foi resolvido após login, usa o tenantId = user.id
+  const effectiveTenantId = tenantId || session.user.id;
 
   return (
     <div className="app-container">
-      <Sidebar currentTab={currentTab} setCurrentTab={setCurrentTab} userName={userName} />
+      <Sidebar
+        currentTab={currentTab}
+        setCurrentTab={setCurrentTabSafe}
+        userName={userName}
+        userPhotoUrl={userPhotoUrl}
+        userRole={userRole}
+      />
 
       <main className="main-content">
 
@@ -281,14 +327,14 @@ function App() {
             onOpenProntuario={handleOpenProntuario}
             onAddAgendamento={handleAddAgendamento}
             onDeleteAgendamento={handleDeleteAgendamento}
-            userId={session.user.id}
+            userId={effectiveTenantId}
             userName={userName}
           />
         )}
 
         {currentTab === 'agenda' && (
           <Agenda
-            userId={session.user.id}
+            userId={effectiveTenantId}
             userName={userName}
             agendamentos={agendamentos}
             onAddAgendamento={handleAddAgendamento}
@@ -298,15 +344,27 @@ function App() {
         )}
 
         {currentTab === 'prontuario' && (
-          <Prontuario selectedClienteId={selectedClienteId} userId={session.user.id} />
+          <Prontuario selectedClienteId={selectedClienteId} userId={effectiveTenantId} />
         )}
 
-        {currentTab === 'comunicacao' && <Comunicacao userId={session.user.id} />}
+        {/* Abas restritas: apenas donos chegam aqui (setCurrentTabSafe bloqueia equipe) */}
+        {currentTab === 'comunicacao' && userRole === 'dono' && (
+          <Comunicacao userId={effectiveTenantId} />
+        )}
 
-        {currentTab === 'gestao' && <Gestao userId={session.user.id} />}
+        {currentTab === 'gestao' && userRole === 'dono' && (
+          <Gestao userId={effectiveTenantId} />
+        )}
 
-        {currentTab === 'configuracoes' && (
-          <Configuracoes userId={session.user.id} userName={userName} />
+        {currentTab === 'configuracoes' && userRole === 'dono' && (
+          <Configuracoes
+            userId={session.user.id}
+            userName={userName}
+            onProfileUpdate={({ nome, fotoUrl }) => {
+              if (nome !== undefined) setUserName(nome);
+              if (fotoUrl !== undefined) setUserPhotoUrl(fotoUrl);
+            }}
+          />
         )}
       </main>
     </div>
