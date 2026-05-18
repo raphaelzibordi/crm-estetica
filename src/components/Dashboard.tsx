@@ -464,12 +464,30 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
                 <div className="form-group">
                   <label className="form-label">Horário de Início</label>
-                  <input
-                    type="time"
-                    className="form-input"
-                    value={newHora}
-                    onChange={(e) => setNewHora(e.target.value)}
-                  />
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <select
+                      className="form-select"
+                      style={{ flex: 1 }}
+                      value={newHora.split(':')[0]}
+                      onChange={(e) => setNewHora(`${e.target.value}:${newHora.split(':')[1] || '00'}`)}
+                    >
+                      {Array.from({ length: 15 }, (_, i) => i + 8).map(h => {
+                        const hr = h.toString().padStart(2, '0');
+                        return <option key={hr} value={hr}>{hr}h</option>;
+                      })}
+                    </select>
+                    <span style={{ display: 'flex', alignItems: 'center', fontWeight: 600, color: 'var(--color-text-main)' }}>:</span>
+                    <select
+                      className="form-select"
+                      style={{ flex: 1 }}
+                      value={newHora.split(':')[1] || '00'}
+                      onChange={(e) => setNewHora(`${newHora.split(':')[0] || '08'}:${e.target.value}`)}
+                    >
+                      {['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'].map(m => (
+                        <option key={m} value={m}>{m}m</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
 
