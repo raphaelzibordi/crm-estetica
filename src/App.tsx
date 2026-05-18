@@ -15,7 +15,7 @@ import { ApiError, isUnauthorized } from './lib/errors';
 function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
+
 
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
@@ -92,7 +92,11 @@ function App() {
   // ============================================================
   // ATUALIZAÇÃO DE STATUS DA JORNADA
   // ============================================================
-  const handleUpdateStatus = async (id: string, newStatus: StatusJornada) => {
+  const handleUpdateStatus = async (
+    id: string,
+    newStatus: StatusJornada,
+    extras?: { metodoPagamento?: Agendamento['metodoPagamento'] }
+  ) => {
     const horaAgora = new Date().toLocaleTimeString('pt-BR', {
       hour: '2-digit',
       minute: '2-digit',
@@ -108,6 +112,8 @@ function App() {
           updated.tempoEsperaMinutos = 0;
         } else if (newStatus === 'atendimento') {
           updated.tempoEsperaMinutos = a.tempoEsperaMinutos ?? 10;
+        } else if (newStatus === 'finalizada' && extras?.metodoPagamento) {
+          updated.metodoPagamento = extras.metodoPagamento;
         }
         return updated;
       })
@@ -118,6 +124,9 @@ function App() {
       if (newStatus === 'chegou') {
         updates.horarioChegada = horaAgora;
         updates.tempoEsperaMinutos = 0;
+      }
+      if (newStatus === 'finalizada' && extras?.metodoPagamento) {
+        updates.metodoPagamento = extras.metodoPagamento;
       }
       await api.updateAgendamentoStatus(id, updates, session?.user.id);
     } catch (err) {
@@ -259,27 +268,10 @@ function App() {
     'Lumina Clinics';
 
   return (
-    <div className={`app-container ${darkMode ? 'dark-theme' : ''}`}>
+    <div className="app-container">
       <Sidebar currentTab={currentTab} setCurrentTab={setCurrentTab} userName={userName} />
 
-      <main className="main-content" style={{ position: 'relative' }}>
-        <button
-          onClick={() => setDarkMode(!darkMode)}
-          style={{
-            position: 'absolute',
-            top: '24px',
-            right: '32px',
-            background: 'var(--color-bg)',
-            border: '1px solid var(--color-border)',
-            borderRadius: '8px',
-            padding: '8px 12px',
-            cursor: 'pointer',
-            zIndex: 100,
-            color: 'var(--color-text-main)',
-          }}
-        >
-          {darkMode ? '☀️ Light Mode' : '🌙 Dark Mode'}
-        </button>
+      <main className="main-content">
 
         {currentTab === 'dashboard' && (
           <Dashboard
@@ -288,6 +280,7 @@ function App() {
             onOpenProntuario={handleOpenProntuario}
             onAddAgendamento={handleAddAgendamento}
             onDeleteAgendamento={handleDeleteAgendamento}
+            userId={session.user.id}
             userName={userName}
           />
         )}

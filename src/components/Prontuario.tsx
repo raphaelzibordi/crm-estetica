@@ -1,14 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import type { Cliente, EvolucaoClinica } from '../types';
+import type { Cliente, EvolucaoClinica, GaleriaItem, Procedimento } from '../types';
 import { FileText, Camera, Plus, Trash2, Edit2, User } from 'lucide-react';
 import { api } from '../lib/api';
-
-interface GaleriaItem {
-  id: string;
-  imagem: string;
-  data: string;
-  descricao: string;
-}
 
 interface ProntuarioProps {
   selectedClienteId: string | null;
@@ -24,8 +17,9 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
   
   // States for adding a new clinical evolution
   const [newEvolucaoText, setNewEvolucaoText] = useState('');
-  const [newEvolucaoProc, setNewEvolucaoProc] = useState('Toxina Botulínica (Botox)');
+  const [newEvolucaoProc, setNewEvolucaoProc] = useState('');
   const [newEvolucaoObs, setNewEvolucaoObs] = useState('');
+  const [procedimentos, setProcedimentos] = useState<Procedimento[]>([]);
 
   // States for patient details editing
   const [isEditing, setIsEditing] = useState(false);
@@ -47,7 +41,21 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
 
   useEffect(() => {
     loadClientes();
+    loadProcedimentos();
   }, [userId]);
+
+  const loadProcedimentos = async () => {
+    try {
+      await api.ensureSeedData(userId).catch(() => {});
+      const data = await api.getProcedimentos(userId);
+      setProcedimentos(data);
+      if (data.length > 0) {
+        setNewEvolucaoProc((curr) => curr || data[0].nome);
+      }
+    } catch (err) {
+      console.error('Erro ao carregar procedimentos:', err);
+    }
+  };
 
   const currentCliente = clientes.find(c => c.id === activeClienteId);
 
@@ -83,58 +91,24 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
   };
 
   useEffect(() => {
-    if (activeClienteId) {
-      const stored = localStorage.getItem(`galeria_${activeClienteId}`);
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          let needsSave = false;
-          
-          const migrated = parsed.flatMap((item: any) => {
-            // Migrate legacy before/after pair to two individual photos
-            if (item.imagemAntes || item.imagemDepois) {
-              needsSave = true;
-              const items = [];
-              if (item.imagemAntes) {
-                items.push({
-                  id: `${item.id}_antes`,
-                  imagem: item.imagemAntes,
-                  data: item.dataAntes || new Date().toISOString().split('T')[0],
-                  descricao: `${item.descricao} (Antes)`
-                });
-              }
-              if (item.imagemDepois) {
-                items.push({
-                  id: `${item.id}_depois`,
-                  imagem: item.imagemDepois,
-                  data: item.dataDepois || new Date().toISOString().split('T')[0],
-                  descricao: `${item.descricao} (Evolução)`
-                });
-              }
-              return items;
-            }
-            
-            // If it is already in the new schema format
-            if (item.imagem) {
-              return [item];
-            }
-            return [];
-          });
-
-          setGaleriaItems(migrated);
-          
-          if (needsSave) {
-            localStorage.setItem(`galeria_${activeClienteId}`, JSON.stringify(migrated));
-          }
-        } catch (err) {
-          console.error(err);
-          setGaleriaItems([]);
-        }
-      } else {
+    let cancelled = false;
+    (async () => {
+      if (!activeClienteId) {
         setGaleriaItems([]);
+        return;
       }
-    }
-  }, [activeClienteId]);
+      try {
+        const data = await api.getGaleria(userId, activeClienteId);
+        if (!cancelled) setGaleriaItems(data);
+      } catch (err) {
+        console.error('Erro ao carregar galeria:', err);
+        if (!cancelled) setGaleriaItems([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeClienteId, userId]);
 
   const formatDataNascimento = (value: string) => {
     const numbersOnly = value.replace(/\D/g, '');
@@ -226,39 +200,47 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
     reader.readAsDataURL(file);
   };
 
-  const handleSavePhotos = (e: React.FormEvent) => {
+  const handleSavePhotos = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!photoFile) {
+    if (!photoFile || !activeClienteId) {
       alert('Por favor, selecione uma imagem de evolução.');
       return;
     }
 
-    const newItem: GaleriaItem = {
-      id: Math.random().toString(36).substring(2, 9),
-      imagem: photoFile,
-      data: new Date().toISOString().split('T')[0],
-      descricao: photoDesc.trim() || 'Sem descrição.'
-    };
+    try {
+      const created = await api.createGaleriaItem(
+        activeClienteId,
+        {
+          imagem: photoFile,
+          data: new Date().toISOString().split('T')[0],
+          descricao: photoDesc.trim() || 'Sem descrição.',
+        },
+        userId
+      );
 
-    const updated = [newItem, ...galeriaItems];
-    setGaleriaItems(updated);
-    localStorage.setItem(`galeria_${activeClienteId}`, JSON.stringify(updated));
+      setGaleriaItems((prev) => [created, ...prev]);
 
-    // Reset fields
-    setPhotoFile('');
-    setFileName('');
-    setPhotoDesc('');
-    setShowAddPhoto(false);
-    alert('Nova imagem de evolução adicionada com sucesso!');
+      setPhotoFile('');
+      setFileName('');
+      setPhotoDesc('');
+      setShowAddPhoto(false);
+      alert('Nova imagem de evolução adicionada com sucesso!');
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao salvar imagem de evolução.');
+    }
   };
 
-  const handleDeletePhoto = (itemId: string) => {
+  const handleDeletePhoto = async (itemId: string) => {
     if (!confirm('Deseja realmente remover esta foto de evolução?')) return;
 
-    const updated = galeriaItems.filter(item => item.id !== itemId);
-    setGaleriaItems(updated);
-    localStorage.setItem(`galeria_${activeClienteId}`, JSON.stringify(updated));
-    alert('Foto de evolução removida com sucesso!');
+    try {
+      await api.deleteGaleriaItem(itemId, userId);
+      setGaleriaItems((prev) => prev.filter((item) => item.id !== itemId));
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao remover foto de evolução.');
+    }
   };
 
   const handleDeleteCliente = async () => {
@@ -804,16 +786,18 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
               <form onSubmit={handleAddEvolucao}>
                 <div className="form-group">
                   <label className="form-label">Procedimento Realizado</label>
-                  <select 
+                  <select
                     className="form-select"
                     value={newEvolucaoProc}
                     onChange={(e) => setNewEvolucaoProc(e.target.value)}
                   >
-                    <option value="Toxina Botulínica (Botox)">Toxina Botulínica (Botox)</option>
-                    <option value="Lavieen (Pele de Porcelana)">Lavieen (Pele de Porcelana)</option>
-                    <option value="Preenchimento com Ácido Hialurônico">Preenchimento com Ácido Hialurônico</option>
-                    <option value="Bioestimulador de Colágeno (Radiesse)">Bioestimulador de Colágeno (Radiesse)</option>
-                    <option value="Peeling Químico Renovador">Peeling Químico Renovador</option>
+                    {procedimentos.length === 0 ? (
+                      <option value="">Cadastre procedimentos primeiro</option>
+                    ) : (
+                      procedimentos.map((p) => (
+                        <option key={p.id} value={p.nome}>{p.nome}</option>
+                      ))
+                    )}
                   </select>
                 </div>
 

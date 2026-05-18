@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import type { Agendamento } from '../types';
+import type { Agendamento, Procedimento } from '../types';
 import { Users, Clock, Sparkles, ChevronLeft, ChevronRight, CalendarRange } from 'lucide-react';
-import { mockProcedimentos } from '../data/mockData';
 import { api } from '../lib/api';
 
 interface AgendaProps {
@@ -74,8 +73,11 @@ export const Agenda: React.FC<AgendaProps> = ({
   const [yearData, setYearData] = useState<Agendamento[]>([]);
   const [loadingRange, setLoadingRange] = useState(false);
 
+  // Catálogo de procedimentos vindo do banco
+  const [procedimentos, setProcedimentos] = useState<Procedimento[]>([]);
+
   // Encaixe ideal (visão Hoje)
-  const [selectedProcedimento, setSelectedProcedimento] = useState<string>(mockProcedimentos[0].id);
+  const [selectedProcedimento, setSelectedProcedimento] = useState<string>('');
   const [selectedProfessional, setSelectedProfessional] = useState<string>('Dra. Helena Martins');
   const [sugestoes, setSugestoes] = useState<{
     hora: string;
@@ -92,9 +94,31 @@ export const Agenda: React.FC<AgendaProps> = ({
   const [showAddModal, setShowAddModal] = useState(false);
   const [newNome, setNewNome] = useState('');
   const [newTelefone, setNewTelefone] = useState('');
-  const [newProcedimento, setNewProcedimento] = useState('Toxina Botulínica (Botox)');
+  const [newProcedimento, setNewProcedimento] = useState('');
   const [newData, setNewData] = useState('');
   const [newHora, setNewHora] = useState('');
+
+  // Carrega procedimentos do banco (com fallback de seed)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        await api.ensureSeedData(userId).catch(() => {});
+        const data = await api.getProcedimentos(userId);
+        if (cancelled) return;
+        setProcedimentos(data);
+        if (data.length > 0) {
+          setSelectedProcedimento((curr) => curr || data[0].id);
+          setNewProcedimento((curr) => curr || data[0].nome);
+        }
+      } catch (err) {
+        console.error('Erro ao carregar procedimentos:', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   const formatTelefone = (value: string) => {
     const numbersOnly = value.replace(/\D/g, '');
@@ -121,7 +145,13 @@ export const Agenda: React.FC<AgendaProps> = ({
       return;
     }
 
-    const matchedProc = mockProcedimentos.find(p => p.nome.toLowerCase().includes(newProcedimento.toLowerCase())) || mockProcedimentos[0];
+    const matchedProc =
+      procedimentos.find((p) => p.nome.toLowerCase().includes(newProcedimento.toLowerCase())) ||
+      procedimentos[0];
+    if (!matchedProc) {
+      alert('Cadastre ao menos um procedimento antes de criar o agendamento.');
+      return;
+    }
     const duration = matchedProc.duracaoMinutos;
     const price = matchedProc.preco;
 
@@ -250,7 +280,7 @@ export const Agenda: React.FC<AgendaProps> = ({
   };
 
   const handleEncaixeIdeal = () => {
-    const proc = mockProcedimentos.find((p) => p.id === selectedProcedimento);
+    const proc = procedimentos.find((p) => p.id === selectedProcedimento);
     if (!proc) return;
     setSugestoes([
       {
@@ -279,7 +309,7 @@ export const Agenda: React.FC<AgendaProps> = ({
   };
 
   const agendarSugerido = (sug: { hora: string; profissional: string; sala: string }) => {
-    const proc = mockProcedimentos.find((p) => p.id === selectedProcedimento);
+    const proc = procedimentos.find((p) => p.id === selectedProcedimento);
     if (!proc) return;
     const [h, m] = sug.hora.split(':').map((x) => parseInt(x, 10));
     const fimHora = pad2(((h + Math.ceil(proc.duracaoMinutos / 60)) % 24));
@@ -533,7 +563,7 @@ export const Agenda: React.FC<AgendaProps> = ({
               <div className="form-group">
                 <label className="form-label">Procedimento Pretendido</label>
                 <select className="form-select" value={selectedProcedimento} onChange={(e) => setSelectedProcedimento(e.target.value)}>
-                  {mockProcedimentos.map((p) => (
+                  {procedimentos.map((p) => (
                     <option key={p.id} value={p.id}>{p.nome}</option>
                   ))}
                 </select>
@@ -685,7 +715,7 @@ export const Agenda: React.FC<AgendaProps> = ({
                   value={newProcedimento}
                   onChange={(e) => setNewProcedimento(e.target.value)}
                 >
-                  {mockProcedimentos.map(p => (
+                  {procedimentos.map((p) => (
                     <option key={p.id} value={p.nome}>{p.nome}</option>
                   ))}
                 </select>

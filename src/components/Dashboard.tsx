@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import type { Agendamento, StatusJornada } from '../types';
+import type { Agendamento, Procedimento, StatusJornada } from '../types';
 import { Clock, UserCheck, UserPlus, CheckCircle, User } from 'lucide-react';
+import { api } from '../lib/api';
 
 interface DashboardProps {
   agendamentos: Agendamento[];
-  onUpdateStatus: (id: string, newStatus: StatusJornada) => void;
+  onUpdateStatus: (id: string, newStatus: StatusJornada, extras?: { metodoPagamento?: Agendamento['metodoPagamento'] }) => void;
   onOpenProntuario: (clienteId: string) => void;
   onAddAgendamento: (
     agendamento: Omit<Agendamento, 'id'>,
     extra?: { telefone?: string }
   ) => void;
   onDeleteAgendamento?: (id: string) => void;
+  userId?: string;
   userName?: string;
 }
 
@@ -30,10 +32,31 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onOpenProntuario,
   onAddAgendamento,
   onDeleteAgendamento,
+  userId,
   userName,
 }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
+  const [procedimentos, setProcedimentos] = useState<Procedimento[]>([]);
+  const [showCheckoutModal, setShowCheckoutModal] = useState<string | null>(null);
+  const [metodoPagamento, setMetodoPagamento] = useState<Agendamento['metodoPagamento']>('pix');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        await api.ensureSeedData(userId).catch(() => {});
+        const data = await api.getProcedimentos(userId);
+        if (cancelled) return;
+        setProcedimentos(data);
+      } catch (err) {
+        console.error('Erro ao carregar procedimentos:', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -74,9 +97,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   const [newNome, setNewNome] = useState('');
   const [newTelefone, setNewTelefone] = useState('');
-  const [newProcedimento, setNewProcedimento] = useState('Toxina Botulínica (Botox)');
+  const [newProcedimento, setNewProcedimento] = useState('');
   const [newHora, setNewHora] = useState('14:30');
   const [newData, setNewData] = useState<string>(() => new Date().toISOString().split('T')[0]);
+
+  useEffect(() => {
+    if (procedimentos.length > 0 && !newProcedimento) {
+      setNewProcedimento(procedimentos[0].nome);
+    }
+  }, [procedimentos, newProcedimento]);
 
   // DnD state
   const [dragId, setDragId] = useState<string | null>(null);
@@ -110,18 +139,24 @@ export const Dashboard: React.FC<DashboardProps> = ({
       return;
     }
 
+    const proc = procedimentos.find((p) => p.nome === newProcedimento);
+    const duracao = proc?.duracaoMinutos ?? 60;
+    const valor = proc?.preco ?? 0;
+    const sala = proc?.salaRequerida || 'Cabine 01 - Clínica';
+    const profissional = proc?.profissionalResponsavel || 'Dra. Helena Martins';
+
     onAddAgendamento(
       {
         clienteId: 'c_' + Math.random().toString(36).slice(2, 10),
         clienteNome: newNome.trim(),
         data: newData,
         horaInicio: newHora,
-        horaFim: addMinutesToTime(newHora, 60),
-        profissional: 'Dra. Helena Martins',
-        sala: 'Cabine 01 - Clínica',
+        horaFim: addMinutesToTime(newHora, duracao),
+        profissional,
+        sala,
         procedimento: newProcedimento,
         status: 'agendada',
-        valor: 1200,
+        valor,
       },
       { telefone: newTelefone.trim() || undefined }
     );
@@ -375,7 +410,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
                             )}
                             {col.id === 'checkout' && (
                               <button
-                                onClick={() => onUpdateStatus(item.id, 'finalizada')}
+                                onClick={() => {
+                                  setMetodoPagamento('pix');
+                                  setShowCheckoutModal(item.id);
+                                }}
                                 className="btn btn-primary"
                                 style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '10px', backgroundColor: 'var(--color-success)' }}
                                 title="Finalizar e Cobrar"
@@ -442,11 +480,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   value={newProcedimento}
                   onChange={(e) => setNewProcedimento(e.target.value)}
                 >
-                  <option value="Toxina Botulínica (Botox)">Toxina Botulínica (Botox)</option>
-                  <option value="Lavieen (Pele de Porcelana)">Lavieen (Pele de Porcelana)</option>
-                  <option value="Preenchimento com Ácido Hialurônico">Preenchimento com Ácido Hialurônico</option>
-                  <option value="Bioestimulador de Colágeno (Radiesse)">Bioestimulador de Colágeno (Radiesse)</option>
-                  <option value="Peeling Químico Renovador">Peeling Químico Renovador</option>
+                  {procedimentos.length === 0 ? (
+                    <option value="">Cadastre procedimentos primeiro</option>
+                  ) : (
+                    procedimentos.map((p) => (
+                      <option key={p.id} value={p.nome}>
+                        {p.nome} — R$ {p.preco.toLocaleString('pt-BR')}
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
 
@@ -504,6 +546,65 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Checkout / Payment-method modal */}
+      {showCheckoutModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div className="card" style={{ width: '420px', padding: '32px' }}>
+            <h3 style={{ marginBottom: '8px' }}>Finalizar Atendimento</h3>
+            <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '20px' }}>
+              Selecione a forma de pagamento utilizada para concluir o checkout.
+            </p>
+
+            <div className="form-group">
+              <label className="form-label">Forma de Pagamento</label>
+              <select
+                className="form-select"
+                value={metodoPagamento}
+                onChange={(e) => setMetodoPagamento(e.target.value as Agendamento['metodoPagamento'])}
+              >
+                <option value="pix">Pix</option>
+                <option value="credito">Cartão de Crédito</option>
+                <option value="debito">Cartão de Débito</option>
+                <option value="dinheiro">Dinheiro</option>
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
+              <button
+                type="button"
+                onClick={() => setShowCheckoutModal(null)}
+                className="btn btn-outline"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (showCheckoutModal) {
+                    onUpdateStatus(showCheckoutModal, 'finalizada', { metodoPagamento });
+                  }
+                  setShowCheckoutModal(null);
+                }}
+                className="btn btn-primary"
+              >
+                Confirmar e Finalizar
+              </button>
+            </div>
           </div>
         </div>
       )}

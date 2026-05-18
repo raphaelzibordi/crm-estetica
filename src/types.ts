@@ -60,6 +60,7 @@ export interface Agendamento {
   tempoEsperaMinutos?: number; // Tempo de espera na clínica
   horarioChegada?: string;
   valor: number;
+  metodoPagamento?: 'pix' | 'credito' | 'debito' | 'dinheiro';
 }
 
 export interface Procedimento {
@@ -110,5 +111,15 @@ export interface FechamentoFinanceiro {
     percentual: number;
   }[];
 }
+
+export interface GaleriaItem {
+  id: string;
+  clienteId: string;
+  imagem: string;
+  data: string;
+  descricao: string;
+}
+
+export type MetodoPagamento = 'pix' | 'credito' | 'debito' | 'dinheiro';
 
 export const IS_TYPED = true;
