@@ -355,6 +355,7 @@ end $$;
 -- =================================================================
 alter table public.usuarios
   add column if not exists nome             text,
+  add column if not exists telefone_pessoal text,
   add column if not exists data_nascimento  date,
   add column if not exists foto_url         text,
   add column if not exists role             text not null default 'dono',
@@ -449,12 +450,12 @@ $$;
 drop policy if exists "Users can view own profile"   on public.usuarios;
 drop policy if exists "Users can update own profile" on public.usuarios;
 drop policy if exists "Users can insert own profile" on public.usuarios;
+drop policy if exists "usuarios_select"              on public.usuarios;
+drop policy if exists "usuarios_update"              on public.usuarios;
+drop policy if exists "usuarios_insert"              on public.usuarios;
 
 create policy "usuarios_select" on public.usuarios for select
-  using (
-    id = auth.uid()
-    or id = (select owner_id from public.usuarios where id = auth.uid() and role = 'equipe')
-  );
+  using (id = public.get_tenant_id());
 create policy "usuarios_update" on public.usuarios for update
   using (id = auth.uid());
 create policy "usuarios_insert" on public.usuarios for insert
@@ -462,48 +463,56 @@ create policy "usuarios_insert" on public.usuarios for insert
 
 -- clientes
 drop policy if exists "Users can manage their own clients" on public.clientes;
+drop policy if exists "clientes_all"                       on public.clientes;
 create policy "clientes_all" on public.clientes for all
   using  (user_id = public.get_tenant_id())
   with check (user_id = public.get_tenant_id());
 
 -- agendamentos
 drop policy if exists "Users can manage their own appointments" on public.agendamentos;
+drop policy if exists "agendamentos_all"                        on public.agendamentos;
 create policy "agendamentos_all" on public.agendamentos for all
   using  (user_id = public.get_tenant_id())
   with check (user_id = public.get_tenant_id());
 
 -- prontuarios_evolucoes
 drop policy if exists "Users can manage their own evolutions" on public.prontuarios_evolucoes;
+drop policy if exists "evolucoes_all"                         on public.prontuarios_evolucoes;
 create policy "evolucoes_all" on public.prontuarios_evolucoes for all
   using  (user_id = public.get_tenant_id())
   with check (user_id = public.get_tenant_id());
 
 -- estoque
 drop policy if exists "Users can manage their own stock" on public.estoque;
+drop policy if exists "estoque_all"                      on public.estoque;
 create policy "estoque_all" on public.estoque for all
   using  (user_id = public.get_tenant_id())
   with check (user_id = public.get_tenant_id());
 
 -- procedimentos
 drop policy if exists "Users can manage their own procedures" on public.procedimentos;
+drop policy if exists "procedimentos_all"                     on public.procedimentos;
 create policy "procedimentos_all" on public.procedimentos for all
   using  (user_id = public.get_tenant_id())
   with check (user_id = public.get_tenant_id());
 
 -- templates_mensagens
 drop policy if exists "Users can manage their own templates" on public.templates_mensagens;
+drop policy if exists "templates_all"                        on public.templates_mensagens;
 create policy "templates_all" on public.templates_mensagens for all
   using  (user_id = public.get_tenant_id())
   with check (user_id = public.get_tenant_id());
 
 -- galeria_antes_depois
 drop policy if exists "Users can manage their own gallery" on public.galeria_antes_depois;
+drop policy if exists "galeria_all"                        on public.galeria_antes_depois;
 create policy "galeria_all" on public.galeria_antes_depois for all
   using  (user_id = public.get_tenant_id())
   with check (user_id = public.get_tenant_id());
 
 -- equipe
 drop policy if exists "Users can manage their own team" on public.equipe;
+drop policy if exists "equipe_all"                      on public.equipe;
 create policy "equipe_all" on public.equipe for all
   using  (user_id = public.get_tenant_id())
   with check (user_id = public.get_tenant_id());
@@ -518,12 +527,37 @@ insert into storage.buckets (id, name, public)
 values ('avatars', 'avatars', true)
 on conflict (id) do nothing;
 
-drop policy if exists "Avatar upload by owner"  on storage.objects;
+drop policy if exists "Avatar upload by owner"   on storage.objects;
+drop policy if exists "Avatar update by owner"   on storage.objects;
+drop policy if exists "Avatar delete by owner"   on storage.objects;
 drop policy if exists "Avatar public read"       on storage.objects;
+drop policy if exists "avatar_upload"            on storage.objects;
+drop policy if exists "avatar_read"              on storage.objects;
 
+-- INSERT: primeira vez que o arquivo é enviado
 create policy "Avatar upload by owner" on storage.objects
   for insert with check (
-    bucket_id = 'avatars' and auth.uid()::text = (storage.foldername(name))[1]
+    bucket_id = 'avatars'
+    and split_part(name, '/', 1) = auth.uid()::text
   );
+
+-- UPDATE: quando o arquivo já existe e está sendo substituído (upsert)
+create policy "Avatar update by owner" on storage.objects
+  for update using (
+    bucket_id = 'avatars'
+    and split_part(name, '/', 1) = auth.uid()::text
+  ) with check (
+    bucket_id = 'avatars'
+    and split_part(name, '/', 1) = auth.uid()::text
+  );
+
+-- DELETE: necessário para upsert que remove antes de reinserir
+create policy "Avatar delete by owner" on storage.objects
+  for delete using (
+    bucket_id = 'avatars'
+    and split_part(name, '/', 1) = auth.uid()::text
+  );
+
+-- SELECT: leitura pública (bucket já é public, mas a policy garante)
 create policy "Avatar public read" on storage.objects
   for select using (bucket_id = 'avatars');
