@@ -289,6 +289,7 @@ function App() {
         {currentTab === 'agenda' && (
           <Agenda
             userId={session.user.id}
+            userName={userName}
             agendamentos={agendamentos}
             onAddAgendamento={handleAddAgendamento}
             onDeleteAgendamento={handleDeleteAgendamento}

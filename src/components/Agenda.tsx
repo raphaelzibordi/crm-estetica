@@ -1,10 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import type { Agendamento, Procedimento } from '../types';
+import type { Agendamento, Procedimento, Profissional } from '../types';
 import { Users, Clock, Sparkles, ChevronLeft, ChevronRight, CalendarRange } from 'lucide-react';
 import { api } from '../lib/api';
 
+const OWNER_ID = '__owner__';
+
 interface AgendaProps {
   userId: string;
+  userName?: string;
   agendamentos: Agendamento[]; // do dia (alimentado pelo App.tsx)
   onAddAgendamento: (
     agendamento: Omit<Agendamento, 'id'>,
@@ -60,6 +63,7 @@ const HOUR_LIST = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00'
 
 export const Agenda: React.FC<AgendaProps> = ({
   userId,
+  userName,
   agendamentos,
   onAddAgendamento,
   onDeleteAgendamento,
@@ -75,10 +79,12 @@ export const Agenda: React.FC<AgendaProps> = ({
 
   // Catálogo de procedimentos vindo do banco
   const [procedimentos, setProcedimentos] = useState<Procedimento[]>([]);
+  // Equipe ativa vinda do banco (Configurações → Gestão de Equipe)
+  const [equipe, setEquipe] = useState<Array<{ id: string; nome: string; cargo: string }>>([]);
 
   // Encaixe ideal (visão Hoje)
   const [selectedProcedimento, setSelectedProcedimento] = useState<string>('');
-  const [selectedProfessional, setSelectedProfessional] = useState<string>('Dra. Helena Martins');
+  const [selectedProfessional, setSelectedProfessional] = useState<string>(OWNER_ID);
   const [sugestoes, setSugestoes] = useState<{
     hora: string;
     profissional: string;
@@ -97,28 +103,63 @@ export const Agenda: React.FC<AgendaProps> = ({
   const [newProcedimento, setNewProcedimento] = useState('');
   const [newData, setNewData] = useState('');
   const [newHora, setNewHora] = useState('');
+  const [newProfissionalId, setNewProfissionalId] = useState<string>(OWNER_ID);
 
-  // Carrega procedimentos do banco (com fallback de seed)
+  // Carrega procedimentos + equipe ativa do banco (com fallback de seed)
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         await api.ensureSeedData(userId).catch(() => {});
-        const data = await api.getProcedimentos(userId);
+        const [procs, team] = await Promise.all([
+          api.getProcedimentos(userId),
+          api.getEquipe(userId, { somenteAtivos: true }).catch(() => []),
+        ]);
         if (cancelled) return;
-        setProcedimentos(data);
-        if (data.length > 0) {
-          setSelectedProcedimento((curr) => curr || data[0].id);
-          setNewProcedimento((curr) => curr || data[0].nome);
+        setProcedimentos(procs);
+        setEquipe(team.map(m => ({ id: m.id, nome: m.nome, cargo: m.cargo })));
+        if (procs.length > 0) {
+          setSelectedProcedimento((curr) => curr || procs[0].id);
+          setNewProcedimento((curr) => curr || procs[0].nome);
         }
       } catch (err) {
-        console.error('Erro ao carregar procedimentos:', err);
+        console.error('Erro ao carregar dados da agenda:', err);
       }
     })();
     return () => {
       cancelled = true;
     };
   }, [userId]);
+
+  // Profissionais = Responsável + equipe ativa.
+  const profissionais = useMemo<Profissional[]>(() => {
+    const responsavel: Profissional = {
+      id: OWNER_ID,
+      nome: userName || 'Responsável da Clínica',
+      cargo: 'Responsável',
+      isResponsavel: true,
+    };
+    return [
+      responsavel,
+      ...equipe.map(m => ({
+        id: m.id,
+        nome: m.nome,
+        cargo: m.cargo || 'Profissional',
+        isResponsavel: false,
+      })),
+    ];
+  }, [equipe, userName]);
+
+  // Mantém as seleções consistentes com a lista atual.
+  useEffect(() => {
+    if (profissionais.length === 0) return;
+    if (!profissionais.some(p => p.id === newProfissionalId)) {
+      setNewProfissionalId(profissionais[0].id);
+    }
+    if (!profissionais.some(p => p.id === selectedProfessional)) {
+      setSelectedProfessional(profissionais[0].id);
+    }
+  }, [profissionais, newProfissionalId, selectedProfessional]);
 
   const formatTelefone = (value: string) => {
     const numbersOnly = value.replace(/\D/g, '');
@@ -162,6 +203,13 @@ export const Agenda: React.FC<AgendaProps> = ({
     const endM = String(wrapped % 60).padStart(2, '0');
     const endStr = `${endH}:${endM}`;
 
+    const profSelecionado = profissionais.find((p) => p.id === newProfissionalId);
+    const profissionalNome =
+      profSelecionado?.nome ||
+      matchedProc.profissionalResponsavel ||
+      userName ||
+      'Responsável da Clínica';
+
     try {
       await onAddAgendamento(
         {
@@ -171,7 +219,7 @@ export const Agenda: React.FC<AgendaProps> = ({
           horaInicio: newHora,
           horaFim: endStr,
           procedimento: newProcedimento,
-          profissional: matchedProc.profissionalResponsavel,
+          profissional: profissionalNome,
           sala: matchedProc.salaRequerida,
           status: 'agendada',
           valor: price
@@ -282,24 +330,27 @@ export const Agenda: React.FC<AgendaProps> = ({
   const handleEncaixeIdeal = () => {
     const proc = procedimentos.find((p) => p.id === selectedProcedimento);
     if (!proc) return;
+    const profEscolhido = profissionais.find((p) => p.id === selectedProfessional);
+    const nomeProf =
+      profEscolhido?.nome || proc.profissionalResponsavel || userName || 'Responsável da Clínica';
     setSugestoes([
       {
         hora: '11:00',
-        profissional: proc.profissionalResponsavel,
+        profissional: nomeProf,
         sala: proc.salaRequerida,
         motivo: 'Intervalo perfeito de 90min entre procedimentos. A cabine estará higienizada.',
         confiabilidade: '98%',
       },
       {
         hora: '13:00',
-        profissional: proc.profissionalResponsavel,
+        profissional: nomeProf,
         sala: proc.salaRequerida,
         motivo: 'Horário logo após o almoço da profissional, cabine totalmente disponível.',
         confiabilidade: '95%',
       },
       {
         hora: '17:00',
-        profissional: proc.profissionalResponsavel,
+        profissional: nomeProf,
         sala: proc.salaRequerida,
         motivo: 'Último bloco do dia. Permite atendimento calmo e sem sobreposição de fluxo.',
         confiabilidade: '90%',
@@ -571,10 +622,27 @@ export const Agenda: React.FC<AgendaProps> = ({
 
               <div className="form-group">
                 <label className="form-label">Profissional Desejado</label>
-                <select className="form-select" value={selectedProfessional} onChange={(e) => setSelectedProfessional(e.target.value)}>
-                  <option value="Dra. Helena Martins">Dra. Helena Martins (Médica)</option>
-                  <option value="Esteticista Sarah Kelly">Esteticista Sarah Kelly (Estética)</option>
-                </select>
+                {profissionais.length === 1 ? (
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={`${profissionais[0].nome} (${profissionais[0].cargo})`}
+                    readOnly
+                    title="Apenas o responsável está cadastrado. Adicione membros em Configurações → Equipe."
+                  />
+                ) : (
+                  <select
+                    className="form-select"
+                    value={selectedProfessional}
+                    onChange={(e) => setSelectedProfessional(e.target.value)}
+                  >
+                    {profissionais.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.nome} ({p.cargo})
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               <button onClick={handleEncaixeIdeal} className="btn btn-primary" style={{ width: '100%', marginTop: '8px' }}>
@@ -719,6 +787,31 @@ export const Agenda: React.FC<AgendaProps> = ({
                     <option key={p.id} value={p.nome}>{p.nome}</option>
                   ))}
                 </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Profissional Responsável</label>
+                {profissionais.length === 1 ? (
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={`${profissionais[0].nome} (${profissionais[0].cargo})`}
+                    readOnly
+                    title="Apenas o responsável está cadastrado. Adicione membros em Configurações → Equipe."
+                  />
+                ) : (
+                  <select
+                    className="form-select"
+                    value={newProfissionalId}
+                    onChange={(e) => setNewProfissionalId(e.target.value)}
+                  >
+                    {profissionais.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.nome} — {p.cargo}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>

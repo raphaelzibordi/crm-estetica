@@ -74,6 +74,22 @@ export interface Procedimento {
   profissionalResponsavel: string;
 }
 
+export interface MembroEquipe {
+  id: string;
+  nome: string;
+  email: string;
+  cargo: string;
+  fotoUrl?: string;
+  ativo: boolean;
+}
+
+export interface Profissional {
+  id: string;
+  nome: string;
+  cargo: string;
+  isResponsavel: boolean;
+}
+
 export interface ItemEstoque {
   id: string;
   produto: string;

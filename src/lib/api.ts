@@ -8,6 +8,7 @@ import type {
   FechamentoFinanceiro,
   GaleriaItem,
   ItemEstoque,
+  MembroEquipe,
   Procedimento,
   StatusJornada,
   TemplateMensagem,
@@ -96,6 +97,17 @@ function mapGaleria(row: any): GaleriaItem {
     imagem: row.imagem ?? '',
     data: row.data ?? '',
     descricao: row.descricao ?? '',
+  };
+}
+
+function mapMembroEquipe(row: any): MembroEquipe {
+  return {
+    id: row.id,
+    nome: row.nome ?? '',
+    email: row.email ?? '',
+    cargo: row.cargo ?? '',
+    fotoUrl: row.foto_url ?? undefined,
+    ativo: row.ativo ?? true,
   };
 }
 
@@ -575,6 +587,87 @@ export const api = {
       const uid = await requireUserId(userId);
       const { error } = await supabase
         .from('procedimentos')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', uid);
+      if (error) throw error;
+    });
+  },
+
+  // ============================================================
+  // EQUIPE (membros profissionais da clínica)
+  // ============================================================
+  async getEquipe(userId?: string, opts?: { somenteAtivos?: boolean }): Promise<MembroEquipe[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      let query = supabase
+        .from('equipe')
+        .select('*')
+        .eq('user_id', uid)
+        .order('nome');
+      if (opts?.somenteAtivos) query = query.eq('ativo', true);
+      const { data, error } = await query;
+      if (error) throw error;
+      return (data ?? []).map(mapMembroEquipe);
+    });
+  },
+
+  async createMembroEquipe(
+    membro: Omit<MembroEquipe, 'id'>,
+    userId?: string
+  ): Promise<MembroEquipe> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      if (!membro.nome?.trim()) {
+        throw new ApiError('Informe o nome do membro da equipe.', 400);
+      }
+      const { data, error } = await supabase
+        .from('equipe')
+        .insert([{
+          user_id: uid,
+          nome: membro.nome,
+          email: membro.email || null,
+          cargo: membro.cargo || null,
+          foto_url: membro.fotoUrl || null,
+          ativo: membro.ativo ?? true,
+        }])
+        .select()
+        .single();
+      if (error) throw error;
+      return mapMembroEquipe(data);
+    });
+  },
+
+  async updateMembroEquipe(
+    id: string,
+    updates: Partial<MembroEquipe>,
+    userId?: string
+  ): Promise<MembroEquipe> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const dbUpdates: Record<string, unknown> = {};
+      if (updates.nome !== undefined)    dbUpdates.nome    = updates.nome;
+      if (updates.email !== undefined)   dbUpdates.email   = updates.email || null;
+      if (updates.cargo !== undefined)   dbUpdates.cargo   = updates.cargo || null;
+      if (updates.fotoUrl !== undefined) dbUpdates.foto_url = updates.fotoUrl || null;
+      if (updates.ativo !== undefined)   dbUpdates.ativo   = updates.ativo;
+      const { data, error } = await supabase
+        .from('equipe')
+        .update(dbUpdates)
+        .eq('id', id)
+        .eq('user_id', uid)
+        .select()
+        .single();
+      if (error) throw error;
+      return mapMembroEquipe(data);
+    });
+  },
+
+  async deleteMembroEquipe(id: string, userId?: string): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { error } = await supabase
+        .from('equipe')
         .delete()
         .eq('id', id)
         .eq('user_id', uid);

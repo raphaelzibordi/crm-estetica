@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, Building2, Users, Plus, X, Check, Edit2, Trash2, Shield } from 'lucide-react';
 import { api } from '../lib/api';
+import type { MembroEquipe } from '../types';
 
 interface ConfiguracoesProps {
   userId: string;
@@ -8,14 +9,6 @@ interface ConfiguracoesProps {
 }
 
 type ActiveTab = 'perfil' | 'equipe';
-
-interface MembroEquipe {
-  id: string;
-  nome: string;
-  email: string;
-  cargo: string;
-  fotoUrl?: string;
-}
 
 const CARGOS_SUGERIDOS = [
   'Diretora da Clínica',
@@ -27,12 +20,6 @@ const CARGOS_SUGERIDOS = [
   'Enfermeira',
   'Dermatologista',
 ];
-
-const EQUIPE_KEY = 'lumina_equipe';
-function loadEquipe(): MembroEquipe[] {
-  try { return JSON.parse(localStorage.getItem(EQUIPE_KEY) || '[]'); } catch { return []; }
-}
-function saveEquipe(e: MembroEquipe[]) { localStorage.setItem(EQUIPE_KEY, JSON.stringify(e)); }
 
 export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName }) => {
   const [tab, setTab] = useState<ActiveTab>('perfil');
@@ -47,7 +34,7 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName }
   const [perfilOk, setPerfilOk] = useState(false);
 
   // ── Equipe state ──
-  const [equipe, setEquipe] = useState<MembroEquipe[]>(loadEquipe);
+  const [equipe, setEquipe] = useState<MembroEquipe[]>([]);
   const [showMembroModal, setShowMembroModal] = useState(false);
   const [editingMembroId, setEditingMembroId] = useState<string | null>(null);
   const [mNome, setMNome] = useState('');
@@ -55,8 +42,14 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName }
   const [mSenha, setMSenha] = useState('');
   const [mCargo, setMCargo] = useState('');
   const [mCargoCustom, setMCargoCustom] = useState(false);
+  const [savingMembro, setSavingMembro] = useState(false);
 
-  useEffect(() => { loadPerfil(); }, [userId]);
+  useEffect(() => { loadPerfil(); loadEquipeRemota(); }, [userId]);
+
+  const loadEquipeRemota = async () => {
+    try { setEquipe(await api.getEquipe(userId)); }
+    catch (e) { console.error('Erro ao carregar equipe', e); }
+  };
 
   const loadPerfil = async () => {
     try {
@@ -100,25 +93,40 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName }
     setShowMembroModal(true);
   };
 
-  const handleSaveMembro = (e: React.FormEvent) => {
+  const handleSaveMembro = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cargo = mCargoCustom ? mCargo : mCargo;
-    const membro: MembroEquipe = {
-      id: editingMembroId || 'm_' + Date.now(),
-      nome: mNome, email: mEmail, cargo,
-    };
-    setEquipe(prev => {
-      const next = editingMembroId
-        ? prev.map(m => m.id === editingMembroId ? membro : m)
-        : [...prev, membro];
-      saveEquipe(next); return next;
-    });
-    setShowMembroModal(false);
+    setSavingMembro(true);
+    try {
+      if (editingMembroId) {
+        const atualizado = await api.updateMembroEquipe(
+          editingMembroId,
+          { nome: mNome, email: mEmail, cargo: mCargo },
+          userId
+        );
+        setEquipe(prev => prev.map(m => (m.id === editingMembroId ? atualizado : m)));
+      } else {
+        const novo = await api.createMembroEquipe(
+          { nome: mNome, email: mEmail, cargo: mCargo, ativo: true },
+          userId
+        );
+        setEquipe(prev => [...prev, novo]);
+      }
+      setShowMembroModal(false);
+    } catch (err: any) {
+      alert(`Erro ao salvar membro: ${err?.message || err}`);
+    } finally {
+      setSavingMembro(false);
+    }
   };
 
-  const handleDeleteMembro = (id: string) => {
+  const handleDeleteMembro = async (id: string) => {
     if (!window.confirm('Remover este membro da equipe?')) return;
-    setEquipe(prev => { const next = prev.filter(m => m.id !== id); saveEquipe(next); return next; });
+    try {
+      await api.deleteMembroEquipe(id, userId);
+      setEquipe(prev => prev.filter(m => m.id !== id));
+    } catch (err: any) {
+      alert(`Erro ao remover membro: ${err?.message || err}`);
+    }
   };
 
   const tabBtn = (t: ActiveTab, label: string, Icon: any) => (
@@ -294,7 +302,7 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName }
               </div>
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '8px' }}>
                 <button type="button" onClick={() => setShowMembroModal(false)} className="btn btn-outline">Cancelar</button>
-                <button type="submit" className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Check size={14} />Salvar</button>
+                <button type="submit" className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} disabled={savingMembro}><Check size={14} />{savingMembro ? 'Salvando...' : 'Salvar'}</button>
               </div>
             </form>
           </div>

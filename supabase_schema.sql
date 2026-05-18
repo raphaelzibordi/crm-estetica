@@ -209,6 +209,34 @@ create policy "Users can manage their own gallery"
 create index if not exists idx_galeria_cliente on public.galeria_antes_depois(cliente_id);
 
 -- =================================================================
+-- 8b. Table: equipe (membros profissionais da clínica)
+-- Cada usuário (tenant) é dono do conjunto de membros que cadastrou.
+-- O dono/responsável pela clínica vive em `usuarios` e NÃO é replicado aqui;
+-- a tela de acolhimento o adiciona logicamente à lista de profissionais.
+-- =================================================================
+create table if not exists public.equipe (
+  id uuid default uuid_generate_v4() primary key,
+  user_id uuid references public.usuarios(id) on delete cascade not null,
+  nome text not null,
+  email text,
+  cargo text,
+  foto_url text,
+  ativo boolean not null default true,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+alter table public.equipe enable row level security;
+
+drop policy if exists "Users can manage their own team" on public.equipe;
+create policy "Users can manage their own team"
+  on public.equipe for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+create index if not exists idx_equipe_user        on public.equipe(user_id);
+create index if not exists idx_equipe_user_ativo  on public.equipe(user_id, ativo);
+
+-- =================================================================
 -- 9. Trigger: sincronia automática auth.users -> public.usuarios
 -- E criação dos dados padrão (procedimentos + templates) na primeira
 -- vez que um usuário aparece em public.usuarios.

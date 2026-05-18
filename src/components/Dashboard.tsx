@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import type { Agendamento, Procedimento, StatusJornada } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import type { Agendamento, Procedimento, Profissional, StatusJornada } from '../types';
 import { Clock, UserCheck, UserPlus, CheckCircle, User } from 'lucide-react';
 import { api } from '../lib/api';
+
+const OWNER_ID = '__owner__';
 
 interface DashboardProps {
   agendamentos: Agendamento[];
@@ -38,6 +40,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [showAddModal, setShowAddModal] = useState(false);
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
   const [procedimentos, setProcedimentos] = useState<Procedimento[]>([]);
+  const [equipe, setEquipe] = useState<Array<{ id: string; nome: string; cargo: string }>>([]);
   const [showCheckoutModal, setShowCheckoutModal] = useState<string | null>(null);
   const [metodoPagamento, setMetodoPagamento] = useState<Agendamento['metodoPagamento']>('pix');
 
@@ -46,17 +49,41 @@ export const Dashboard: React.FC<DashboardProps> = ({
     (async () => {
       try {
         await api.ensureSeedData(userId).catch(() => {});
-        const data = await api.getProcedimentos(userId);
+        const [procs, team] = await Promise.all([
+          api.getProcedimentos(userId),
+          api.getEquipe(userId, { somenteAtivos: true }).catch(() => []),
+        ]);
         if (cancelled) return;
-        setProcedimentos(data);
+        setProcedimentos(procs);
+        setEquipe(team.map(m => ({ id: m.id, nome: m.nome, cargo: m.cargo })));
       } catch (err) {
-        console.error('Erro ao carregar procedimentos:', err);
+        console.error('Erro ao carregar dados de acolhimento:', err);
       }
     })();
     return () => {
       cancelled = true;
     };
   }, [userId]);
+
+  // Lista de profissionais para o select de acolhimento:
+  // o Responsável sempre figura como primeira opção; os demais vêm da equipe ativa cadastrada.
+  const profissionais = useMemo<Profissional[]>(() => {
+    const responsavel: Profissional = {
+      id: OWNER_ID,
+      nome: userName || 'Responsável da Clínica',
+      cargo: 'Responsável',
+      isResponsavel: true,
+    };
+    return [
+      responsavel,
+      ...equipe.map(m => ({
+        id: m.id,
+        nome: m.nome,
+        cargo: m.cargo || 'Profissional',
+        isResponsavel: false,
+      })),
+    ];
+  }, [equipe, userName]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -98,6 +125,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [newNome, setNewNome] = useState('');
   const [newTelefone, setNewTelefone] = useState('');
   const [newProcedimento, setNewProcedimento] = useState('');
+  const [newProfissionalId, setNewProfissionalId] = useState<string>(OWNER_ID);
   const [newHora, setNewHora] = useState('14:30');
   const [newData, setNewData] = useState<string>(() => new Date().toISOString().split('T')[0]);
 
@@ -106,6 +134,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
       setNewProcedimento(procedimentos[0].nome);
     }
   }, [procedimentos, newProcedimento]);
+
+  // Sempre que a lista de profissionais muda, garante que a seleção atual ainda é válida.
+  // Cenário A (apenas o Responsável): auto-seleciona o dono.
+  // Cenário B (equipe cadastrada): mantém o que está, ou cai no primeiro válido.
+  useEffect(() => {
+    if (profissionais.length === 0) return;
+    const aindaExiste = profissionais.some(p => p.id === newProfissionalId);
+    if (!aindaExiste) setNewProfissionalId(profissionais[0].id);
+  }, [profissionais, newProfissionalId]);
 
   // DnD state
   const [dragId, setDragId] = useState<string | null>(null);
@@ -143,7 +180,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
     const duracao = proc?.duracaoMinutos ?? 60;
     const valor = proc?.preco ?? 0;
     const sala = proc?.salaRequerida || 'Cabine 01 - Clínica';
-    const profissional = proc?.profissionalResponsavel || 'Dra. Helena Martins';
+    const profSelecionado = profissionais.find((p) => p.id === newProfissionalId);
+    const profissional =
+      profSelecionado?.nome ||
+      proc?.profissionalResponsavel ||
+      userName ||
+      'Responsável da Clínica';
 
     onAddAgendamento(
       {
@@ -490,6 +532,31 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     ))
                   )}
                 </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Profissional Responsável</label>
+                {profissionais.length === 1 ? (
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={`${profissionais[0].nome} (${profissionais[0].cargo})`}
+                    readOnly
+                    title="Apenas o responsável está cadastrado. Adicione membros em Configurações → Equipe."
+                  />
+                ) : (
+                  <select
+                    className="form-select"
+                    value={newProfissionalId}
+                    onChange={(e) => setNewProfissionalId(e.target.value)}
+                  >
+                    {profissionais.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.nome} — {p.cargo}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
