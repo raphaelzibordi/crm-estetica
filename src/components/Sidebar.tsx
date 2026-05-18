@@ -62,7 +62,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, use
         <div className="brand-icon">
           <Sparkles size={16} />
         </div>
-        <div className="brand-name">{userName || 'Lumina Estética'}</div>
+        <div className="brand-name">Lumina</div>
       </div>
 
       <nav className="nav-list">

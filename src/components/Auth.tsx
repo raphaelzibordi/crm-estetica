@@ -21,6 +21,21 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const [telefone, setTelefone] = useState('');
   const [endereco, setEndereco] = useState('');
 
+  const formatTelefone = (value: string) => {
+    const numbersOnly = value.replace(/\D/g, '');
+    const truncated = numbersOnly.slice(0, 11);
+    
+    if (truncated.length <= 2) {
+      return truncated.length > 0 ? `(${truncated}` : '';
+    } else if (truncated.length <= 6) {
+      return `(${truncated.slice(0, 2)}) ${truncated.slice(2)}`;
+    } else if (truncated.length <= 10) {
+      return `(${truncated.slice(0, 2)}) ${truncated.slice(2, 6)}-${truncated.slice(6)}`;
+    } else {
+      return `(${truncated.slice(0, 2)}) ${truncated.slice(2, 7)}-${truncated.slice(7)}`;
+    }
+  };
+
   const resetForm = () => {
     setEmail('');
     setPassword('');
@@ -50,7 +65,17 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
         // Validações mínimas no client antes de bater no Supabase
         if (!nomeClinica.trim()) throw new Error('Informe o nome da clínica.');
         if (!endereco.trim()) throw new Error('Informe o endereço da clínica.');
-        if (!telefone.trim()) throw new Error('Informe um telefone de contato.');
+        
+        const rawTelefone = telefone.replace(/\D/g, '');
+        if (rawTelefone.length < 10) {
+          throw new Error('Por favor, informe um telefone de contato válido com DDD (mínimo 10 dígitos).');
+        }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email.trim())) {
+          throw new Error('Por favor, informe um e-mail válido (ex: seuemail@dominio.com).');
+        }
+
         if (password.length < 6)
           throw new Error('A senha precisa ter no mínimo 6 caracteres.');
 
@@ -170,7 +195,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 <label className="form-label">Telefone de Contato</label>
                 <div style={{ position: 'relative' }}>
                   <Phone size={16} style={{ position: 'absolute', left: '12px', top: '14px', color: 'var(--color-text-muted)' }} />
-                  <input type="text" className="form-input" style={{ paddingLeft: '40px' }} value={telefone} onChange={e => setTelefone(e.target.value)} required />
+                  <input type="text" className="form-input" style={{ paddingLeft: '40px' }} placeholder="(XX) 9XXXX-XXXX" value={telefone} onChange={e => setTelefone(formatTelefone(e.target.value))} required />
                 </div>
               </div>
             </>
