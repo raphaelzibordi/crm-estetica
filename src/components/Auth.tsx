@@ -10,6 +10,7 @@ interface AuthProps {
 
 export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const [isLogin, setIsLogin] = useState(true);
+  const [isEquipe, setIsEquipe] = useState(false); // modo membro de equipe
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -42,6 +43,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     setNomeClinica('');
     setTelefone('');
     setEndereco('');
+    setIsEquipe(false);
   };
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -62,60 +64,53 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
         }
         onLogin(data.session);
       } else {
-        // Validações mínimas no client antes de bater no Supabase
-        if (!nomeClinica.trim()) throw new Error('Informe o nome da clínica.');
-        if (!endereco.trim()) throw new Error('Informe o endereço da clínica.');
-        
-        const rawTelefone = telefone.replace(/\D/g, '');
-        if (rawTelefone.length < 10) {
-          throw new Error('Por favor, informe um telefone de contato válido com DDD (mínimo 10 dígitos).');
-        }
-
+        // Cadastro: valida campos conforme o tipo de usuário
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email.trim())) {
           throw new Error('Por favor, informe um e-mail válido (ex: seuemail@dominio.com).');
         }
-
-        if (password.length < 6)
+        if (password.length < 6) {
           throw new Error('A senha precisa ter no mínimo 6 caracteres.');
+        }
 
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: email.trim(),
-          password,
-          options: {
-            data: {
-              nome_clinica: nomeClinica,
-              telefone,
-              endereco,
-            },
-          },
-        });
+        // Campos obrigatórios apenas para donos de clínica
+        if (!isEquipe) {
+          if (!nomeClinica.trim()) throw new Error('Informe o nome da clínica.');
+          if (!endereco.trim()) throw new Error('Informe o endereço da clínica.');
+          const rawTelefone = telefone.replace(/\D/g, '');
+          if (rawTelefone.length < 10) {
+            throw new Error('Informe um telefone com DDD válido (mínimo 10 dígitos).');
+          }
+        }
+
+        const signUpOptions = isEquipe
+          ? { email: email.trim(), password }
+          : {
+              email: email.trim(),
+              password,
+              options: { data: { nome_clinica: nomeClinica, telefone, endereco } },
+            };
+
+        const { data: authData, error: authError } = await supabase.auth.signUp(signUpOptions);
         if (authError) throw authError;
 
-        // Caso o projeto Supabase tenha confirmação de e-mail ativa, NÃO há sessão
-        // — o insert na tabela `usuarios` falharia por RLS. O ideal é o trigger
-        // `on_auth_user_created` (ver supabase_schema.sql).
-        // Se já houver sessão (confirmação desativada), tentamos criar o perfil.
         if (authData.session && authData.user) {
-          const { error: dbError } = await supabase
-            .from('usuarios')
-            .upsert(
-              {
-                id: authData.user.id,
-                nome_clinica: nomeClinica,
-                telefone,
-                endereco,
-                email: email.trim(),
-              },
+          // Email confirm desabilitado: sessão imediata.
+          // Para donos: garante o registro no banco caso o trigger não tenha criado.
+          if (!isEquipe) {
+            await supabase.from('usuarios').upsert(
+              { id: authData.user.id, nome_clinica: nomeClinica, telefone, endereco, email: email.trim(), role: 'dono' },
               { onConflict: 'id' }
-            );
-          if (dbError) {
-            console.error('[Lumina] Erro ao salvar perfil no banco:', dbError);
+            ).then(({ error: dbError }) => {
+              if (dbError) console.error('[Lumina] Erro ao salvar perfil:', dbError);
+            });
           }
           onLogin(authData.session);
         } else {
           setInfo(
-            'Cadastro criado! Confirme seu e-mail para liberar o acesso ao Lumina e em seguida faça login.'
+            isEquipe
+              ? 'Conta criada! Confirme seu e-mail e faça login para acessar o sistema da equipe.'
+              : 'Cadastro criado! Confirme seu e-mail para liberar o acesso ao Lumina e em seguida faça login.'
           );
           resetForm();
           setIsLogin(true);
@@ -157,7 +152,11 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           </div>
           <h1 style={{ fontSize: '28px', color: 'var(--color-text-main)', marginBottom: '8px', fontWeight: 600 }}>Lumina</h1>
           <p style={{ color: 'var(--color-text-muted)', fontSize: '15px' }}>
-            {isLogin ? 'Bem-vindo de volta ao seu CRM estético.' : 'Inicie a jornada de alta performance da sua clínica.'}
+            {isLogin
+              ? 'Bem-vindo de volta ao seu CRM estético.'
+              : isEquipe
+              ? 'Crie sua conta de acesso como membro da equipe.'
+              : 'Inicie a jornada de alta performance da sua clínica.'}
           </p>
         </div>
 
@@ -175,7 +174,33 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
 
         <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
+          {/* Toggle dono / membro de equipe — visível apenas no cadastro */}
           {!isLogin && (
+            <div style={{ display: 'flex', gap: '8px', background: '#f8f8f6', padding: '4px', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
+              {[
+                { v: false, label: 'Sou dono de clínica' },
+                { v: true,  label: 'Sou membro de equipe' },
+              ].map(({ v, label }) => (
+                <button
+                  key={String(v)}
+                  type="button"
+                  onClick={() => setIsEquipe(v)}
+                  style={{
+                    flex: 1, padding: '8px', fontSize: '12px', fontWeight: 600,
+                    border: 'none', borderRadius: '6px', cursor: 'pointer',
+                    background: isEquipe === v ? 'var(--color-primary)' : 'transparent',
+                    color: isEquipe === v ? '#fff' : 'var(--color-text-muted)',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Campos exclusivos para donos de clínica */}
+          {!isLogin && !isEquipe && (
             <>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label">Nome da Clínica / Profissional</label>
@@ -201,6 +226,13 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
             </>
           )}
 
+          {/* Banner informativo para membros de equipe */}
+          {!isLogin && isEquipe && (
+            <div style={{ padding: '10px 14px', background: 'var(--color-primary-light)', borderRadius: '8px', fontSize: '12px', color: 'var(--color-primary)', lineHeight: 1.6 }}>
+              Use o <strong>e-mail cadastrado pelo responsável da sua clínica</strong>. Seu acesso será configurado automaticamente.
+            </div>
+          )}
+
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">E-mail</label>
             <div style={{ position: 'relative' }}>
@@ -218,7 +250,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           </div>
 
           <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '16px', padding: '14px', fontSize: '15px' }} disabled={loading}>
-            {loading ? 'Aguarde...' : (isLogin ? 'Entrar no Lumina' : 'Criar minha conta')}
+            {loading ? 'Aguarde...' : isLogin ? 'Entrar no Lumina' : isEquipe ? 'Criar acesso de equipe' : 'Criar minha conta'}
             {!loading && <ArrowRight size={18} style={{ marginLeft: '8px' }} />}
           </button>
         </form>

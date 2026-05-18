@@ -47,7 +47,7 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
   const [editingMembroId, setEditingMembroId] = useState<string | null>(null);
   const [mNome, setMNome] = useState('');
   const [mEmail, setMEmail] = useState('');
-  const [mSenha, setMSenha] = useState('');
+
   const [mCargo, setMCargo] = useState('');
   const [mCargoCustom, setMCargoCustom] = useState(false);
   const [savingMembro, setSavingMembro] = useState(false);
@@ -130,11 +130,11 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
   const openMembroModal = (m?: MembroEquipe) => {
     if (m) {
       setEditingMembroId(m.id); setMNome(m.nome); setMEmail(m.email);
-      setMCargo(m.cargo); setMSenha('');
+      setMCargo(m.cargo);
       setMCargoCustom(!CARGOS_SUGERIDOS.includes(m.cargo));
     } else {
       setEditingMembroId(null); setMNome(''); setMEmail('');
-      setMSenha(''); setMCargo(CARGOS_SUGERIDOS[0]); setMCargoCustom(false);
+      setMCargo(CARGOS_SUGERIDOS[0]); setMCargoCustom(false);
     }
     setShowMembroModal(true);
   };
@@ -144,7 +144,6 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
     setSavingMembro(true);
     try {
       if (editingMembroId) {
-        // Edição: atualiza apenas os campos no banco (sem alterar a conta auth).
         const atualizado = await api.updateMembroEquipe(
           editingMembroId,
           { nome: mNome, email: mEmail, cargo: mCargo },
@@ -152,20 +151,14 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
         );
         setEquipe(prev => prev.map(m => (m.id === editingMembroId ? atualizado : m)));
       } else {
-        // Criação: cria a conta Supabase Auth + registro na tabela equipe.
-        if (!mSenha || mSenha.length < 6) {
-          alert('A senha provisória deve ter ao menos 6 caracteres.');
-          return;
-        }
-        const novo = await api.criarMembroEquipeComAcesso(
-          { nome: mNome, email: mEmail, senha: mSenha, cargo: mCargo },
+        // Cria apenas o registro na tabela equipe.
+        // O membro criará a própria conta de acesso na tela de login do Lumina.
+        // O sistema detectará automaticamente o e-mail e configurará o perfil correto.
+        const novo = await api.createMembroEquipe(
+          { nome: mNome, email: mEmail, cargo: mCargo, ativo: true },
           userId
         );
         setEquipe(prev => [...prev, novo]);
-        alert(
-          `Membro criado com sucesso!\n\nUm e-mail de confirmação foi enviado para ${mEmail}.\n` +
-          'O membro deverá confirmar o e-mail antes de fazer login.'
-        );
       }
       setShowMembroModal(false);
     } catch (err: any) {
@@ -349,6 +342,11 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
               </button>
             </div>
 
+            <div style={{ marginBottom: '16px', padding: '10px 14px', background: '#f8f8f6', borderRadius: '8px', fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
+              <Shield size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+              Membros cadastrados aqui devem criar a própria conta no Lumina usando o e-mail registrado. O acesso será automaticamente restrito às abas <strong>Jornada, Agenda e Prontuário</strong>.
+            </div>
+
             {equipe.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '50px 20px', border: '1px dashed var(--color-border)', borderRadius: '12px', color: 'var(--color-text-muted)' }}>
                 <Users size={28} style={{ marginBottom: '12px', opacity: 0.4 }} />
@@ -399,9 +397,9 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
                 <input className="form-input" type="email" value={mEmail} onChange={e => setMEmail(e.target.value)} placeholder="ana@clinica.com.br" required />
               </div>
               {!editingMembroId && (
-                <div className="form-group">
-                  <label className="form-label">Senha Provisória</label>
-                  <input className="form-input" type="password" value={mSenha} onChange={e => setMSenha(e.target.value)} placeholder="Mínimo 6 caracteres" minLength={6} required />
+                <div style={{ padding: '12px 14px', background: 'var(--color-primary-light)', borderRadius: '8px', fontSize: '12px', color: 'var(--color-primary)', lineHeight: 1.6 }}>
+                  <strong>Como o membro acessa o sistema?</strong><br />
+                  Após salvar, compartilhe o link do Lumina com <strong>{mEmail || 'o membro'}</strong> e peça que crie uma conta com este e-mail. O sistema reconhecerá automaticamente o perfil de equipe.
                 </div>
               )}
               <div className="form-group">

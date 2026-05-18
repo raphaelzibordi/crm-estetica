@@ -364,8 +364,10 @@ alter table public.usuarios
 update public.usuarios set role = 'dono' where role is null or role = '';
 
 -- =================================================================
--- 14. Trigger atualizado: lê role e owner_id do user_metadata
---     e semeia dados apenas para o dono da clínica (role = 'dono').
+-- 14. Trigger atualizado: detecta se o novo usuário é membro de equipe
+--     pelo e-mail cadastrado na tabela equipe (pelo dono).
+--     Se sim  → role='equipe' + owner_id do dono.
+--     Se não  → role='dono' (cadastro normal de clínica).
 -- =================================================================
 create or replace function public.handle_new_user()
 returns trigger
@@ -373,18 +375,34 @@ language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  v_owner_id  uuid;
 begin
-  insert into public.usuarios (id, email, nome_clinica, telefone, endereco, role, owner_id)
-  values (
-    new.id,
-    new.email,
-    coalesce(new.raw_user_meta_data->>'nome_clinica', ''),
-    coalesce(new.raw_user_meta_data->>'telefone', ''),
-    coalesce(new.raw_user_meta_data->>'endereco', ''),
-    coalesce(new.raw_user_meta_data->>'role', 'dono'),
-    (new.raw_user_meta_data->>'owner_id')::uuid
-  )
-  on conflict (id) do nothing;
+  -- Verifica se o e-mail pertence a um membro pré-cadastrado pelo dono.
+  select user_id into v_owner_id
+  from public.equipe
+  where lower(email) = lower(new.email) and ativo = true
+  limit 1;
+
+  if v_owner_id is not null then
+    -- Membro da equipe: cria perfil vinculado ao dono.
+    insert into public.usuarios (id, email, role, owner_id)
+    values (new.id, new.email, 'equipe', v_owner_id)
+    on conflict (id) do nothing;
+  else
+    -- Dono de clínica: cria perfil com dados da clínica.
+    insert into public.usuarios (id, email, nome_clinica, telefone, endereco, role)
+    values (
+      new.id,
+      new.email,
+      coalesce(new.raw_user_meta_data->>'nome_clinica', ''),
+      coalesce(new.raw_user_meta_data->>'telefone', ''),
+      coalesce(new.raw_user_meta_data->>'endereco', ''),
+      'dono'
+    )
+    on conflict (id) do nothing;
+  end if;
+
   return new;
 end;
 $$;

@@ -559,52 +559,6 @@ export const api = {
     });
   },
 
-  // Cria um membro da equipe com conta Supabase Auth + registro na tabela equipe.
-  // Usa signUp para evitar dependência de Admin API. Requer confirmação de e-mail
-  // ativa no projeto Supabase para não interferir na sessão atual do dono.
-  async criarMembroEquipeComAcesso(
-    { nome, email, senha, cargo }: { nome: string; email: string; senha: string; cargo: string },
-    ownerId: string
-  ): Promise<MembroEquipe> {
-    return run(async () => {
-      // Guarda sessão atual do dono antes de chamar signUp.
-      const { data: { session: ownerSession } } = await supabase.auth.getSession();
-
-      const { data: authData, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password: senha,
-        options: {
-          data: { role: 'equipe', owner_id: ownerId, nome },
-        },
-      });
-      if (signUpError) throw signUpError;
-      if (!authData.user) throw new ApiError('Não foi possível criar a conta do membro.', 500);
-
-      // Se o signUp retornou uma sessão (confirmação desabilitada no Supabase),
-      // restaura a sessão do dono imediatamente.
-      if (authData.session && ownerSession) {
-        await supabase.auth.setSession({
-          access_token: ownerSession.access_token,
-          refresh_token: ownerSession.refresh_token,
-        });
-      }
-
-      // Registra também na tabela equipe (vinculada ao dono).
-      const { data: membroData, error: membroError } = await supabase
-        .from('equipe')
-        .insert([{
-          user_id: ownerId,
-          nome,
-          email,
-          cargo,
-          ativo: true,
-        }])
-        .select()
-        .single();
-      if (membroError) throw membroError;
-      return mapMembroEquipe(membroData);
-    });
-  },
 
   // ============================================================
   // PROCEDIMENTOS
