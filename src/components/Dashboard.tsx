@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Agendamento, StatusJornada } from '../types';
 import { Clock, UserCheck, UserPlus, CheckCircle } from 'lucide-react';
 
@@ -31,6 +31,45 @@ export const Dashboard: React.FC<DashboardProps> = ({
   userName,
 }) => {
   const [showAddModal, setShowAddModal] = useState(false);
+  const [currentDateTime, setCurrentDateTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentDateTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const obterDataHoraFormatada = () => {
+    const meses = [
+      'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+      'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'
+    ];
+    const dia = currentDateTime.getDate();
+    const mes = meses[currentDateTime.getMonth()];
+    const ano = currentDateTime.getFullYear();
+    const hora = String(currentDateTime.getHours()).padStart(2, '0');
+    const minuto = String(currentDateTime.getMinutes()).padStart(2, '0');
+    const prefixo = currentDateTime.getHours() === 1 ? 'É' : 'São';
+    
+    return `Hoje é dia ${dia} de ${mes} de ${ano} • ${prefixo} ${hora}:${minuto}h`;
+  };
+
+  const formatTelefone = (value: string) => {
+    const numbersOnly = value.replace(/\D/g, '');
+    const truncated = numbersOnly.slice(0, 11);
+    
+    if (truncated.length <= 2) {
+      return truncated.length > 0 ? `(${truncated}` : '';
+    } else if (truncated.length <= 6) {
+      return `(${truncated.slice(0, 2)}) ${truncated.slice(2)}`;
+    } else if (truncated.length <= 10) {
+      return `(${truncated.slice(0, 2)}) ${truncated.slice(2, 6)}-${truncated.slice(6)}`;
+    } else {
+      return `(${truncated.slice(0, 2)}) ${truncated.slice(2, 7)}-${truncated.slice(7)}`;
+    }
+  };
+
   const [newNome, setNewNome] = useState('');
   const [newTelefone, setNewTelefone] = useState('');
   const [newProcedimento, setNewProcedimento] = useState('Toxina Botulínica (Botox)');
@@ -51,6 +90,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newNome.trim()) return;
+
+    const rawTelefone = newTelefone.replace(/\D/g, '');
+    if (rawTelefone && rawTelefone.length < 10) {
+      alert('Por favor, informe um telefone de contato válido com DDD (mínimo 10 dígitos).');
+      return;
+    }
 
     onAddAgendamento(
       {
@@ -127,13 +172,33 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <p style={{ color: 'var(--color-text-muted)', fontSize: '14px' }}>
             Acompanhe a jornada de cuidados e proporcione uma experiência memorável.
           </p>
+          <div style={{ 
+            fontSize: '13px', 
+            fontWeight: 500, 
+            color: 'var(--color-primary)', 
+            marginTop: '8px', 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '6px' 
+          }}>
+            <span style={{ 
+              display: 'inline-block', 
+              width: '8px', 
+              height: '8px', 
+              borderRadius: '50%', 
+              backgroundColor: 'var(--color-primary)', 
+              boxShadow: '0 0 0 0 rgba(95, 125, 117, 0.7)',
+              animation: 'pulse 2s infinite' 
+            }} />
+            {obterDataHoraFormatada()}
+          </div>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
           className="btn btn-primary"
         >
           <UserPlus size={16} />
-          <span>Acolher nova/novo paciente</span>
+          <span>Acolher nova(o) paciente</span>
         </button>
       </div>
 
@@ -329,12 +394,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <div className="form-group">
                 <label className="form-label">Telefone</label>
                 <input
-                  type="tel"
+                  type="text"
                   className="form-input"
                   value={newTelefone}
-                  onChange={(e) => setNewTelefone(e.target.value)}
-                  placeholder="(11) 99999-0000"
-                  pattern="^[0-9()\\-\\s\\+]{8,}$"
+                  onChange={(e) => setNewTelefone(formatTelefone(e.target.value))}
+                  placeholder="(XX) 9XXXX-XXXX"
                 />
               </div>
 
