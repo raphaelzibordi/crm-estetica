@@ -66,8 +66,9 @@ export interface Agendamento {
 export interface Procedimento {
   id: string;
   nome: string;
+  descricao?: string;
   duracaoMinutos: number;
-  validadeDias: number; // Validade média do efeito do procedimento
+  validadeDias: number;
   preco: number;
   salaRequerida: string;
   profissionalResponsavel: string;

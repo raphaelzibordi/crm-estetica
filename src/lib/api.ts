@@ -71,6 +71,7 @@ function mapProcedimento(row: any): Procedimento {
   return {
     id: row.id,
     nome: row.nome ?? '',
+    descricao: row.descricao ?? '',
     duracaoMinutos: Number(row.duracao_minutos ?? 60),
     validadeDias: Number(row.validade_dias ?? 120),
     preco: row.preco !== null && row.preco !== undefined ? Number(row.preco) : 0,
@@ -524,17 +525,16 @@ export const api = {
       }
       const { data, error } = await supabase
         .from('procedimentos')
-        .insert([
-          {
-            user_id: uid,
-            nome: procedimento.nome,
-            duracao_minutos: procedimento.duracaoMinutos,
-            validade_dias: procedimento.validadeDias,
-            preco: procedimento.preco,
-            sala_requerida: procedimento.salaRequerida,
-            profissional_responsavel: procedimento.profissionalResponsavel,
-          },
-        ])
+        .insert([{
+          user_id: uid,
+          nome: procedimento.nome,
+          descricao: procedimento.descricao ?? null,
+          duracao_minutos: procedimento.duracaoMinutos,
+          validade_dias: procedimento.validadeDias,
+          preco: procedimento.preco,
+          sala_requerida: procedimento.salaRequerida,
+          profissional_responsavel: procedimento.profissionalResponsavel,
+        }])
         .select()
         .single();
       if (error) throw error;
@@ -551,6 +551,7 @@ export const api = {
       const uid = await requireUserId(userId);
       const dbUpdates: Record<string, unknown> = {};
       if (updates.nome !== undefined) dbUpdates.nome = updates.nome;
+      if (updates.descricao !== undefined) dbUpdates.descricao = updates.descricao;
       if (updates.duracaoMinutos !== undefined) dbUpdates.duracao_minutos = updates.duracaoMinutos;
       if (updates.validadeDias !== undefined) dbUpdates.validade_dias = updates.validadeDias;
       if (updates.preco !== undefined) dbUpdates.preco = updates.preco;

@@ -112,7 +112,7 @@ export const Gestao: React.FC<GestaoProps> = ({ userId }) => {
   // ─── PROCEDIMENTO HANDLERS ───────────────────────────────────────────────
   const openProcModal = (p?: Procedimento) => {
     if (p) {
-      setEditingProcId(p.id); setPNome(p.nome); setPDesc((p as any).descricao || '');
+      setEditingProcId(p.id); setPNome(p.nome); setPDesc(p.descricao || '');
       setPPreco(String(p.preco)); setPDuracao(String(p.duracaoMinutos));
     } else {
       setEditingProcId(null); setPNome(''); setPDesc(''); setPPreco(''); setPDuracao('60');
@@ -122,7 +122,7 @@ export const Gestao: React.FC<GestaoProps> = ({ userId }) => {
 
   const handleSaveProc = async (e: React.FormEvent) => {
     e.preventDefault();
-    const payload = {
+    const payload: Omit<Procedimento, 'id'> = {
       nome: pNome,
       descricao: pDesc,
       preco: parseFloat(pPreco) || 0,
@@ -134,13 +134,17 @@ export const Gestao: React.FC<GestaoProps> = ({ userId }) => {
     try {
       if (editingProcId) {
         const updated = await api.updateProcedimento(editingProcId, payload, userId);
-        setProcedimentos(prev => prev.map(p => p.id === editingProcId ? { ...updated, descricao: pDesc } as any : p));
+        setProcedimentos(prev => prev.map(p => p.id === editingProcId ? updated : p));
       } else {
         const created = await api.createProcedimento(payload, userId);
-        setProcedimentos(prev => [...prev, { ...created, descricao: pDesc } as any]);
+        setProcedimentos(prev => [...prev, created]);
       }
-    } catch (err) { console.error(err); alert('Erro ao salvar procedimento.'); }
-    setShowProcModal(false);
+      setShowProcModal(false);
+    } catch (err: any) {
+      console.error('[Gestao] Erro ao salvar procedimento:', err);
+      const msg = err?.message || JSON.stringify(err);
+      alert(`Erro ao salvar procedimento:\n${msg}`);
+    }
   };
 
   const handleDeleteProc = async (id: string) => {
