@@ -12,18 +12,14 @@ const EMPTY_FECHAMENTO: FechamentoFinanceiro = { faturamentoTotal: 0, comissoesP
 
 type ActiveTab = 'dashboard' | 'financeiro' | 'estoque' | 'procedimentos';
 
-// ─── LOCAL PROCEDIMENTO CRUD (localStorage) ────────────────────────────────
-const PROC_KEY = 'gestao_procedimentos';
-function loadProcs(): Procedimento[] {
-  try { return JSON.parse(localStorage.getItem(PROC_KEY) || '[]'); } catch { return []; }
-}
-function saveProcs(p: Procedimento[]) { localStorage.setItem(PROC_KEY, JSON.stringify(p)); }
+
 
 export const Gestao: React.FC<GestaoProps> = ({ userId }) => {
   const [tab, setTab] = useState<ActiveTab>('dashboard');
   const [estoque, setEstoque] = useState<ItemEstoque[]>([]);
   const [financeiro, setFinanceiro] = useState<FechamentoFinanceiro>(EMPTY_FECHAMENTO);
-  const [procedimentos, setProcedimentos] = useState<Procedimento[]>(loadProcs);
+  const [procedimentos, setProcedimentos] = useState<Procedimento[]>([]);
+  const [loadingProcs, setLoadingProcs] = useState(true);
 
   // ── Estoque form state ──
   const [showEstoqueModal, setShowEstoqueModal] = useState(false);
@@ -41,7 +37,7 @@ export const Gestao: React.FC<GestaoProps> = ({ userId }) => {
   const [pPreco, setPPreco] = useState('');
   const [pDuracao, setPDuracao] = useState('60');
 
-  useEffect(() => { loadEstoque(); loadFinanceiro(); }, [userId]);
+  useEffect(() => { loadEstoque(); loadFinanceiro(); loadProcedimentos(); }, [userId]);
 
   const loadEstoque = async () => {
     try { setEstoque(await api.getEstoque(userId)); } catch (e) { console.error(e); }
@@ -51,6 +47,14 @@ export const Gestao: React.FC<GestaoProps> = ({ userId }) => {
       const hoje = new Date().toISOString().split('T')[0];
       setFinanceiro(await api.getFechamentoFinanceiro(userId, hoje));
     } catch { setFinanceiro(EMPTY_FECHAMENTO); }
+  };
+
+  const loadProcedimentos = async () => {
+    try {
+      setLoadingProcs(true);
+      setProcedimentos(await api.getProcedimentos(userId));
+    } catch (e) { console.error('Erro ao carregar procedimentos', e); }
+    finally { setLoadingProcs(false); }
   };
 
   // ─── ESTOQUE HANDLERS ────────────────────────────────────────────────────
@@ -70,45 +74,39 @@ export const Gestao: React.FC<GestaoProps> = ({ userId }) => {
     e.preventDefault();
     const qty = parseInt(eQtd, 10) || 0;
     const min = parseInt(eQtdMin, 10) || 0;
-    const status = qty <= min ? 'critico' : 'normal';
+    const status: 'normal' | 'critico' = qty <= min ? 'critico' : 'normal';
     try {
       if (editingEstoqueId) {
-        await api.updateEstoque(editingEstoqueId, qty, status, new Date().toISOString().split('T')[0]);
+        await api.updateEstoque(editingEstoqueId, qty, status, new Date().toISOString().split('T')[0], userId);
         setEstoque(prev => prev.map(i => i.id === editingEstoqueId
           ? { ...i, produto: eProduto, quantidade: qty, quantidadeMinima: min, unidade: eUnidade, status }
           : i));
       } else {
-        // create via Supabase insert if api supports it, else local
-        const novo: ItemEstoque = {
-          id: 'e_' + Date.now(),
+        const created = await api.createItemEstoque({
           produto: eProduto, quantidade: qty, quantidadeMinima: min,
           unidade: eUnidade, status, ultimaReposicao: new Date().toISOString().split('T')[0],
-        };
-        try {
-          const created = await (api as any).createEstoque?.(novo, userId);
-          setEstoque(prev => [...prev, created ?? novo]);
-        } catch {
-          setEstoque(prev => [...prev, novo]);
-        }
+        }, userId);
+        setEstoque(prev => [...prev, created]);
       }
-    } catch (err) { console.error(err); await loadEstoque(); }
+    } catch (err) { console.error(err); alert('Erro ao salvar insumo.'); await loadEstoque(); }
     setShowEstoqueModal(false);
   };
 
   const handleDeleteEstoque = async (id: string) => {
     if (!window.confirm('Remover este insumo do estoque?')) return;
     setEstoque(prev => prev.filter(i => i.id !== id));
-    try { await (api as any).deleteEstoque?.(id, userId); } catch { await loadEstoque(); }
+    try { await api.deleteItemEstoque(id, userId); } catch { await loadEstoque(); }
   };
 
   const handleAdjustQty = async (id: string, delta: number) => {
     const item = estoque.find(i => i.id === id);
     if (!item) return;
     const newQty = Math.max(0, item.quantidade + delta);
-    const status = newQty <= item.quantidadeMinima ? 'critico' : 'normal';
+    const status: 'normal' | 'critico' = newQty <= item.quantidadeMinima ? 'critico' : 'normal';
     setEstoque(prev => prev.map(i => i.id === id ? { ...i, quantidade: newQty, status } : i));
-    try { await api.updateEstoque(id, newQty, status, delta > 0 ? new Date().toISOString().split('T')[0] : undefined); }
-    catch { await loadEstoque(); }
+    try {
+      await api.updateEstoque(id, newQty, status, delta > 0 ? new Date().toISOString().split('T')[0] : undefined, userId);
+    } catch { await loadEstoque(); }
   };
 
   // ─── PROCEDIMENTO HANDLERS ───────────────────────────────────────────────
@@ -122,24 +120,33 @@ export const Gestao: React.FC<GestaoProps> = ({ userId }) => {
     setShowProcModal(true);
   };
 
-  const handleSaveProc = (e: React.FormEvent) => {
+  const handleSaveProc = async (e: React.FormEvent) => {
     e.preventDefault();
-    const upd: Procedimento & { descricao?: string } = {
-      id: editingProcId || 'p_' + Date.now(),
-      nome: pNome, descricao: pDesc, preco: parseFloat(pPreco) || 0,
+    const payload = {
+      nome: pNome,
+      descricao: pDesc,
+      preco: parseFloat(pPreco) || 0,
       duracaoMinutos: parseInt(pDuracao, 10) || 60,
-      validadeDias: 90, salaRequerida: 'Cabine 01', profissionalResponsavel: '',
+      validadeDias: 90,
+      salaRequerida: 'Cabine 01',
+      profissionalResponsavel: '',
     };
-    setProcedimentos(prev => {
-      const next = editingProcId ? prev.map(p => p.id === editingProcId ? upd : p) : [...prev, upd];
-      saveProcs(next); return next;
-    });
+    try {
+      if (editingProcId) {
+        const updated = await api.updateProcedimento(editingProcId, payload, userId);
+        setProcedimentos(prev => prev.map(p => p.id === editingProcId ? { ...updated, descricao: pDesc } as any : p));
+      } else {
+        const created = await api.createProcedimento(payload, userId);
+        setProcedimentos(prev => [...prev, { ...created, descricao: pDesc } as any]);
+      }
+    } catch (err) { console.error(err); alert('Erro ao salvar procedimento.'); }
     setShowProcModal(false);
   };
 
-  const handleDeleteProc = (id: string) => {
+  const handleDeleteProc = async (id: string) => {
     if (!window.confirm('Excluir este procedimento?')) return;
-    setProcedimentos(prev => { const next = prev.filter(p => p.id !== id); saveProcs(next); return next; });
+    setProcedimentos(prev => prev.filter(p => p.id !== id));
+    try { await api.deleteProcedimento(id, userId); } catch { await loadProcedimentos(); }
   };
 
   const faturamentoLiquido = financeiro.faturamentoTotal - financeiro.comissoesPagas;
