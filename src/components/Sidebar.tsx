@@ -8,6 +8,7 @@ import {
   Sparkles,
   LogOut,
   ChevronUp,
+  Settings,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -109,6 +110,36 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, use
               animation: 'fadeIn 0.15s ease-out',
             }}
           >
+            {/* Configurações */}
+            <button
+              type="button"
+              onClick={() => { setCurrentTab('configuracoes'); setMenuOpen(false); }}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '10px 12px',
+                background: 'transparent',
+                border: 'none',
+                borderRadius: 'var(--border-radius-sm)',
+                color: 'var(--color-text-main)',
+                fontSize: '13px',
+                fontWeight: 500,
+                cursor: 'pointer',
+                transition: 'var(--transition-smooth)',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-primary-light)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            >
+              <Settings size={16} />
+              <span>Configurações</span>
+            </button>
+
+            {/* Linha divisora */}
+            <div style={{ height: '1px', background: 'var(--color-border)', margin: '4px 6px' }} />
+
+            {/* Sair */}
             <button
               type="button"
               onClick={handleLogout}
@@ -128,12 +159,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, use
                 cursor: signingOut ? 'wait' : 'pointer',
                 transition: 'var(--transition-smooth)',
               }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-warning-light)';
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-              }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-warning-light)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
               <LogOut size={16} />
               <span>{signingOut ? 'Saindo...' : 'Sair do Lumina'}</span>

@@ -7,6 +7,7 @@ import { Prontuario } from './components/Prontuario';
 import { Comunicacao } from './components/Comunicacao';
 import { Gestao } from './components/Gestao';
 import { Auth } from './components/Auth';
+import { Configuracoes } from './components/Configuracoes';
 import type { Agendamento, StatusJornada } from './types';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { api } from './lib/api';
@@ -302,6 +303,10 @@ function App() {
         {currentTab === 'comunicacao' && <Comunicacao userId={session.user.id} />}
 
         {currentTab === 'gestao' && <Gestao userId={session.user.id} />}
+
+        {currentTab === 'configuracoes' && (
+          <Configuracoes userId={session.user.id} userName={userName} />
+        )}
       </main>
     </div>
   );

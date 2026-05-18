@@ -19,7 +19,6 @@ export const Gestao: React.FC<GestaoProps> = ({ userId }) => {
   const [estoque, setEstoque] = useState<ItemEstoque[]>([]);
   const [financeiro, setFinanceiro] = useState<FechamentoFinanceiro>(EMPTY_FECHAMENTO);
   const [procedimentos, setProcedimentos] = useState<Procedimento[]>([]);
-  const [loadingProcs, setLoadingProcs] = useState(true);
 
   // ── Estoque form state ──
   const [showEstoqueModal, setShowEstoqueModal] = useState(false);
@@ -51,10 +50,8 @@ export const Gestao: React.FC<GestaoProps> = ({ userId }) => {
 
   const loadProcedimentos = async () => {
     try {
-      setLoadingProcs(true);
       setProcedimentos(await api.getProcedimentos(userId));
     } catch (e) { console.error('Erro ao carregar procedimentos', e); }
-    finally { setLoadingProcs(false); }
   };
 
   // ─── ESTOQUE HANDLERS ────────────────────────────────────────────────────
