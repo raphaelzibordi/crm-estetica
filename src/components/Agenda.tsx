@@ -11,6 +11,7 @@ interface AgendaProps {
     agendamento: Omit<Agendamento, 'id'>,
     extra?: { telefone?: string }
   ) => void;
+  onDeleteAgendamento?: (id: string) => Promise<void>;
   onOpenProntuario?: (clienteId: string) => void;
 }
 
@@ -62,6 +63,7 @@ export const Agenda: React.FC<AgendaProps> = ({
   userId,
   agendamentos,
   onAddAgendamento,
+  onDeleteAgendamento,
   onOpenProntuario,
 }) => {
   const [view, setView] = useState<AgendaView>('hoje');
@@ -83,6 +85,97 @@ export const Agenda: React.FC<AgendaProps> = ({
     confiabilidade: string;
   }[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
+
+  // ============================================================
+  // STATES E HANDLERS DE ACOLHIMENTO E CANCELAMENTO
+  // ============================================================
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newNome, setNewNome] = useState('');
+  const [newTelefone, setNewTelefone] = useState('');
+  const [newProcedimento, setNewProcedimento] = useState('Toxina Botulínica (Botox)');
+  const [newData, setNewData] = useState('');
+  const [newHora, setNewHora] = useState('');
+
+  const formatTelefone = (value: string) => {
+    const numbersOnly = value.replace(/\D/g, '');
+    const truncated = numbersOnly.slice(0, 11);
+    
+    if (truncated.length <= 2) {
+      return truncated.length > 0 ? `(${truncated}` : '';
+    } else if (truncated.length <= 6) {
+      return `(${truncated.slice(0, 2)}) ${truncated.slice(2)}`;
+    } else if (truncated.length <= 10) {
+      return `(${truncated.slice(0, 2)}) ${truncated.slice(2, 6)}-${truncated.slice(6)}`;
+    } else {
+      return `(${truncated.slice(0, 2)}) ${truncated.slice(2, 7)}-${truncated.slice(7)}`;
+    }
+  };
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newNome.trim()) return;
+
+    const rawTelefone = newTelefone.replace(/\D/g, '');
+    if (rawTelefone && rawTelefone.length < 10) {
+      alert('Por favor, informe um telefone de contato válido com DDD (mínimo 10 dígitos).');
+      return;
+    }
+
+    const matchedProc = mockProcedimentos.find(p => p.nome.toLowerCase().includes(newProcedimento.toLowerCase())) || mockProcedimentos[0];
+    const duration = matchedProc.duracaoMinutos;
+    const price = matchedProc.preco;
+
+    const [h, m] = newHora.split(':').map((x) => parseInt(x, 10));
+    const totalMin = h * 60 + m + duration;
+    const wrapped = ((totalMin % (24 * 60)) + 24 * 60) % (24 * 60);
+    const endH = String(Math.floor(wrapped / 60)).padStart(2, '0');
+    const endM = String(wrapped % 60).padStart(2, '0');
+    const endStr = `${endH}:${endM}`;
+
+    try {
+      await onAddAgendamento(
+        {
+          clienteId: 'c_' + Math.random().toString(36).slice(2, 10),
+          clienteNome: newNome,
+          data: newData,
+          horaInicio: newHora,
+          horaFim: endStr,
+          procedimento: newProcedimento,
+          profissional: matchedProc.profissionalResponsavel,
+          sala: matchedProc.salaRequerida,
+          status: 'agendada',
+          valor: price
+        },
+        { telefone: newTelefone }
+      );
+      
+      setShowAddModal(false);
+      setNewNome('');
+      setNewTelefone('');
+      alert('Nova(o) paciente acolhida(o) com sucesso!');
+      
+      setCursor(prev => new Date(prev)); // Force range reload
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao agendar paciente.');
+    }
+  };
+
+  const handleCancelAgendamento = async (id: string) => {
+    if (!confirm('Deseja realmente cancelar este atendimento?')) return;
+    try {
+      if (onDeleteAgendamento) {
+        await onDeleteAgendamento(id);
+      } else {
+        await api.deleteAgendamento(id, userId);
+      }
+      alert('Atendimento cancelado com sucesso!');
+      setCursor(prev => new Date(prev));
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao cancelar agendamento.');
+    }
+  };
 
   // ============================================================
   // FETCH de dados conforme a view
@@ -366,9 +459,27 @@ export const Agenda: React.FC<AgendaProps> = ({
                             </span>
                           </div>
                         </div>
-                        <span className={`badge ${booked.status === 'finalizada' ? 'badge-neutral' : 'badge-sage'}`}>
-                          {booked.status}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span className={`badge ${booked.status === 'finalizada' ? 'badge-neutral' : 'badge-sage'}`}>
+                            {booked.status}
+                          </span>
+                          {booked.status !== 'finalizada' && (
+                            <button
+                              onClick={() => handleCancelAgendamento(booked.id)}
+                              className="btn btn-outline"
+                              style={{ 
+                                padding: '4px 10px', 
+                                fontSize: '11px', 
+                                borderColor: '#E53E3E', 
+                                color: '#E53E3E',
+                                cursor: 'pointer'
+                              }}
+                              title="Cancelar Atendimento"
+                            >
+                              Cancelar
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ) : (
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flex: 1 }}>
@@ -387,6 +498,19 @@ export const Agenda: React.FC<AgendaProps> = ({
                             Nenhuma reserva ativa para salas ou profissionais neste bloco.
                           </div>
                         </div>
+                        <button
+                          onClick={() => {
+                            setNewData(toISODate(cursor));
+                            setNewHora(slot);
+                            setNewNome('');
+                            setNewTelefone('');
+                            setShowAddModal(true);
+                          }}
+                          className="btn btn-secondary"
+                          style={{ padding: '6px 14px', fontSize: '11px', cursor: 'pointer' }}
+                        >
+                          Acolher Paciente
+                        </button>
                       </div>
                     )}
                   </div>
@@ -511,6 +635,99 @@ export const Agenda: React.FC<AgendaProps> = ({
               setView('semana');
             }}
           />
+        </div>
+      )}
+
+      {/* Add client modal dialog */}
+      {showAddModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div className="card" style={{ width: '440px', padding: '32px' }}>
+            <h3 style={{ marginBottom: '20px' }}>Acolher Paciente</h3>
+            <form onSubmit={handleCreate}>
+              <div className="form-group">
+                <label className="form-label">Nome da(o) Paciente</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={newNome}
+                  onChange={(e) => setNewNome(e.target.value)}
+                  placeholder="Ex: Amanda Santos"
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Telefone</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={newTelefone}
+                  onChange={(e) => setNewTelefone(formatTelefone(e.target.value))}
+                  placeholder="(XX) 9XXXX-XXXX"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Procedimento</label>
+                <select
+                  className="form-select"
+                  value={newProcedimento}
+                  onChange={(e) => setNewProcedimento(e.target.value)}
+                >
+                  {mockProcedimentos.map(p => (
+                    <option key={p.id} value={p.nome}>{p.nome}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-group">
+                  <label className="form-label">Dia</label>
+                  <input
+                    type="date"
+                    className="form-input"
+                    value={newData}
+                    onChange={(e) => setNewData(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Horário de Início</label>
+                  <input
+                    type="time"
+                    className="form-input"
+                    value={newHora}
+                    onChange={(e) => setNewHora(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="btn btn-outline"
+                >
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  Acolher
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

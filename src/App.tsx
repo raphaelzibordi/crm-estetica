@@ -155,7 +155,7 @@ function App() {
             telefone: extra?.telefone || '',
             email: '',
             dataNascimento: '',
-            fotoUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150',
+            fotoUrl: '',
             dataUltimaVisita: new Date().toISOString().split('T')[0],
             statusRetencao: 'em_dia',
             tags: [],
@@ -190,6 +190,19 @@ function App() {
   const handleOpenProntuario = (clienteId: string) => {
     setSelectedClienteId(clienteId);
     setCurrentTab('prontuario');
+  };
+
+  const handleDeleteAgendamento = async (id: string) => {
+    if (!session?.user?.id) return;
+    try {
+      await api.deleteAgendamento(id, session.user.id);
+      await loadAgendamentosDoDia();
+    } catch (err) {
+      console.error('Erro ao deletar agendamento:', err);
+      const msg = err instanceof ApiError ? err.message : 'Erro ao deletar agendamento.';
+      alert(msg);
+      await handleUnauthorized(err);
+    }
   };
 
   // ============================================================
@@ -274,6 +287,7 @@ function App() {
             onUpdateStatus={handleUpdateStatus}
             onOpenProntuario={handleOpenProntuario}
             onAddAgendamento={handleAddAgendamento}
+            onDeleteAgendamento={handleDeleteAgendamento}
             userName={userName}
           />
         )}
@@ -283,6 +297,7 @@ function App() {
             userId={session.user.id}
             agendamentos={agendamentos}
             onAddAgendamento={handleAddAgendamento}
+            onDeleteAgendamento={handleDeleteAgendamento}
             onOpenProntuario={handleOpenProntuario}
           />
         )}

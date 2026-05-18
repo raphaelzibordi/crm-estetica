@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import type { Cliente, EvolucaoClinica } from '../types';
-import { FileText, Camera, Plus } from 'lucide-react';
+import { FileText, Camera, Plus, Trash2, Edit2, User } from 'lucide-react';
 import { api } from '../lib/api';
 
 interface GaleriaItem {
   id: string;
-  imagemAntes: string;
-  dataAntes: string;
-  imagemDepois: string;
-  dataDepois: string;
+  imagem: string;
+  data: string;
   descricao: string;
 }
 
@@ -29,9 +27,254 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
   const [newEvolucaoProc, setNewEvolucaoProc] = useState('Toxina Botulínica (Botox)');
   const [newEvolucaoObs, setNewEvolucaoObs] = useState('');
 
+  // States for patient details editing
+  const [isEditing, setIsEditing] = useState(false);
+  const [editNome, setEditNome] = useState('');
+  const [editNasc, setEditNasc] = useState('');
+  const [editTelefone, setEditTelefone] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editFotoFile, setEditFotoFile] = useState<string>('');
+  const profileFileInputRef = React.useRef<HTMLInputElement>(null);
+
+  // States for image gallery uploader
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [showAddPhoto, setShowAddPhoto] = useState(false);
+  const [photoFile, setPhotoFile] = useState<string>('');
+  const [fileName, setFileName] = useState('');
+  const [photoDesc, setPhotoDesc] = useState('');
+  const [galeriaItems, setGaleriaItems] = useState<GaleriaItem[]>([]);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+
   useEffect(() => {
     loadClientes();
   }, [userId]);
+
+  const currentCliente = clientes.find(c => c.id === activeClienteId);
+
+  useEffect(() => {
+    if (currentCliente) {
+      let formattedNasc = '';
+      if (currentCliente.dataNascimento) {
+        const parts = currentCliente.dataNascimento.split('-');
+        if (parts.length === 3) {
+          formattedNasc = `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+      }
+      setEditNome(currentCliente.nome || '');
+      setEditNasc(formattedNasc);
+      setEditTelefone(currentCliente.telefone || '');
+      setEditEmail(currentCliente.email || '');
+      setEditFotoFile('');
+      setIsEditing(false);
+    }
+  }, [currentCliente]);
+
+  const handleProfileFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        setEditFotoFile(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  useEffect(() => {
+    if (activeClienteId) {
+      const stored = localStorage.getItem(`galeria_${activeClienteId}`);
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          let needsSave = false;
+          
+          const migrated = parsed.flatMap((item: any) => {
+            // Migrate legacy before/after pair to two individual photos
+            if (item.imagemAntes || item.imagemDepois) {
+              needsSave = true;
+              const items = [];
+              if (item.imagemAntes) {
+                items.push({
+                  id: `${item.id}_antes`,
+                  imagem: item.imagemAntes,
+                  data: item.dataAntes || new Date().toISOString().split('T')[0],
+                  descricao: `${item.descricao} (Antes)`
+                });
+              }
+              if (item.imagemDepois) {
+                items.push({
+                  id: `${item.id}_depois`,
+                  imagem: item.imagemDepois,
+                  data: item.dataDepois || new Date().toISOString().split('T')[0],
+                  descricao: `${item.descricao} (Evolução)`
+                });
+              }
+              return items;
+            }
+            
+            // If it is already in the new schema format
+            if (item.imagem) {
+              return [item];
+            }
+            return [];
+          });
+
+          setGaleriaItems(migrated);
+          
+          if (needsSave) {
+            localStorage.setItem(`galeria_${activeClienteId}`, JSON.stringify(migrated));
+          }
+        } catch (err) {
+          console.error(err);
+          setGaleriaItems([]);
+        }
+      } else {
+        setGaleriaItems([]);
+      }
+    }
+  }, [activeClienteId]);
+
+  const formatDataNascimento = (value: string) => {
+    const numbersOnly = value.replace(/\D/g, '');
+    const truncated = numbersOnly.slice(0, 8);
+    if (truncated.length <= 2) {
+      return truncated;
+    } else if (truncated.length <= 4) {
+      return `${truncated.slice(0, 2)}/${truncated.slice(2)}`;
+    } else {
+      return `${truncated.slice(0, 2)}/${truncated.slice(2, 4)}/${truncated.slice(4)}`;
+    }
+  };
+
+  const formatTelefone = (value: string) => {
+    const numbersOnly = value.replace(/\D/g, '');
+    const truncated = numbersOnly.slice(0, 11);
+    
+    if (truncated.length <= 2) {
+      return truncated.length > 0 ? `(${truncated}` : '';
+    } else if (truncated.length <= 6) {
+      return `(${truncated.slice(0, 2)}) ${truncated.slice(2)}`;
+    } else if (truncated.length <= 10) {
+      return `(${truncated.slice(0, 2)}) ${truncated.slice(2, 6)}-${truncated.slice(6)}`;
+    } else {
+      return `(${truncated.slice(0, 2)}) ${truncated.slice(2, 7)}-${truncated.slice(7)}`;
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!activeClienteId || !currentCliente) return;
+
+    let dbDataNascimento = '';
+    if (editNasc) {
+      const parts = editNasc.split('/');
+      if (parts.length !== 3 || parts[0].length !== 2 || parts[1].length !== 2 || parts[2].length !== 4) {
+        alert('Por favor, informe a data de nascimento no formato DD/MM/AAAA.');
+        return;
+      }
+      dbDataNascimento = `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+
+    const rawTelefone = editTelefone.replace(/\D/g, '');
+    if (rawTelefone && rawTelefone.length < 10) {
+      alert('Por favor, informe um telefone de contato válido com DDD (mínimo 10 dígitos).');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (editEmail && !emailRegex.test(editEmail)) {
+      alert('Por favor, insira um e-mail válido.');
+      return;
+    }
+
+    try {
+      const payload: Partial<Cliente> = {
+        nome: editNome,
+        dataNascimento: dbDataNascimento || '',
+        telefone: editTelefone,
+        email: editEmail
+      };
+      if (editFotoFile) {
+        payload.fotoUrl = editFotoFile;
+      }
+
+      const updated = await api.updateCliente(activeClienteId, payload, userId);
+
+      // Update local state
+      setClientes(prev => prev.map(c => c.id === activeClienteId ? updated : c));
+      setIsEditing(false);
+      alert('Cadastro da cliente atualizado com sucesso!');
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao atualizar cadastro da cliente.');
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setFileName(file.name);
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        setPhotoFile(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSavePhotos = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!photoFile) {
+      alert('Por favor, selecione uma imagem de evolução.');
+      return;
+    }
+
+    const newItem: GaleriaItem = {
+      id: Math.random().toString(36).substring(2, 9),
+      imagem: photoFile,
+      data: new Date().toISOString().split('T')[0],
+      descricao: photoDesc.trim() || 'Sem descrição.'
+    };
+
+    const updated = [newItem, ...galeriaItems];
+    setGaleriaItems(updated);
+    localStorage.setItem(`galeria_${activeClienteId}`, JSON.stringify(updated));
+
+    // Reset fields
+    setPhotoFile('');
+    setFileName('');
+    setPhotoDesc('');
+    setShowAddPhoto(false);
+    alert('Nova imagem de evolução adicionada com sucesso!');
+  };
+
+  const handleDeletePhoto = (itemId: string) => {
+    if (!confirm('Deseja realmente remover esta foto de evolução?')) return;
+
+    const updated = galeriaItems.filter(item => item.id !== itemId);
+    setGaleriaItems(updated);
+    localStorage.setItem(`galeria_${activeClienteId}`, JSON.stringify(updated));
+    alert('Foto de evolução removida com sucesso!');
+  };
+
+  const handleDeleteCliente = async () => {
+    if (!activeClienteId || !currentCliente) return;
+    if (!confirm(`Deseja realmente excluir a paciente ${currentCliente.nome}? Esta ação não pode ser desfeita.`)) return;
+
+    try {
+      await api.deleteCliente(activeClienteId, userId);
+      setClientes(prev => prev.filter(c => c.id !== activeClienteId));
+      setActiveClienteId('');
+      alert('Paciente excluída com sucesso!');
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao excluir paciente.');
+    }
+  };
 
   useEffect(() => {
     if (activeClienteId) {
@@ -62,7 +305,6 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
     }
   };
 
-  const currentCliente = clientes.find(c => c.id === activeClienteId);
   const currentProntuario: { clienteId: string | null; evolucoes: EvolucaoClinica[]; galeria: GaleriaItem[] } = { clienteId: activeClienteId, evolucoes, galeria: [] };
 
   const handleAddEvolucao = async (e: React.FormEvent) => {
@@ -147,11 +389,17 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
                   transition: 'var(--transition-smooth)'
                 }}
               >
-                <img 
-                  src={cliente.fotoUrl || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150'} 
-                  alt={cliente.nome} 
-                  style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }}
-                />
+                {cliente.fotoUrl ? (
+                  <img 
+                    src={cliente.fotoUrl} 
+                    alt={cliente.nome} 
+                    style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }}
+                  />
+                ) : (
+                  <div style={{ width: '32px', height: '32px', minWidth: '32px', borderRadius: '50%', backgroundColor: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}>
+                    <User size={16} />
+                  </div>
+                )}
                 <div>
                   <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-main)' }}>{cliente.nome}</div>
                   <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Última visita: {cliente.dataUltimaVisita ? new Date(cliente.dataUltimaVisita).toLocaleDateString('pt-BR') : 'N/A'}</div>
@@ -165,22 +413,153 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
         <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
           
           {currentCliente && (
-            <div className="card" style={{ padding: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                <img 
-                  src={currentCliente.fotoUrl || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150'} 
-                  alt={currentCliente.nome} 
-                  style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--color-primary)' }}
-                />
-                <div>
-                  <h2 style={{ fontSize: '22px', fontWeight: 600, marginBottom: '6px' }}>{currentCliente.nome}</h2>
-                  <div style={{ display: 'flex', gap: '16px', fontSize: '13px', color: 'var(--color-text-muted)' }}>
-                    <span>Nasc: {currentCliente.dataNascimento ? new Date(currentCliente.dataNascimento).toLocaleDateString('pt-BR') : 'N/A'}</span>
-                    <span>•</span>
-                    <span>Contato: {currentCliente.telefone}</span>
-                    <span>•</span>
-                    <span>E-mail: {currentCliente.email}</span>
-                  </div>
+            <div className="card" style={{ padding: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '20px', width: '100%' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                  {editFotoFile ? (
+                    <img 
+                      src={editFotoFile} 
+                      alt="Nova foto" 
+                      style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--color-primary)' }}
+                    />
+                  ) : currentCliente.fotoUrl ? (
+                    <img 
+                      src={currentCliente.fotoUrl} 
+                      alt={currentCliente.nome} 
+                      style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--color-primary)' }}
+                    />
+                  ) : (
+                    <div style={{ width: '64px', height: '64px', minWidth: '64px', borderRadius: '50%', backgroundColor: '#f3f4f6', border: '2px solid var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}>
+                      <User size={32} />
+                    </div>
+                  )}
+                  {isEditing && (
+                    <>
+                      <button
+                        onClick={() => profileFileInputRef.current?.click()}
+                        className="btn btn-outline"
+                        style={{ padding: '4px 8px', fontSize: '10px', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
+                      >
+                        <Camera size={10} />
+                        <span>Alterar Foto</span>
+                      </button>
+                      <input
+                        type="file"
+                        ref={profileFileInputRef}
+                        style={{ display: 'none' }}
+                        accept="image/*"
+                        onChange={handleProfileFileChange}
+                      />
+                    </>
+                  )}
+                </div>
+                <div style={{ flex: 1, paddingRight: '20px' }}>
+                  {!isEditing ? (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
+                      <div>
+                        <h2 style={{ fontSize: '22px', fontWeight: 600, marginBottom: '6px' }}>
+                          {currentCliente.nome}
+                        </h2>
+                        <div style={{ display: 'flex', gap: '16px', fontSize: '13px', color: 'var(--color-text-muted)' }}>
+                          <span>Nasc: {currentCliente.dataNascimento ? currentCliente.dataNascimento.split('-').reverse().join('/') : 'N/A'}</span>
+                          <span>•</span>
+                          <span>Contato: {currentCliente.telefone || 'N/A'}</span>
+                          <span>•</span>
+                          <span>E-mail: {currentCliente.email || 'N/A'}</span>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button 
+                          onClick={handleDeleteCliente} 
+                          className="btn btn-outline" 
+                          style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', borderColor: '#fca5a5', color: '#ef4444' }}
+                        >
+                          <Trash2 size={14} />
+                          <span>Excluir Paciente</span>
+                        </button>
+                        <button 
+                          onClick={() => setIsEditing(true)}
+                          className="btn btn-outline" 
+                          style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}
+                        >
+                          <Edit2 size={14} />
+                          <span>Editar Dados</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '6px' }}>
+                        <input
+                          type="text"
+                          className="form-input"
+                          style={{ fontSize: '20px', fontWeight: 600, padding: '4px 8px', margin: 0, width: '300px' }}
+                          value={editNome}
+                          onChange={(e) => setEditNome(e.target.value)}
+                          placeholder="Nome da paciente"
+                        />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
+                        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-main)' }}>Nasc:</span>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              style={{ width: '120px', padding: '6px 10px', fontSize: '12px', borderRadius: '4px' }} 
+                              value={editNasc} 
+                              onChange={(e) => setEditNasc(formatDataNascimento(e.target.value))} 
+                              placeholder="DD/MM/AAAA" 
+                            />
+                          </div>
+                          
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-main)' }}>Contato:</span>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              style={{ width: '140px', padding: '6px 10px', fontSize: '12px', borderRadius: '4px' }} 
+                              value={editTelefone} 
+                              onChange={(e) => setEditTelefone(formatTelefone(e.target.value))} 
+                              placeholder="(XX) 9XXXX-XXXX" 
+                            />
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-main)' }}>E-mail:</span>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              style={{ width: '180px', padding: '6px 10px', fontSize: '12px', borderRadius: '4px' }} 
+                              value={editEmail} 
+                              onChange={(e) => setEditEmail(e.target.value)} 
+                              placeholder="exemplo@email.com" 
+                            />
+                          </div>
+                        </div>
+                        
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '4px', justifyContent: 'flex-end' }}>
+                          <button 
+                            onClick={() => {
+                              setIsEditing(false);
+                              setEditFotoFile('');
+                            }} 
+                            className="btn btn-outline" 
+                            style={{ padding: '6px 14px', fontSize: '11px', borderRadius: '4px' }}
+                          >
+                            Cancelar
+                          </button>
+                          <button 
+                            onClick={handleSaveProfile} 
+                            className="btn btn-primary" 
+                            style={{ padding: '6px 14px', fontSize: '11px', borderRadius: '4px' }}
+                          >
+                            Salvar
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -192,14 +571,97 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
             </div>
           )}
 
-          {/* Galeria Antes e Depois */}
+          {/* Galeria de Evolução por Imagem */}
           <div className="card" style={{ padding: '32px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '24px' }}>
-              <Camera size={18} style={{ color: 'var(--color-primary)' }} />
-              <h3 style={{ fontSize: '18px', fontWeight: 600 }}>Evolução por Imagem (Antes & Depois)</h3>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Camera size={18} style={{ color: 'var(--color-primary)' }} />
+                <h3 style={{ fontSize: '18px', fontWeight: 600 }}>Evolução por Imagem</h3>
+              </div>
+              <button 
+                onClick={() => setShowAddPhoto(!showAddPhoto)} 
+                className="btn btn-outline"
+                style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <Plus size={14} />
+                <span>Adicionar Foto</span>
+              </button>
             </div>
 
-            {currentProntuario.galeria.length === 0 ? (
+            {showAddPhoto && (
+              <form onSubmit={handleSavePhotos} className="card" style={{ padding: '20px', border: '1px solid var(--color-border)', backgroundColor: '#FAFBFB', marginBottom: '24px', animation: 'fadeIn 0.3s ease-out' }}>
+                <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text-main)' }}>Nova Foto de Evolução</h4>
+                
+                <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start', marginBottom: '16px', flexWrap: 'wrap' }}>
+                  <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '220px' }}>
+                    <label className="form-label" style={{ fontSize: '12px' }}>Escolha a Foto</label>
+                    <button 
+                      type="button" 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="btn btn-outline"
+                      style={{ padding: '8px 16px', fontSize: '12px', width: 'fit-content' }}
+                    >
+                      Escolher Imagem
+                    </button>
+                    <input 
+                      type="file" 
+                      ref={fileInputRef}
+                      style={{ display: 'none' }}
+                      accept="image/*" 
+                      onChange={handleFileChange}
+                    />
+                    {fileName && (
+                      <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+                        {fileName}
+                      </span>
+                    )}
+                  </div>
+                  
+                  {photoFile && (
+                    <div style={{ position: 'relative', borderRadius: 'var(--border-radius-md)', overflow: 'hidden', border: '1px solid var(--color-border)' }}>
+                      <img src={photoFile} alt="Preview" style={{ width: '120px', height: '120px', objectFit: 'cover' }} />
+                    </div>
+                  )}
+                </div>
+
+                <div className="form-group" style={{ marginBottom: '20px' }}>
+                  <label className="form-label" style={{ fontSize: '12px' }}>Descrição / Procedimento</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="Ex: Pós-procedimento imediato de Botox" 
+                    value={photoDesc} 
+                    onChange={(e) => setPhotoDesc(e.target.value)}
+                    style={{ fontSize: '12px', padding: '8px 12px' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      setShowAddPhoto(false);
+                      setPhotoFile('');
+                      setFileName('');
+                      setPhotoDesc('');
+                    }} 
+                    className="btn btn-outline"
+                    style={{ padding: '6px 14px', fontSize: '11px' }}
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary"
+                    style={{ padding: '6px 14px', fontSize: '11px' }}
+                  >
+                    Salvar Foto
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {galeriaItems.length === 0 ? (
               <div style={{ 
                 padding: '40px', 
                 border: '1px dashed var(--color-border)', 
@@ -210,53 +672,54 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
                 Nenhuma foto registrada para esta cliente ainda. Registre a evolução na próxima consulta.
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                {currentProntuario.galeria.map((gal) => (
-                  <div key={gal.id}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '12px' }}>
-                      {/* Antes */}
-                      <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 'var(--border-radius-md)' }}>
-                        <img 
-                          src={gal.imagemAntes} 
-                          alt="Antes" 
-                          style={{ width: '100%', height: '240px', objectFit: 'cover' }}
-                        />
-                        <div style={{ 
-                          position: 'absolute', 
-                          bottom: '12px', 
-                          left: '12px', 
-                          background: 'rgba(44, 48, 46, 0.75)', 
-                          color: '#FFFFFF', 
-                          padding: '4px 10px', 
-                          borderRadius: '4px',
-                          fontSize: '11px' 
-                        }}>
-                          Antes ({new Date(gal.dataAntes).toLocaleDateString('pt-BR')})
-                        </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '20px' }}>
+                {galeriaItems.map((gal) => (
+                  <div key={gal.id} className="card" style={{ padding: '12px', border: '1px solid var(--color-border)', backgroundColor: '#FFFFFF', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 'var(--border-radius-sm)' }}>
+                      <img 
+                        src={gal.imagem} 
+                        alt="Evolução" 
+                        onClick={() => setLightboxImage(gal.imagem)}
+                        style={{ width: '100%', height: '180px', objectFit: 'cover', cursor: 'pointer' }}
+                      />
+                      <div style={{ 
+                        position: 'absolute', 
+                        bottom: '8px', 
+                        left: '8px', 
+                        background: 'var(--color-primary)', 
+                        color: '#FFFFFF', 
+                        padding: '3px 8px', 
+                        borderRadius: '4px',
+                        fontSize: '10px' 
+                      }}>
+                        {gal.data ? gal.data.split('-').reverse().join('/') : ''}
                       </div>
-
-                      {/* Depois */}
-                      <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 'var(--border-radius-md)' }}>
-                        <img 
-                          src={gal.imagemDepois} 
-                          alt="Depois" 
-                          style={{ width: '100%', height: '240px', objectFit: 'cover' }}
-                        />
-                        <div style={{ 
+                      <button
+                        onClick={() => handleDeletePhoto(gal.id)}
+                        style={{ 
                           position: 'absolute', 
-                          bottom: '12px', 
-                          left: '12px', 
+                          bottom: '8px', 
+                          right: '8px', 
                           background: 'var(--color-primary)', 
                           color: '#FFFFFF', 
-                          padding: '4px 10px', 
+                          border: 'none',
+                          padding: '4px 6px', 
                           borderRadius: '4px',
-                          fontSize: '11px' 
-                        }}>
-                          Evolução ({new Date(gal.dataDepois).toLocaleDateString('pt-BR')})
-                        </div>
-                      </div>
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          transition: 'opacity 0.2s ease',
+                          zIndex: 10
+                        }}
+                        title="Remover Imagem"
+                        onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.85')}
+                        onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
+                      >
+                        <Trash2 size={12} />
+                      </button>
                     </div>
-                    <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontStyle: 'italic', textAlign: 'center' }}>
+                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '4px 2px' }}>
                       {gal.descricao}
                     </div>
                   </div>
@@ -393,6 +856,37 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
         </div>
 
       </div>
+
+      {/* Lightbox Modal */}
+      {lightboxImage && (
+        <div 
+          onClick={() => setLightboxImage(null)}
+          style={{
+            position: 'fixed',
+            top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.85)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '40px',
+            cursor: 'zoom-out',
+            animation: 'fadeIn 0.2s ease-out'
+          }}
+        >
+          <img 
+            src={lightboxImage} 
+            alt="Visualização Ampliada" 
+            style={{ 
+              maxWidth: '100%', 
+              maxHeight: '100%', 
+              objectFit: 'contain',
+              borderRadius: '8px',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 };

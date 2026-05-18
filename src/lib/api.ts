@@ -169,6 +169,11 @@ export const api = {
   async deleteCliente(id: string, userId?: string): Promise<void> {
     return run(async () => {
       const uid = await requireUserId(userId);
+      
+      // Deletar registros dependentes primeiro para evitar erro de Foreign Key
+      await supabase.from('prontuarios_evolucoes').delete().eq('cliente_id', id).eq('user_id', uid);
+      await supabase.from('agendamentos').delete().eq('cliente_id', id).eq('user_id', uid);
+
       const { error } = await supabase
         .from('clientes')
         .delete()

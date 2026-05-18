@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { Agendamento, StatusJornada } from '../types';
-import { Clock, UserCheck, UserPlus, CheckCircle } from 'lucide-react';
+import { Clock, UserCheck, UserPlus, CheckCircle, User } from 'lucide-react';
 
 interface DashboardProps {
   agendamentos: Agendamento[];
@@ -10,6 +10,7 @@ interface DashboardProps {
     agendamento: Omit<Agendamento, 'id'>,
     extra?: { telefone?: string }
   ) => void;
+  onDeleteAgendamento?: (id: string) => void;
   userName?: string;
 }
 
@@ -28,6 +29,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onUpdateStatus,
   onOpenProntuario,
   onAddAgendamento,
+  onDeleteAgendamento,
   userName,
 }) => {
   const [showAddModal, setShowAddModal] = useState(false);
@@ -94,6 +96,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
     const rawTelefone = newTelefone.replace(/\D/g, '');
     if (rawTelefone && rawTelefone.length < 10) {
       alert('Por favor, informe um telefone de contato válido com DDD (mínimo 10 dígitos).');
+      return;
+    }
+
+    const hasOverlap = agendamentos.some(a => 
+      a.data === newData && 
+      a.horaInicio.substring(0, 5) === newHora.substring(0, 5) &&
+      a.status !== 'finalizada'
+    );
+
+    if (hasOverlap) {
+      alert('Atenção: Já existe um paciente agendado para este horário. Por favor, sugira um novo horário.');
       return;
     }
 
@@ -261,12 +274,18 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
                       >
                         <div className="esteira-card-header">
-                          <img
-                            src={item.clienteFoto || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
-                            alt={item.clienteNome}
-                            className="esteira-card-avatar"
-                            draggable={false}
-                          />
+                          {item.clienteFoto ? (
+                            <img
+                              src={item.clienteFoto}
+                              alt={item.clienteNome}
+                              className="esteira-card-avatar"
+                              draggable={false}
+                            />
+                          ) : (
+                            <div className="esteira-card-avatar" style={{ backgroundColor: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}>
+                              <User size={16} />
+                            </div>
+                          )}
                           <div>
                             <span
                               className="esteira-card-nome"
@@ -276,7 +295,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                               {item.clienteNome}
                             </span>
                             <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
-                              {item.horaInicio} • {item.profissional.split(' ')[1] || item.profissional}
+                              {item.horaInicio.substring(0, 5)} • {item.profissional.split(' ')[1] || item.profissional}
                             </div>
                           </div>
                         </div>
@@ -310,6 +329,20 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
                           {/* Trigger state changes visually */}
                           <div style={{ display: 'flex', gap: '4px' }}>
+                            {(col.id === 'agendada' || col.id === 'chegou') && (
+                              <button
+                                onClick={() => {
+                                  if (window.confirm('Tem certeza que deseja cancelar esta consulta?')) {
+                                    onDeleteAgendamento?.(item.id);
+                                  }
+                                }}
+                                className="btn btn-outline"
+                                style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '10px', borderColor: '#fca5a5', color: '#ef4444' }}
+                                title="Cancelar Consulta"
+                              >
+                                Cancelar
+                              </button>
+                            )}
                             {col.id === 'agendada' && (
                               <button
                                 onClick={() => onUpdateStatus(item.id, 'chegou')}
