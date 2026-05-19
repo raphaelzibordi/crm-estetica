@@ -243,6 +243,24 @@ function App() {
     setCurrentTab('prontuario');
   };
 
+  const handleUpdateAgendamentoDados = async (
+    id: string,
+    updates: { horaInicio?: string; horaFim?: string; procedimento?: string; profissional?: string }
+  ) => {
+    setAgendamentos((prev) =>
+      prev.map((a) => (a.id !== id ? a : { ...a, ...updates }))
+    );
+    try {
+      await api.updateAgendamentoDados(id, updates, tenantId || session?.user.id);
+    } catch (err) {
+      console.error('Erro ao atualizar dados do agendamento:', err);
+      const msg = err instanceof ApiError ? err.message : 'Falha ao atualizar o atendimento.';
+      alert(msg);
+      loadAgendamentosDoDia();
+      await handleUnauthorized(err);
+    }
+  };
+
   const handleDeleteAgendamento = async (id: string) => {
     if (!tenantId) return;
     try {
@@ -324,6 +342,7 @@ function App() {
           <Dashboard
             agendamentos={agendamentos}
             onUpdateStatus={handleUpdateStatus}
+            onUpdateAgendamentoDados={handleUpdateAgendamentoDados}
             onOpenProntuario={handleOpenProntuario}
             onAddAgendamento={handleAddAgendamento}
             onDeleteAgendamento={handleDeleteAgendamento}

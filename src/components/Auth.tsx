@@ -58,13 +58,29 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           email: email.trim(),
           password,
         });
-        if (authError) throw authError;
-        if (!data.session) {
-          throw new Error('Sessão inválida retornada pelo servidor.');
+
+        if (authError) {
+          // Detecta membro de equipe que nunca criou a senha de acesso.
+          // A RPC is_equipe_email pode ser chamada sem sessão (grant anon).
+          if (authError.message?.toLowerCase().includes('invalid login credentials')) {
+            const { data: isTeamMember } = await Promise.resolve(
+              supabase.rpc('is_equipe_email', { lookup_email: email.trim() })
+            ).catch(() => ({ data: null as boolean | null }));
+
+            if (isTeamMember === true) {
+              throw new Error(
+                'Sua conta de acesso ainda não foi criada. Clique em "Cadastre-se aqui", selecione "Sou membro de equipe" e defina sua senha para ativar o acesso.'
+              );
+            }
+          }
+          throw authError;
         }
+
+        if (!data.session) throw new Error('Sessão inválida retornada pelo servidor.');
         onLogin(data.session);
+
       } else {
-        // Cadastro: valida campos conforme o tipo de usuário
+        // ── CADASTRO ──────────────────────────────────────────────
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email.trim())) {
           throw new Error('Por favor, informe um e-mail válido (ex: seuemail@dominio.com).');
@@ -73,13 +89,25 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           throw new Error('A senha precisa ter no mínimo 6 caracteres.');
         }
 
-        // Campos obrigatórios apenas para donos de clínica
         if (!isEquipe) {
+          // Validações exclusivas para dono de clínica
           if (!nomeClinica.trim()) throw new Error('Informe o nome da clínica.');
           if (!endereco.trim()) throw new Error('Informe o endereço da clínica.');
           const rawTelefone = telefone.replace(/\D/g, '');
           if (rawTelefone.length < 10) {
             throw new Error('Informe um telefone com DDD válido (mínimo 10 dígitos).');
+          }
+        } else {
+          // Pré-valida se o e-mail foi cadastrado em alguma equipe pelo dono.
+          // Evita criar contas órfãs no Supabase Auth.
+          const { data: isTeamMember } = await Promise.resolve(
+            supabase.rpc('is_equipe_email', { lookup_email: email.trim() })
+          ).catch(() => ({ data: null as boolean | null }));
+
+          if (isTeamMember === false) {
+            throw new Error(
+              'Este e-mail não está cadastrado em nenhuma equipe. Verifique com o responsável da clínica o e-mail correto.'
+            );
           }
         }
 
@@ -95,15 +123,30 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
         if (authError) throw authError;
 
         if (authData.session && authData.user) {
-          // Email confirm desabilitado: sessão imediata.
-          // Para donos: garante o registro no banco caso o trigger não tenha criado.
+          // Confirmação de e-mail desativada: sessão imediata.
           if (!isEquipe) {
+            // Dono: garante o registro mesmo se o trigger falhar.
             await supabase.from('usuarios').upsert(
               { id: authData.user.id, nome_clinica: nomeClinica, telefone, endereco, email: email.trim(), role: 'dono' },
               { onConflict: 'id' }
             ).then(({ error: dbError }) => {
               if (dbError) console.error('[Lumina] Erro ao salvar perfil:', dbError);
             });
+          } else {
+            // Membro da equipe: verifica se o trigger criou o perfil corretamente.
+            // O trigger handle_new_user() deve ter definido role='equipe' e owner_id.
+            const { data: perfil } = await supabase
+              .from('usuarios')
+              .select('role, owner_id')
+              .eq('id', authData.user.id)
+              .maybeSingle();
+
+            if (!perfil || perfil.role !== 'equipe' || !perfil.owner_id) {
+              await supabase.auth.signOut();
+              throw new Error(
+                'Não foi possível configurar seu perfil de equipe. Confirme com o responsável da clínica se o e-mail cadastrado é exatamente: ' + email.trim()
+              );
+            }
           }
           onLogin(authData.session);
         } else {

@@ -518,7 +518,31 @@ create policy "equipe_all" on public.equipe for all
   with check (user_id = public.get_tenant_id());
 
 -- =================================================================
--- 17. Storage bucket para fotos de perfil (execute uma vez no painel
+-- 17. Função pública: verifica se um e-mail está pré-cadastrado em
+--     alguma equipe. Usada pela tela de login para dar mensagem de
+--     erro inteligente antes mesmo de o usuário criar a conta.
+--     SECURITY DEFINER + grant anon = pode ser chamada sem sessão.
+-- =================================================================
+create or replace function public.is_equipe_email(lookup_email text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.equipe
+    where lower(email) = lower(lookup_email)
+      and ativo = true
+  );
+$$;
+
+-- Permite chamar a função sem autenticação (anon key)
+grant execute on function public.is_equipe_email(text) to anon;
+grant execute on function public.is_equipe_email(text) to authenticated;
+
+-- =================================================================
+-- 18. Storage bucket para fotos de perfil (execute uma vez no painel
 --     Supabase: Storage → New bucket → "avatars" → Public = true).
 --     O SQL abaixo cria o bucket e as políticas de acesso se o schema
 --     storage estiver disponível neste contexto.

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { Agendamento, Procedimento, Profissional, StatusJornada } from '../types';
-import { Clock, UserCheck, UserPlus, CheckCircle, User } from 'lucide-react';
+import { Clock, UserCheck, UserPlus, CheckCircle, User, Pencil } from 'lucide-react';
 import { api } from '../lib/api';
 
 const OWNER_ID = '__owner__';
@@ -8,6 +8,7 @@ const OWNER_ID = '__owner__';
 interface DashboardProps {
   agendamentos: Agendamento[];
   onUpdateStatus: (id: string, newStatus: StatusJornada, extras?: { metodoPagamento?: Agendamento['metodoPagamento'] }) => void;
+  onUpdateAgendamentoDados?: (id: string, updates: { horaInicio?: string; horaFim?: string; procedimento?: string; profissional?: string }) => void;
   onOpenProntuario: (clienteId: string) => void;
   onAddAgendamento: (
     agendamento: Omit<Agendamento, 'id'>,
@@ -31,6 +32,7 @@ function addMinutesToTime(hhmm: string, minutes: number): string {
 export const Dashboard: React.FC<DashboardProps> = ({
   agendamentos,
   onUpdateStatus,
+  onUpdateAgendamentoDados,
   onOpenProntuario,
   onAddAgendamento,
   onDeleteAgendamento,
@@ -143,6 +145,34 @@ export const Dashboard: React.FC<DashboardProps> = ({
     const aindaExiste = profissionais.some(p => p.id === newProfissionalId);
     if (!aindaExiste) setNewProfissionalId(profissionais[0].id);
   }, [profissionais, newProfissionalId]);
+
+  // Edit-card state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editHora, setEditHora] = useState('');
+  const [editProcedimento, setEditProcedimento] = useState('');
+  const [editProfissionalId, setEditProfissionalId] = useState<string>(OWNER_ID);
+
+  const openEditModal = (item: Agendamento) => {
+    setEditingId(item.id);
+    setEditHora(item.horaInicio.substring(0, 5));
+    setEditProcedimento(item.procedimento);
+    const match = profissionais.find((p) => p.nome === item.profissional);
+    setEditProfissionalId(match?.id ?? profissionais[0]?.id ?? OWNER_ID);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingId || !onUpdateAgendamentoDados) return;
+    const prof = profissionais.find((p) => p.id === editProfissionalId);
+    const proc = procedimentos.find((p) => p.nome === editProcedimento);
+    const duracao = proc?.duracaoMinutos ?? 60;
+    onUpdateAgendamentoDados(editingId, {
+      horaInicio: editHora,
+      horaFim: addMinutesToTime(editHora, duracao),
+      procedimento: editProcedimento,
+      profissional: prof?.nome ?? editProcedimento,
+    });
+    setEditingId(null);
+  };
 
   // DnD state
   const [dragId, setDragId] = useState<string | null>(null);
@@ -350,7 +380,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         onDragEnd={handleDragEnd}
                         style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
                       >
-                        <div className="esteira-card-header">
+                        <div className="esteira-card-header" style={{ alignItems: 'flex-start' }}>
                           {item.clienteFoto ? (
                             <img
                               src={item.clienteFoto}
@@ -359,11 +389,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
                               draggable={false}
                             />
                           ) : (
-                            <div className="esteira-card-avatar" style={{ backgroundColor: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}>
+                            <div className="esteira-card-avatar" style={{ backgroundColor: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', flexShrink: 0 }}>
                               <User size={16} />
                             </div>
                           )}
-                          <div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
                             <span
                               className="esteira-card-nome"
                               onClick={() => onOpenProntuario(item.clienteId)}
@@ -371,10 +401,22 @@ export const Dashboard: React.FC<DashboardProps> = ({
                             >
                               {item.clienteNome}
                             </span>
-                            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
-                              {item.horaInicio.substring(0, 5)} • {item.profissional.split(' ')[1] || item.profissional}
+                            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                              <Clock size={10} />
+                              <span>{item.horaInicio.substring(0, 5)}</span>
+                              <span>•</span>
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.profissional}</span>
                             </div>
                           </div>
+                          {onUpdateAgendamentoDados && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); openEditModal(item); }}
+                              title="Editar atendimento"
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--color-text-muted)', flexShrink: 0, lineHeight: 1 }}
+                            >
+                              <Pencil size={13} />
+                            </button>
+                          )}
                         </div>
 
                         <div className="esteira-card-procedimento">
@@ -613,6 +655,100 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit appointment modal */}
+      {editingId && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.3)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div className="card" style={{ width: '400px', padding: '28px' }}>
+            <h3 style={{ marginBottom: '20px', fontSize: '16px' }}>Editar Atendimento</h3>
+
+            <div className="form-group">
+              <label className="form-label">Horário de Início</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <select
+                  className="form-select"
+                  style={{ flex: 1 }}
+                  value={editHora.split(':')[0] || '08'}
+                  onChange={(e) => setEditHora(`${e.target.value}:${editHora.split(':')[1] || '00'}`)}
+                >
+                  {Array.from({ length: 15 }, (_, i) => i + 8).map(h => {
+                    const hr = h.toString().padStart(2, '0');
+                    return <option key={hr} value={hr}>{hr}h</option>;
+                  })}
+                </select>
+                <span style={{ display: 'flex', alignItems: 'center', fontWeight: 600, color: 'var(--color-text-main)' }}>:</span>
+                <select
+                  className="form-select"
+                  style={{ flex: 1 }}
+                  value={editHora.split(':')[1] || '00'}
+                  onChange={(e) => setEditHora(`${editHora.split(':')[0] || '08'}:${e.target.value}`)}
+                >
+                  {['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'].map(m => (
+                    <option key={m} value={m}>{m}m</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Procedimento</label>
+              <select
+                className="form-select"
+                value={editProcedimento}
+                onChange={(e) => setEditProcedimento(e.target.value)}
+              >
+                {procedimentos.map((p) => (
+                  <option key={p.id} value={p.nome}>{p.nome}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Profissional</label>
+              {profissionais.length === 1 ? (
+                <input
+                  type="text"
+                  className="form-input"
+                  value={`${profissionais[0].nome} (${profissionais[0].cargo})`}
+                  readOnly
+                />
+              ) : (
+                <select
+                  className="form-select"
+                  value={editProfissionalId}
+                  onChange={(e) => setEditProfissionalId(e.target.value)}
+                >
+                  {profissionais.map((p) => (
+                    <option key={p.id} value={p.id}>{p.nome} — {p.cargo}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
+              <button
+                type="button"
+                onClick={() => setEditingId(null)}
+                className="btn btn-outline"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveEdit}
+                className="btn btn-primary"
+              >
+                Salvar
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -343,6 +343,31 @@ export const api = {
     });
   },
 
+  async updateAgendamentoDados(
+    id: string,
+    updates: { horaInicio?: string; horaFim?: string; procedimento?: string; profissional?: string },
+    userId?: string
+  ): Promise<Agendamento> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const dbUpdates: Record<string, unknown> = {};
+      if (updates.horaInicio !== undefined) dbUpdates.hora_inicio = updates.horaInicio;
+      if (updates.horaFim !== undefined) dbUpdates.hora_fim = updates.horaFim;
+      if (updates.procedimento !== undefined) dbUpdates.procedimento = updates.procedimento;
+      if (updates.profissional !== undefined) dbUpdates.profissional = updates.profissional;
+
+      const { data, error } = await supabase
+        .from('agendamentos')
+        .update(dbUpdates)
+        .eq('id', id)
+        .eq('user_id', uid)
+        .select('*, clientes ( nome, foto_url )')
+        .single();
+      if (error) throw error;
+      return mapAgendamento(data);
+    });
+  },
+
   async deleteAgendamento(id: string, userId?: string): Promise<void> {
     return run(async () => {
       const uid = await requireUserId(userId);
