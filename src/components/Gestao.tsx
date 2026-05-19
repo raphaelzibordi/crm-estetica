@@ -162,12 +162,12 @@ export const Gestao: React.FC<GestaoProps> = ({ userId }) => {
 
   return (
     <div style={{ animation: 'fadeIn 0.4s ease-out' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
+      <div className="gestao-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
         <div>
           <h1 style={{ fontSize: '28px', color: 'var(--color-text-main)', marginBottom: '6px' }}>Gestão & Back-Office</h1>
           <p style={{ color: 'var(--color-text-muted)', fontSize: '14px' }}>Financeiro, estoque e catálogo de procedimentos da clínica.</p>
         </div>
-        <div style={{ display: 'flex', gap: '4px', background: '#f8f8f6', border: '1px solid var(--color-border)', borderRadius: '10px', padding: '4px' }}>
+        <div className="gestao-tabs" style={{ display: 'flex', gap: '4px', background: '#f8f8f6', border: '1px solid var(--color-border)', borderRadius: '10px', padding: '4px' }}>
           <button style={tabStyle('dashboard')} onClick={() => setTab('dashboard')}>
             <LayoutDashboard size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Dashboard
           </button>
@@ -188,7 +188,7 @@ export const Gestao: React.FC<GestaoProps> = ({ userId }) => {
       {tab === 'dashboard' && (
         <>
           {/* KPI Row */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '28px' }}>
+          <div className="gestao-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '28px' }}>
             <div className="card" style={{ padding: '22px', borderLeft: '4px solid var(--color-success)' }}>
               <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '8px', display: 'flex', justifyContent: 'space-between' }}>
                 <span>Faturamento Hoje</span><DollarSign size={14} style={{ color: 'var(--color-success)' }} />
@@ -236,7 +236,7 @@ export const Gestao: React.FC<GestaoProps> = ({ userId }) => {
           </div>
 
           {/* Second row: Estoque critico + Procedimentos recentes */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+          <div className="gestao-two-col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
             {/* Estoque Alerta */}
             <div className="card" style={{ padding: '24px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
@@ -295,7 +295,7 @@ export const Gestao: React.FC<GestaoProps> = ({ userId }) => {
       {/* ── TAB: FINANCEIRO ─────────────────────────────────────────────── */}
       {tab === 'financeiro' && (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px', marginBottom: '32px' }}>
+          <div className="gestao-three-col" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px', marginBottom: '32px' }}>
             {[
               { label: 'Faturamento Bruto de Hoje', value: financeiro.faturamentoTotal, icon: <DollarSign size={16} style={{ color: 'var(--color-success)' }} />, sub: 'Atendimentos finalizados hoje', color: 'var(--color-success)', border: '' },
               { label: 'Comissões Devidas', value: financeiro.comissoesPagas, icon: <TrendingUp size={16} style={{ color: 'var(--color-warning)' }} />, sub: 'Provisão de 30%', color: 'var(--color-text-muted)', border: '' },
@@ -340,6 +340,7 @@ export const Gestao: React.FC<GestaoProps> = ({ userId }) => {
               <Plus size={14} />Novo Insumo
             </button>
           </div>
+          <div className="estoque-table-wrapper">
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-muted)' }}>
@@ -372,6 +373,7 @@ export const Gestao: React.FC<GestaoProps> = ({ userId }) => {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -419,7 +421,7 @@ export const Gestao: React.FC<GestaoProps> = ({ userId }) => {
 
       {/* ── MODAL: ESTOQUE ──────────────────────────────────────────────── */}
       {showEstoqueModal && (
-        <div onClick={() => setShowEstoqueModal(false)} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
+        <div className="modal-overlay" onClick={() => setShowEstoqueModal(false)} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
           <div onClick={e => e.stopPropagation()} className="card" style={{ width: '420px', padding: '32px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
               <h3 style={{ fontSize: '18px', fontWeight: 600 }}>{editingEstoqueId ? 'Editar Insumo' : 'Novo Insumo'}</h3>
@@ -457,7 +459,7 @@ export const Gestao: React.FC<GestaoProps> = ({ userId }) => {
 
       {/* ── MODAL: PROCEDIMENTO ─────────────────────────────────────────── */}
       {showProcModal && (
-        <div onClick={() => setShowProcModal(false)} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
+        <div className="modal-overlay" onClick={() => setShowProcModal(false)} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
           <div onClick={e => e.stopPropagation()} className="card" style={{ width: '460px', padding: '32px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
               <h3 style={{ fontSize: '18px', fontWeight: 600 }}>{editingProcId ? 'Editar Procedimento' : 'Novo Procedimento'}</h3>

@@ -342,7 +342,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
         </p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '32px', alignItems: 'start' }}>
+      <div className="prontuario-grid" style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '32px', alignItems: 'start' }}>
         
         {/* Left Side: Client Selector */}
         <div className="card" style={{ padding: '20px' }}>

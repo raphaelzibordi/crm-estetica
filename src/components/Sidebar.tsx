@@ -11,6 +11,8 @@ import {
   Settings,
   User,
   Building2,
+  Menu,
+  X,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { UserRole } from '../types';
@@ -44,7 +46,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
   const footerRef = useRef<HTMLDivElement | null>(null);
+
+  const handleNavClick = (tabId: string) => {
+    setCurrentTab(tabId);
+    setIsMobileOpen(false);
+  };
 
   const menuItems = ALL_MENU_ITEMS.filter(
     (item) => !item.donoOnly || userRole === 'dono'
@@ -77,7 +85,41 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   return (
-    <div className="sidebar">
+    <>
+      {/* Mobile top bar */}
+      <div className="mobile-header">
+        <button
+          className="mobile-hamburger"
+          onClick={() => setIsMobileOpen(true)}
+          aria-label="Abrir menu"
+        >
+          <Menu size={22} />
+        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="brand-icon" style={{ width: '28px', height: '28px' }}>
+            <Sparkles size={14} />
+          </div>
+          <span className="brand-name" style={{ fontSize: '16px' }}>Lumina</span>
+        </div>
+        <div style={{ width: '38px' }} />
+      </div>
+
+      {/* Backdrop */}
+      <div
+        className={`sidebar-backdrop${isMobileOpen ? ' visible' : ''}`}
+        onClick={() => setIsMobileOpen(false)}
+      />
+
+      <div className={`sidebar${isMobileOpen ? ' mobile-open' : ''}`} style={{ position: 'relative' }}>
+        {/* Close button — mobile only */}
+        <button
+          className="sidebar-close-btn"
+          onClick={() => setIsMobileOpen(false)}
+          aria-label="Fechar menu"
+        >
+          <X size={18} />
+        </button>
+
       <div className="brand">
         <div className="brand-icon">
           <Sparkles size={16} />
@@ -131,7 +173,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           return (
             <button
               key={item.id}
-              onClick={() => setCurrentTab(item.id)}
+              onClick={() => handleNavClick(item.id)}
               className={`nav-item ${currentTab === item.id ? 'active' : ''}`}
               style={{
                 background: currentTab === item.id ? 'var(--color-primary)' : 'transparent',
@@ -173,7 +215,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {userRole === 'dono' && (
               <button
                 type="button"
-                onClick={() => { setCurrentTab('configuracoes'); setMenuOpen(false); }}
+                onClick={() => { handleNavClick('configuracoes'); setMenuOpen(false); }}
                 style={{
                   width: '100%', display: 'flex', alignItems: 'center', gap: '10px',
                   padding: '10px 12px', background: 'transparent', border: 'none',
@@ -279,5 +321,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
       </div>
     </div>
+    </>
   );
 };
