@@ -522,6 +522,8 @@ export const api = {
   },
 
   // Retorna perfil simplificado + resolve tenantId para membros da equipe.
+  // Inclui auto-recuperação via RPC para casos em que o trigger de banco
+  // não detectou corretamente que o usuário é membro de equipe.
   async getUserProfile(userId?: string): Promise<UserProfile> {
     return run(async () => {
       const uid = await requireUserId(userId);
@@ -531,8 +533,26 @@ export const api = {
         .eq('id', uid)
         .maybeSingle();
       if (error) throw error;
-      const role = ((data?.role as UserRole) ?? 'dono');
-      const tenantId = (role === 'equipe' && data?.owner_id) ? data.owner_id : uid;
+
+      let role = (data?.role as UserRole) ?? 'dono';
+      let ownerId: string | null = data?.owner_id ?? null;
+
+      // Self-healing: se o registro não indica 'equipe', consulta a RPC
+      // resolve_equipe_owner() que lê auth.users + equipe sem RLS e
+      // corrige o banco in-place se necessário.
+      if (role !== 'equipe') {
+        try {
+          const { data: resolvedOwner } = await supabase.rpc('resolve_equipe_owner');
+          if (resolvedOwner) {
+            role = 'equipe';
+            ownerId = resolvedOwner as string;
+          }
+        } catch {
+          // RPC ainda não existe no banco — ignora silenciosamente.
+        }
+      }
+
+      const tenantId = role === 'equipe' && ownerId ? ownerId : uid;
       return {
         nome: data?.nome ?? '',
         fotoUrl: data?.foto_url ?? '',
@@ -1016,6 +1036,11 @@ export const api = {
   async ensureSeedData(userId?: string): Promise<void> {
     return run(async () => {
       const uid = await requireUserId(userId);
+
+      // Membros da equipe usam o tenant do dono (uid != auth.uid()).
+      // Nunca semear dados em nome de outra conta.
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData?.user?.id && authData.user.id !== uid) return;
       const [{ count: procCount }, { count: tplCount }] = await Promise.all([
         supabase.from('procedimentos').select('id', { count: 'exact', head: true }).eq('user_id', uid),
         supabase.from('templates_mensagens').select('id', { count: 'exact', head: true }).eq('user_id', uid),

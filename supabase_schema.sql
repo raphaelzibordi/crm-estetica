@@ -542,7 +542,79 @@ grant execute on function public.is_equipe_email(text) to anon;
 grant execute on function public.is_equipe_email(text) to authenticated;
 
 -- =================================================================
--- 18. Storage bucket para fotos de perfil (execute uma vez no painel
+-- 19. Função de auto-recuperação: resolve o owner correto do usuário
+--     autenticado consultando auth.users + equipe sem restrições de RLS.
+--     Se o registro em usuarios estiver errado (role='dono' para um
+--     membro de equipe), ela o corrige in-place e retorna o owner_id.
+--     Garante que falhas anteriores do trigger sejam sanadas na primeira
+--     chamada bem-sucedida de getUserProfile().
+-- =================================================================
+create or replace function public.resolve_equipe_owner()
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid    uuid := auth.uid();
+  v_email  text;
+  v_owner  uuid;
+begin
+  if v_uid is null then return null; end if;
+
+  select email into v_email from auth.users where id = v_uid;
+  if v_email is null then return null; end if;
+
+  select user_id into v_owner
+  from public.equipe
+  where lower(email) = lower(v_email) and ativo = true
+  limit 1;
+
+  -- Se encontrado, corrige o perfil automaticamente
+  if v_owner is not null then
+    update public.usuarios
+    set role = 'equipe', owner_id = v_owner
+    where id = v_uid
+      and (role is null or role != 'equipe' or owner_id is null);
+  end if;
+
+  return v_owner;
+end;
+$$;
+
+grant execute on function public.resolve_equipe_owner() to authenticated;
+
+-- =================================================================
+-- 20. Reparo de membros de equipe já cadastrados que ficaram com
+--     role='dono' por causa do trigger antigo (seção 9).
+--     Idempotente: ignora quem já está correto.
+-- =================================================================
+do $$
+declare
+  rec      record;
+  v_owner  uuid;
+begin
+  for rec in
+    select u.id, au.email
+    from   public.usuarios u
+    join   auth.users au on au.id = u.id
+    where  u.role is null or u.role = 'dono'
+  loop
+    select e.user_id into v_owner
+    from   public.equipe e
+    where  lower(e.email) = lower(rec.email) and e.ativo = true
+    limit  1;
+
+    if v_owner is not null then
+      update public.usuarios
+      set    role = 'equipe', owner_id = v_owner
+      where  id = rec.id;
+    end if;
+  end loop;
+end $$;
+
+-- =================================================================
+-- 21. Storage bucket para fotos de perfil (execute uma vez no painel
 --     Supabase: Storage → New bucket → "avatars" → Public = true).
 --     O SQL abaixo cria o bucket e as políticas de acesso se o schema
 --     storage estiver disponível neste contexto.
