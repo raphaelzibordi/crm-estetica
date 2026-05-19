@@ -111,9 +111,15 @@ function App() {
           (session.user.user_metadata as any)?.nome_clinica ||
           'Lumina'
         );
+        // Clinic name: for dono it's their own nome_clinica; for equipe it's the owner's.
+        // Fall back to auth metadata so it's available even before the profile row is written.
+        setClinicName(
+          profile.nomeClinica ||
+          (session.user.user_metadata as any)?.nome_clinica ||
+          ''
+        );
         if (profile.role === 'equipe') {
           setUserCargo(profile.cargo ?? '');
-          setClinicName(profile.nomeClinica ?? '');
           // Show welcome modal once per browser session (cleared on logout).
           if (!sessionStorage.getItem('lumina_welcome_shown')) {
             setShowWelcomeModal(true);
@@ -351,6 +357,7 @@ function App() {
         userPhotoUrl={userPhotoUrl}
         userRole={userRole}
         userCargo={userCargo}
+        clinicName={clinicName}
       />
 
       <main className="main-content">

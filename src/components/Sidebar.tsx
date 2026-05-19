@@ -10,6 +10,7 @@ import {
   ChevronUp,
   Settings,
   User,
+  Building2,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { UserRole } from '../types';
@@ -21,6 +22,7 @@ interface SidebarProps {
   userPhotoUrl?: string;
   userRole?: UserRole;
   userCargo?: string;
+  clinicName?: string;
 }
 
 const ALL_MENU_ITEMS = [
@@ -38,6 +40,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   userPhotoUrl,
   userRole = 'dono',
   userCargo,
+  clinicName,
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -81,6 +84,46 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
         <div className="brand-name">Lumina</div>
       </div>
+
+      {clinicName && (
+        <div
+          style={{
+            paddingLeft: '8px',
+            paddingRight: '8px',
+            marginTop: '-32px',
+            marginBottom: '20px',
+          }}
+        >
+          <div
+            title={clinicName}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: 'var(--color-primary-light)',
+              border: '1px solid var(--color-border-hover)',
+              borderRadius: '100px',
+              padding: '5px 12px 5px 8px',
+              overflow: 'hidden',
+            }}
+          >
+            <Building2 size={12} style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
+            <span
+              style={{
+                fontSize: '12.5px',
+                fontWeight: 500,
+                color: 'var(--color-primary)',
+                letterSpacing: '-0.01em',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {clinicName}
+            </span>
+          </div>
+        </div>
+      )}
 
       <nav className="nav-list">
         {menuItems.map((item) => {

@@ -529,7 +529,7 @@ export const api = {
       const uid = await requireUserId(userId);
       const { data, error } = await supabase
         .from('usuarios')
-        .select('nome, foto_url, role, owner_id')
+        .select('nome, nome_clinica, foto_url, role, owner_id')
         .eq('id', uid)
         .maybeSingle();
       if (error) throw error;
@@ -584,6 +584,9 @@ export const api = {
           .eq('id', ownerId)
           .maybeSingle();
         nomeClinica = ownerRow?.nome_clinica ?? undefined;
+      } else {
+        // Dono: clinic name comes from their own row (already fetched above).
+        nomeClinica = data?.nome_clinica ?? undefined;
       }
 
       return {
