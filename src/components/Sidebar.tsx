@@ -20,6 +20,7 @@ interface SidebarProps {
   userName?: string;
   userPhotoUrl?: string;
   userRole?: UserRole;
+  userCargo?: string;
 }
 
 const ALL_MENU_ITEMS = [
@@ -36,6 +37,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   userName,
   userPhotoUrl,
   userRole = 'dono',
+  userCargo,
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -218,7 +220,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="user-info" style={{ flex: 1 }}>
             <span className="user-name">{userName || 'Usuário'}</span>
             <span className="user-role">
-              {userRole === 'equipe' ? 'Membro da Equipe' : 'Dono da Clínica'}
+              {userRole === 'equipe'
+                ? (userCargo || 'Membro da Equipe')
+                : 'Dono da Clínica'}
             </span>
           </div>
           <ChevronUp

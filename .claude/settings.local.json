@@ -3,7 +3,8 @@
     "allow": [
       "Bash(findstr env *)",
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\rapha\\\\OneDrive\\\\Documents\\\\GitHub\\\\CRM Estética\" -Recurse -Depth 2 -Directory)",
-      "Bash(Select-Object -Property FullName)"
+      "Bash(Select-Object -Property FullName)",
+      "Bash(dir)"
     ]
   }
 }

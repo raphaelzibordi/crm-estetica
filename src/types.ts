@@ -20,6 +20,8 @@ export interface UserProfile {
   fotoUrl: string;
   role: UserRole;
   tenantId: string; // owner's user_id (for equipe) or own user_id (for dono)
+  cargo?: string;      // job title — equipe only
+  nomeClinica?: string; // owner's clinic name — equipe only, used in welcome modal
 }
 
 export interface Cliente {

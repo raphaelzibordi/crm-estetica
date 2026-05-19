@@ -8,6 +8,7 @@ import { Comunicacao } from './components/Comunicacao';
 import { Gestao } from './components/Gestao';
 import { Auth } from './components/Auth';
 import { Configuracoes } from './components/Configuracoes';
+import { WelcomeModal } from './components/WelcomeModal';
 import type { Agendamento, StatusJornada, UserRole } from './types';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { api } from './lib/api';
@@ -24,7 +25,10 @@ function App() {
   const [userRole, setUserRole]     = useState<UserRole>('dono');
   const [userPhotoUrl, setUserPhotoUrl] = useState('');
   const [userName, setUserName]     = useState('');
+  const [userCargo, setUserCargo]   = useState('');
+  const [clinicName, setClinicName] = useState('');
   const [tenantId, setTenantId]     = useState<string>(''); // ID usado em todas as chamadas de API
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
 
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
@@ -73,7 +77,11 @@ function App() {
           setUserRole('dono');
           setUserPhotoUrl('');
           setUserName('');
+          setUserCargo('');
+          setClinicName('');
           setTenantId('');
+          setShowWelcomeModal(false);
+          sessionStorage.removeItem('lumina_welcome_shown');
           lastProfileUid.current = null;
         }
       });
@@ -103,6 +111,14 @@ function App() {
           (session.user.user_metadata as any)?.nome_clinica ||
           'Lumina'
         );
+        if (profile.role === 'equipe') {
+          setUserCargo(profile.cargo ?? '');
+          setClinicName(profile.nomeClinica ?? '');
+          // Show welcome modal once per browser session (cleared on logout).
+          if (!sessionStorage.getItem('lumina_welcome_shown')) {
+            setShowWelcomeModal(true);
+          }
+        }
         // Membro da equipe na aba bloqueada: redireciona.
         if (profile.role === 'equipe' && TABS_BLOQUEADAS_EQUIPE.has(currentTab)) {
           setCurrentTab('dashboard');
@@ -334,6 +350,7 @@ function App() {
         userName={userName}
         userPhotoUrl={userPhotoUrl}
         userRole={userRole}
+        userCargo={userCargo}
       />
 
       <main className="main-content">
@@ -386,6 +403,17 @@ function App() {
           />
         )}
       </main>
+
+      {showWelcomeModal && (
+        <WelcomeModal
+          userName={userName}
+          clinicName={clinicName}
+          onClose={() => {
+            setShowWelcomeModal(false);
+            sessionStorage.setItem('lumina_welcome_shown', '1');
+          }}
+        />
+      )}
     </div>
   );
 }

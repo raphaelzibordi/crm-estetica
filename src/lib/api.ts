@@ -553,11 +553,46 @@ export const api = {
       }
 
       const tenantId = role === 'equipe' && ownerId ? ownerId : uid;
+
+      let equipeNome: string | undefined;
+      let equipeFotoUrl: string | undefined;
+      let cargo: string | undefined;
+      let nomeClinica: string | undefined;
+
+      if (role === 'equipe' && ownerId) {
+        // Get the member's email from the live session (no extra network call).
+        const { data: authUser } = await supabase.auth.getUser();
+        const memberEmail = authUser?.user?.email;
+
+        if (memberEmail) {
+          // equipe RLS uses get_tenant_id() = ownerId, so this query is allowed.
+          const { data: equipeRow } = await supabase
+            .from('equipe')
+            .select('nome, cargo, foto_url')
+            .eq('user_id', ownerId)
+            .ilike('email', memberEmail)
+            .maybeSingle();
+          equipeNome  = equipeRow?.nome    ?? undefined;
+          cargo       = equipeRow?.cargo   ?? undefined;
+          equipeFotoUrl = equipeRow?.foto_url ?? undefined;
+        }
+
+        // usuarios_select RLS: id = get_tenant_id() = ownerId — equipe can read owner row.
+        const { data: ownerRow } = await supabase
+          .from('usuarios')
+          .select('nome_clinica')
+          .eq('id', ownerId)
+          .maybeSingle();
+        nomeClinica = ownerRow?.nome_clinica ?? undefined;
+      }
+
       return {
-        nome: data?.nome ?? '',
-        fotoUrl: data?.foto_url ?? '',
+        nome: equipeNome || data?.nome || '',
+        fotoUrl: equipeFotoUrl || data?.foto_url || '',
         role,
         tenantId,
+        cargo,
+        nomeClinica,
       };
     });
   },
