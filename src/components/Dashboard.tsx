@@ -284,7 +284,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   return (
     <div style={{ animation: 'fadeIn 0.4s ease-out' }}>
       {/* Header section with humanized greeting */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+      <div className="dashboard-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
         <div>
           <h1 style={{ fontSize: '28px', color: 'var(--color-text-main)', marginBottom: '6px' }}>
             Olá, {userName || 'Helena'}! Aqui está o ritmo da clínica hoje.
@@ -519,7 +519,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
       {/* Add client modal dialog */}
       {showAddModal && (
-        <div style={{
+        <div className="modal-overlay" style={{
           position: 'fixed',
           top: 0,
           left: 0,
@@ -661,7 +661,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
       {/* Edit appointment modal */}
       {editingId && (
-        <div style={{
+        <div className="modal-overlay" style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
           backgroundColor: 'rgba(0,0,0,0.3)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -755,7 +755,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
       {/* Checkout / Payment-method modal */}
       {showCheckoutModal && (
-        <div style={{
+        <div className="modal-overlay" style={{
           position: 'fixed',
           top: 0,
           left: 0,

@@ -487,7 +487,7 @@ export const Agenda: React.FC<AgendaProps> = ({
           VISÃO HOJE (formato listagem original — não alterar)
           ========================================================== */}
       {view === 'hoje' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '32px' }}>
+        <div className="agenda-hoje-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '32px' }}>
           <div className="card" style={{ padding: '32px' }}>
             <div style={{
               display: 'flex',
@@ -738,7 +738,7 @@ export const Agenda: React.FC<AgendaProps> = ({
 
       {/* Add client modal dialog */}
       {showAddModal && (
-        <div style={{
+        <div className="modal-overlay" style={{
           position: 'fixed',
           top: 0,
           left: 0,

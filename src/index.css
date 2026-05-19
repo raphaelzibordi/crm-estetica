@@ -467,3 +467,226 @@ h1, h2, h3, h4, h5, h6 {
     box-shadow: 0 0 0 0 rgba(95, 125, 117, 0);
   }
 }
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* =====================================================================
+   RESPONSIVE — Mobile-first adjustments
+   ===================================================================== */
+
+/* Mobile top bar (hamburger + brand) — hidden on desktop */
+.mobile-header {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background-color: var(--bg-card);
+  border-bottom: 1px solid var(--color-border);
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  z-index: 200;
+  gap: 12px;
+}
+
+.mobile-hamburger {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-main);
+  padding: 8px;
+  border-radius: var(--border-radius-sm);
+  transition: var(--transition-smooth);
+  flex-shrink: 0;
+}
+
+.mobile-hamburger:hover {
+  background-color: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+/* Sidebar overlay backdrop */
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.45);
+  z-index: 250;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.sidebar-backdrop.visible {
+  display: block;
+}
+
+/* Close button inside sidebar — mobile only */
+.sidebar-close-btn {
+  display: none;
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  padding: 6px;
+  border-radius: var(--border-radius-sm);
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition-smooth);
+  z-index: 1;
+}
+
+.sidebar-close-btn:hover {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+/* ── Tablet & small desktop (≤ 1024px) ─────────────────────────────── */
+@media (max-width: 1024px) {
+  .mobile-header {
+    display: flex;
+  }
+
+  .sidebar-close-btn {
+    display: flex;
+  }
+
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 300;
+    box-shadow: none;
+  }
+
+  .sidebar.mobile-open {
+    transform: translateX(0);
+    box-shadow: 8px 0 32px rgba(0, 0, 0, 0.15);
+  }
+
+  .main-content {
+    margin-left: 0;
+    max-width: 100vw;
+    padding: 80px 24px 32px;
+  }
+
+  .esteira-container {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ── Mobile (≤ 640px) ───────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .main-content {
+    padding: 72px 14px 24px;
+  }
+
+  .esteira-container {
+    grid-template-columns: 1fr;
+  }
+
+  .esteira-coluna {
+    min-height: 160px;
+  }
+
+  /* Modal bottom-sheet on mobile */
+  .modal-overlay {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+
+  .modal-overlay > .card {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0 !important;
+    max-height: 85vh !important;
+    overflow-y: auto !important;
+  }
+
+  /* Dashboard: header wraps vertically */
+  .dashboard-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 16px !important;
+  }
+
+  .dashboard-header .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Agenda: today view single column */
+  .agenda-hoje-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Prontuario: client list above details */
+  .prontuario-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Gestao: header wraps */
+  .gestao-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+
+  /* Gestao: tabs scrollable row */
+  .gestao-tabs {
+    overflow-x: auto;
+    width: 100%;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-shrink: 0;
+  }
+
+  .gestao-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Gestao: KPI 4-col → 2-col */
+  .gestao-kpi-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Gestao: 2-col dashboard panels → 1-col */
+  .gestao-two-col {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Gestao: 3-col financial → 1-col */
+  .gestao-three-col {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Estoque table: horizontal scroll */
+  .estoque-table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Comunicacao: stacked */
+  .comunicacao-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ── Very small (≤ 400px) ───────────────────────────────────────────── */
+@media (max-width: 400px) {
+  .main-content {
+    padding: 68px 10px 16px;
+  }
+
+  .gestao-kpi-grid {
+    grid-template-columns: 1fr !important;
+  }
+}

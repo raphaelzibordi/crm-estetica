@@ -97,7 +97,7 @@ export const Comunicacao: React.FC<ComunicacaoProps> = ({ userId }) => {
           Nenhum cliente em alerta de retorno no momento. Continue acompanhando a evolução dos atendimentos.
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: '400px 1fr', gap: '32px', alignItems: 'start' }}>
+        <div className="comunicacao-grid" style={{ display: 'grid', gridTemplateColumns: '400px 1fr', gap: '32px', alignItems: 'start' }}>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <h3 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
