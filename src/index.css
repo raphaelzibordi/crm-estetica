@@ -635,6 +635,24 @@ h1, h2, h3, h4, h5, h6 {
     grid-template-columns: 1fr !important;
   }
 
+  /* Prontuario: patient header stacks vertically */
+  .prontuario-patient-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  /* Prontuario: all action buttons full-width stacked on mobile */
+  .prontuario-actions,
+  .prontuario-actions-secondary {
+    flex-direction: column !important;
+  }
+
+  .prontuario-actions .btn,
+  .prontuario-actions-secondary .btn {
+    width: 100% !important;
+    flex: unset !important;
+  }
+
   /* Gestao: header wraps */
   .gestao-header {
     flex-direction: column !important;

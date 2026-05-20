@@ -1,15 +1,27 @@
-import React, { useState, useEffect } from 'react';
-import type { Cliente, EvolucaoClinica, GaleriaItem, Procedimento } from '../types';
-import { FileText, Camera, Plus, Trash2, Edit2, User } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import type { Agendamento, Cliente, EvolucaoClinica, GaleriaItem, Procedimento, Profissional } from '../types';
+import { FileText, Camera, Plus, Trash2, Edit2, User, CalendarPlus } from 'lucide-react';
 import { api } from '../lib/api';
+
+const OWNER_ID = '__owner__';
+
+function addMinutesToTime(hhmm: string, minutes: number): string {
+  const [h, m] = hhmm.split(':').map((x) => parseInt(x, 10));
+  if (Number.isNaN(h) || Number.isNaN(m)) return hhmm;
+  const total = h * 60 + m + minutes;
+  const wrapped = ((total % (24 * 60)) + 24 * 60) % (24 * 60);
+  return `${String(Math.floor(wrapped / 60)).padStart(2, '0')}:${String(wrapped % 60).padStart(2, '0')}`;
+}
 
 interface ProntuarioProps {
   selectedClienteId: string | null;
   userId: string;
   onClose?: () => void;
+  onAddAgendamento?: (agendamento: Omit<Agendamento, 'id'>, extra?: { telefone?: string }) => void;
+  userName?: string;
 }
 
-export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userId }) => {
+export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userId, onAddAgendamento, userName }) => {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [activeClienteId, setActiveClienteId] = useState<string>(selectedClienteId || '');
   const [evolucoes, setEvolucoes] = useState<EvolucaoClinica[]>([]);
@@ -30,6 +42,14 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
   const [editFotoFile, setEditFotoFile] = useState<string>('');
   const profileFileInputRef = React.useRef<HTMLInputElement>(null);
 
+  // States for quick-schedule modal
+  const [showAgendarModal, setShowAgendarModal] = useState(false);
+  const [agendarData, setAgendarData] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [agendarHora, setAgendarHora] = useState('14:30');
+  const [agendarProcedimento, setAgendarProcedimento] = useState('');
+  const [agendarProfissionalId, setAgendarProfissionalId] = useState<string>(OWNER_ID);
+  const [equipe, setEquipe] = useState<Array<{ id: string; nome: string; cargo: string }>>([]);
+
   // States for image gallery uploader
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [showAddPhoto, setShowAddPhoto] = useState(false);
@@ -42,6 +62,9 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
   useEffect(() => {
     loadClientes();
     loadProcedimentos();
+    api.getEquipe(userId, { somenteAtivos: true })
+      .then(members => setEquipe(members.map(m => ({ id: m.id, nome: m.nome, cargo: m.cargo }))))
+      .catch(() => {});
   }, [userId]);
 
   const loadProcedimentos = async () => {
@@ -56,6 +79,29 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
       console.error('Erro ao carregar procedimentos:', err);
     }
   };
+
+  const profissionais = useMemo<Profissional[]>(() => {
+    const responsavel: Profissional = {
+      id: OWNER_ID,
+      nome: userName || 'Responsável da Clínica',
+      cargo: 'Responsável',
+      isResponsavel: true,
+    };
+    return [responsavel, ...equipe.map(m => ({ id: m.id, nome: m.nome, cargo: m.cargo || 'Profissional', isResponsavel: false }))];
+  }, [equipe, userName]);
+
+  useEffect(() => {
+    if (procedimentos.length > 0 && !agendarProcedimento) {
+      setAgendarProcedimento(procedimentos[0].nome);
+    }
+  }, [procedimentos, agendarProcedimento]);
+
+  useEffect(() => {
+    if (profissionais.length > 0) {
+      const stillExists = profissionais.some(p => p.id === agendarProfissionalId);
+      if (!stillExists) setAgendarProfissionalId(profissionais[0].id);
+    }
+  }, [profissionais, agendarProfissionalId]);
 
   const currentCliente = clientes.find(c => c.id === activeClienteId);
 
@@ -135,6 +181,30 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
     } else {
       return `(${truncated.slice(0, 2)}) ${truncated.slice(2, 7)}-${truncated.slice(7)}`;
     }
+  };
+
+  const handleAgendarSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentCliente || !onAddAgendamento) return;
+    const proc = procedimentos.find(p => p.nome === agendarProcedimento);
+    const duracao = proc?.duracaoMinutos ?? 60;
+    const profSelecionado = profissionais.find(p => p.id === agendarProfissionalId);
+    onAddAgendamento(
+      {
+        clienteId: currentCliente.id,
+        clienteNome: currentCliente.nome,
+        data: agendarData,
+        horaInicio: agendarHora,
+        horaFim: addMinutesToTime(agendarHora, duracao),
+        profissional: profSelecionado?.nome ?? userName ?? 'Responsável da Clínica',
+        sala: proc?.salaRequerida || 'Cabine 01 - Clínica',
+        procedimento: agendarProcedimento,
+        status: 'agendada',
+        valor: proc?.preco ?? 0,
+      },
+      { telefone: currentCliente.telefone || undefined }
+    );
+    setShowAgendarModal(false);
   };
 
   const handleSaveProfile = async () => {
@@ -437,36 +507,46 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
                 </div>
                 <div style={{ flex: 1, paddingRight: '20px' }}>
                   {!isEditing ? (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
-                      <div>
-                        <h2 style={{ fontSize: '22px', fontWeight: 600, marginBottom: '6px' }}>
+                    <div className="prontuario-patient-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', gap: '16px' }}>
+                      <div style={{ minWidth: 0 }}>
+                        <h2 style={{ fontSize: '22px', fontWeight: 600, marginBottom: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {currentCliente.nome}
                         </h2>
-                        <div style={{ display: 'flex', gap: '16px', fontSize: '13px', color: 'var(--color-text-muted)' }}>
+                        <div className="prontuario-patient-meta" style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px', fontSize: '13px', color: 'var(--color-text-muted)' }}>
                           <span>Nasc: {currentCliente.dataNascimento ? currentCliente.dataNascimento.split('-').reverse().join('/') : 'N/A'}</span>
-                          <span>•</span>
                           <span>Contato: {currentCliente.telefone || 'N/A'}</span>
-                          <span>•</span>
                           <span>E-mail: {currentCliente.email || 'N/A'}</span>
                         </div>
                       </div>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button 
-                          onClick={handleDeleteCliente} 
-                          className="btn btn-outline" 
-                          style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', borderColor: '#fca5a5', color: '#ef4444' }}
-                        >
-                          <Trash2 size={14} />
-                          <span>Excluir Paciente</span>
-                        </button>
-                        <button 
-                          onClick={() => setIsEditing(true)}
-                          className="btn btn-outline" 
-                          style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}
-                        >
-                          <Edit2 size={14} />
-                          <span>Editar Dados</span>
-                        </button>
+                      <div className="prontuario-actions" style={{ display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0 }}>
+                        {onAddAgendamento && (
+                          <button
+                            onClick={() => setShowAgendarModal(true)}
+                            className="btn btn-primary"
+                            style={{ padding: '9px 16px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', width: '100%' }}
+                          >
+                            <CalendarPlus size={14} />
+                            <span>Agendar Consulta</span>
+                          </button>
+                        )}
+                        <div className="prontuario-actions-secondary" style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            onClick={() => setIsEditing(true)}
+                            className="btn btn-outline"
+                            style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', flex: 1 }}
+                          >
+                            <Edit2 size={13} />
+                            <span>Editar</span>
+                          </button>
+                          <button
+                            onClick={handleDeleteCliente}
+                            className="btn btn-outline"
+                            style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', flex: 1, borderColor: '#fca5a5', color: '#ef4444' }}
+                          >
+                            <Trash2 size={13} />
+                            <span>Excluir</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ) : (
@@ -840,6 +920,111 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
         </div>
 
       </div>
+
+      {/* Quick-schedule modal */}
+      {showAgendarModal && currentCliente && (
+        <div
+          className="modal-overlay"
+          style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, animation: 'fadeIn 0.2s ease-out' }}
+          onClick={() => setShowAgendarModal(false)}
+        >
+          <div
+            className="card"
+            style={{ maxWidth: '440px', width: '92%', padding: '32px' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+              <CalendarPlus size={20} style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
+              <h3 style={{ fontSize: '18px', fontWeight: 600 }}>Agendar Consulta</h3>
+            </div>
+
+            {/* Patient badge — locked, pre-filled */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'var(--color-primary-light)', border: '1px solid var(--color-border-hover)', borderRadius: 'var(--border-radius-md)', padding: '10px 14px', marginBottom: '20px' }}>
+              {currentCliente.fotoUrl ? (
+                <img src={currentCliente.fotoUrl} alt={currentCliente.nome} style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+              ) : (
+                <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#e2e8e6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-primary)', flexShrink: 0 }}>
+                  <User size={16} />
+                </div>
+              )}
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentCliente.nome}</div>
+                <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Paciente selecionada</div>
+              </div>
+            </div>
+
+            <form onSubmit={handleAgendarSubmit}>
+              <div className="form-group">
+                <label className="form-label">Procedimento</label>
+                <select className="form-select" value={agendarProcedimento} onChange={e => setAgendarProcedimento(e.target.value)}>
+                  {procedimentos.length === 0 ? (
+                    <option value="">Cadastre procedimentos primeiro</option>
+                  ) : (
+                    procedimentos.map(p => (
+                      <option key={p.id} value={p.nome}>{p.nome} — R$ {p.preco.toLocaleString('pt-BR')}</option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Profissional Responsável</label>
+                {profissionais.length === 1 ? (
+                  <input type="text" className="form-input" value={`${profissionais[0].nome} (${profissionais[0].cargo})`} readOnly />
+                ) : (
+                  <select className="form-select" value={agendarProfissionalId} onChange={e => setAgendarProfissionalId(e.target.value)}>
+                    {profissionais.map(p => (
+                      <option key={p.id} value={p.id}>{p.nome} — {p.cargo}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-group">
+                  <label className="form-label">Data</label>
+                  <input type="date" className="form-input" value={agendarData} onChange={e => setAgendarData(e.target.value)} required />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Horário de Início</label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <select
+                      className="form-select"
+                      style={{ flex: 1 }}
+                      value={agendarHora.split(':')[0]}
+                      onChange={e => setAgendarHora(`${e.target.value}:${agendarHora.split(':')[1] || '00'}`)}
+                    >
+                      {Array.from({ length: 15 }, (_, i) => i + 8).map(h => {
+                        const hr = String(h).padStart(2, '0');
+                        return <option key={hr} value={hr}>{hr}h</option>;
+                      })}
+                    </select>
+                    <span style={{ display: 'flex', alignItems: 'center', fontWeight: 600, color: 'var(--color-text-main)' }}>:</span>
+                    <select
+                      className="form-select"
+                      style={{ flex: 1 }}
+                      value={agendarHora.split(':')[1] || '00'}
+                      onChange={e => setAgendarHora(`${agendarHora.split(':')[0] || '08'}:${e.target.value}`)}
+                    >
+                      {['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'].map(m => (
+                        <option key={m} value={m}>{m}m</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '24px' }}>
+                <button type="button" onClick={() => setShowAgendarModal(false)} className="btn btn-outline">Cancelar</button>
+                <button type="submit" className="btn btn-primary" disabled={!agendarProcedimento}>
+                  <CalendarPlus size={15} />
+                  Confirmar Agendamento
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Lightbox Modal */}
       {lightboxImage && (

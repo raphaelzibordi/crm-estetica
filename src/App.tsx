@@ -387,7 +387,12 @@ function App() {
         )}
 
         {currentTab === 'prontuario' && (
-          <Prontuario selectedClienteId={selectedClienteId} userId={effectiveTenantId} />
+          <Prontuario
+            selectedClienteId={selectedClienteId}
+            userId={effectiveTenantId}
+            onAddAgendamento={handleAddAgendamento}
+            userName={userName}
+          />
         )}
 
         {/* Abas restritas: apenas donos chegam aqui (setCurrentTabSafe bloqueia equipe) */}
