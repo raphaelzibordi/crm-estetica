@@ -254,6 +254,9 @@ function App() {
       if (newAgendamento.data === hoje) await loadAgendamentosDoDia();
     } catch (err) {
       console.error('Erro ao criar agendamento:', err);
+      if (err instanceof ApiError && err.code === 'AGENDAMENTO_CONFLITO') {
+        throw err; // Let the calling component display the conflict modal
+      }
       const msg = err instanceof ApiError ? err.message : 'Erro ao criar agendamento no banco.';
       alert(msg);
       await handleUnauthorized(err);

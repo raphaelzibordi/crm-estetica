@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { Agendamento, Procedimento, Profissional } from '../types';
-import { Users, Clock, Sparkles, ChevronLeft, ChevronRight, CalendarRange } from 'lucide-react';
+import { Users, Clock, Sparkles, ChevronLeft, ChevronRight, CalendarRange, AlertTriangle } from 'lucide-react';
 import { api } from '../lib/api';
+import { findAgendamentoConflict } from '../lib/agendaConflict';
 
 const OWNER_ID = '__owner__';
 
@@ -104,6 +105,7 @@ export const Agenda: React.FC<AgendaProps> = ({
   const [newData, setNewData] = useState('');
   const [newHora, setNewHora] = useState('');
   const [newProfissionalId, setNewProfissionalId] = useState<string>(OWNER_ID);
+  const [conflictMessage, setConflictMessage] = useState<string | null>(null);
 
   // Carrega procedimentos + equipe ativa do banco (com fallback de seed)
   useEffect(() => {
@@ -209,6 +211,18 @@ export const Agenda: React.FC<AgendaProps> = ({
       matchedProc.profissionalResponsavel ||
       userName ||
       'Responsável da Clínica';
+
+    // Pré-check de conflito (feedback instantâneo para hoje). API revalida como autoridade.
+    if (newData === toISODate(new Date())) {
+      const conflito = findAgendamentoConflict(
+        { clienteId: '', profissional: profissionalNome, data: newData, horaInicio: newHora, horaFim: endStr },
+        agendamentos
+      );
+      if (conflito) {
+        setConflictMessage(conflito.mensagem);
+        return;
+      }
+    }
 
     try {
       await onAddAgendamento(
@@ -319,12 +333,13 @@ export const Agenda: React.FC<AgendaProps> = ({
   // ============================================================
   // ENCAIXE IDEAL (visão Hoje)
   // ============================================================
-  const getAgendamentoForSlot = (time: string) => {
-    return agendamentos.find((a) => {
-      const [aHour] = a.horaInicio.split(':');
-      const [slotHour] = time.split(':');
-      return aHour === slotHour;
-    });
+  // Bucket por hora; cada card mantém o horário exato (14:30 não vira 14:00).
+  // Permite múltiplos pacientes no mesmo bloco quando os profissionais diferem.
+  const getAgendamentosForSlot = (time: string): Agendamento[] => {
+    const slotHour = time.split(':')[0];
+    return agendamentos
+      .filter((a) => a.horaInicio.split(':')[0] === slotHour)
+      .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
   };
 
   const handleEncaixeIdeal = () => {
@@ -506,64 +521,41 @@ export const Agenda: React.FC<AgendaProps> = ({
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {HOUR_LIST.map((slot) => {
-                const booked = getAgendamentoForSlot(slot);
+                const slotItems = getAgendamentosForSlot(slot);
+                const isEmpty = slotItems.length === 0;
                 return (
-                  <div key={slot} style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    padding: '16px',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: 'var(--border-radius-md)',
-                    backgroundColor: booked ? '#FFFFFF' : 'var(--color-success-light)',
-                    transition: 'var(--transition-smooth)',
-                    minHeight: '80px',
-                  }}>
-                    <div style={{
-                      width: '70px',
-                      fontSize: '14px',
-                      fontWeight: 600,
-                      color: booked ? 'var(--color-text-main)' : 'var(--color-success)',
-                    }}>
+                  <div
+                    key={slot}
+                    className="agenda-slot"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'stretch',
+                      padding: '16px',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 'var(--border-radius-md)',
+                      backgroundColor: isEmpty ? 'var(--color-success-light)' : '#FFFFFF',
+                      transition: 'var(--transition-smooth)',
+                      minHeight: '80px',
+                      gap: '12px',
+                    }}
+                  >
+                    {/* Âncora visual do bloco horário */}
+                    <div
+                      className="agenda-slot-anchor"
+                      style={{
+                        width: '70px',
+                        flexShrink: 0,
+                        fontSize: '14px',
+                        fontWeight: 600,
+                        color: isEmpty ? 'var(--color-success)' : 'var(--color-text-muted)',
+                        paddingTop: isEmpty ? 0 : '2px',
+                      }}
+                    >
                       {slot}
                     </div>
 
-                    {booked ? (
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flex: 1 }}>
-                        <div>
-                          <div style={{ fontWeight: 600, fontSize: '14px' }}>{booked.clienteNome}</div>
-                          <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', display: 'flex', gap: '12px', marginTop: '4px' }}>
-                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <Clock size={12} /> {booked.procedimento}
-                            </span>
-                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <Users size={12} /> {booked.profissional}
-                            </span>
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span className={`badge ${booked.status === 'finalizada' ? 'badge-neutral' : 'badge-sage'}`}>
-                            {booked.status}
-                          </span>
-                          {booked.status !== 'finalizada' && (
-                            <button
-                              onClick={() => handleCancelAgendamento(booked.id)}
-                              className="btn btn-outline"
-                              style={{ 
-                                padding: '4px 10px', 
-                                fontSize: '11px', 
-                                borderColor: '#E53E3E', 
-                                color: '#E53E3E',
-                                cursor: 'pointer'
-                              }}
-                              title="Cancelar Atendimento"
-                            >
-                              Cancelar
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flex: 1 }}>
+                    {isEmpty ? (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flex: 1, gap: '12px', flexWrap: 'wrap' }}>
                         <div>
                           <span style={{
                             color: 'var(--color-success)',
@@ -588,10 +580,72 @@ export const Agenda: React.FC<AgendaProps> = ({
                             setShowAddModal(true);
                           }}
                           className="btn btn-secondary"
-                          style={{ padding: '6px 14px', fontSize: '11px', cursor: 'pointer' }}
+                          style={{ padding: '6px 14px', fontSize: '11px', cursor: 'pointer', flexShrink: 0 }}
                         >
                           Acolher Paciente
                         </button>
+                      </div>
+                    ) : (
+                      <div className="agenda-slot-bookings" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px', minWidth: 0 }}>
+                        {slotItems.map((booked) => (
+                          <div
+                            key={booked.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'flex-start',
+                              justifyContent: 'space-between',
+                              gap: '12px',
+                              flexWrap: 'wrap',
+                              padding: slotItems.length > 1 ? '10px 12px' : 0,
+                              background: slotItems.length > 1 ? '#FAFBFB' : 'transparent',
+                              borderRadius: slotItems.length > 1 ? 'var(--border-radius-sm)' : 0,
+                              border: slotItems.length > 1 ? '1px solid var(--color-border)' : 'none',
+                            }}
+                          >
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-primary)' }}>
+                                  {booked.horaInicio.substring(0, 5)}
+                                </span>
+                                <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                                  até {booked.horaFim.substring(0, 5)}
+                                </span>
+                              </div>
+                              <div style={{ fontWeight: 600, fontSize: '14px', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {booked.clienteNome}
+                              </div>
+                              <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', display: 'flex', gap: '12px', marginTop: '4px', flexWrap: 'wrap' }}>
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <Clock size={12} /> {booked.procedimento}
+                                </span>
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <Users size={12} /> {booked.profissional}
+                                </span>
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                              <span className={`badge ${booked.status === 'finalizada' ? 'badge-neutral' : 'badge-sage'}`}>
+                                {booked.status}
+                              </span>
+                              {booked.status !== 'finalizada' && (
+                                <button
+                                  onClick={() => handleCancelAgendamento(booked.id)}
+                                  className="btn btn-outline"
+                                  style={{
+                                    padding: '4px 10px',
+                                    fontSize: '11px',
+                                    borderColor: '#E53E3E',
+                                    color: '#E53E3E',
+                                    cursor: 'pointer',
+                                  }}
+                                  title="Cancelar Atendimento"
+                                >
+                                  Cancelar
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
@@ -853,6 +907,35 @@ export const Agenda: React.FC<AgendaProps> = ({
           </div>
         </div>
       )}
+
+      {/* Conflict error modal */}
+      {conflictMessage && (
+        <div className="modal-overlay" style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.4)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1100,
+        }}>
+          <div className="card" style={{ maxWidth: '420px', width: '92%', padding: '32px', textAlign: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
+              <AlertTriangle size={40} style={{ color: '#f59e0b' }} />
+            </div>
+            <h3 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text-main)' }}>
+              Conflito de Horário
+            </h3>
+            <p style={{ fontSize: '14px', color: 'var(--color-text-muted)', lineHeight: '1.6', marginBottom: '24px' }}>
+              {conflictMessage}
+            </p>
+            <button
+              className="btn btn-primary"
+              style={{ width: '100%' }}
+              onClick={() => setConflictMessage(null)}
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -962,7 +1045,9 @@ const WeekGrid: React.FC<WeekGridProps> = ({
             {days.map((d, di) => {
               const dayList = agendamentosByDay[toISODate(d)] || [];
               const slotHour = slot.split(':')[0];
-              const itemsInSlot = dayList.filter((a) => a.horaInicio.split(':')[0] === slotHour);
+              const itemsInSlot = dayList
+                .filter((a) => a.horaInicio.split(':')[0] === slotHour)
+                .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
               return (
                 <div
                   key={di}

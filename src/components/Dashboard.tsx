@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { Agendamento, Procedimento, Profissional, StatusJornada } from '../types';
-import { Clock, UserCheck, UserPlus, CheckCircle, User, Pencil } from 'lucide-react';
+import { Clock, UserCheck, UserPlus, CheckCircle, User, Pencil, AlertTriangle } from 'lucide-react';
 import { api } from '../lib/api';
+import { findAgendamentoConflict } from '../lib/agendaConflict';
 
 const OWNER_ID = '__owner__';
 
@@ -45,6 +46,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [equipe, setEquipe] = useState<Array<{ id: string; nome: string; cargo: string }>>([]);
   const [showCheckoutModal, setShowCheckoutModal] = useState<string | null>(null);
   const [metodoPagamento, setMetodoPagamento] = useState<Agendamento['metodoPagamento']>('pix');
+  const [conflictMessage, setConflictMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -195,17 +197,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
       return;
     }
 
-    const hasOverlap = agendamentos.some(a => 
-      a.data === newData && 
-      a.horaInicio.substring(0, 5) === newHora.substring(0, 5) &&
-      a.status !== 'finalizada'
-    );
-
-    if (hasOverlap) {
-      alert('Atenção: Já existe um paciente agendado para este horário. Por favor, sugira um novo horário.');
-      return;
-    }
-
     const proc = procedimentos.find((p) => p.nome === newProcedimento);
     const duracao = proc?.duracaoMinutos ?? 60;
     const valor = proc?.preco ?? 0;
@@ -216,6 +207,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
       proc?.profissionalResponsavel ||
       userName ||
       'Responsável da Clínica';
+    const horaFim = addMinutesToTime(newHora, duracao);
+
+    // Pré-check de conflito (feedback instantâneo). API repete a validação como autoridade.
+    const conflito = findAgendamentoConflict(
+      { clienteId: '', profissional, data: newData, horaInicio: newHora, horaFim },
+      agendamentos
+    );
+    if (conflito) {
+      setConflictMessage(conflito.mensagem);
+      return;
+    }
 
     onAddAgendamento(
       {
@@ -223,7 +225,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         clienteNome: newNome.trim(),
         data: newData,
         horaInicio: newHora,
-        horaFim: addMinutesToTime(newHora, duracao),
+        horaFim,
         profissional,
         sala,
         procedimento: newProcedimento,
@@ -808,6 +810,35 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 Confirmar e Finalizar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Conflict error modal */}
+      {conflictMessage && (
+        <div className="modal-overlay" style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.4)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1100,
+        }}>
+          <div className="card" style={{ maxWidth: '420px', width: '92%', padding: '32px', textAlign: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
+              <AlertTriangle size={40} style={{ color: '#f59e0b' }} />
+            </div>
+            <h3 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text-main)' }}>
+              Conflito de Horário
+            </h3>
+            <p style={{ fontSize: '14px', color: 'var(--color-text-muted)', lineHeight: '1.6', marginBottom: '24px' }}>
+              {conflictMessage}
+            </p>
+            <button
+              className="btn btn-primary"
+              style={{ width: '100%' }}
+              onClick={() => setConflictMessage(null)}
+            >
+              Entendido
+            </button>
           </div>
         </div>
       )}

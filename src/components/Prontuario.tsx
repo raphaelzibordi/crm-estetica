@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { Agendamento, Cliente, EvolucaoClinica, GaleriaItem, Procedimento, Profissional } from '../types';
-import { FileText, Camera, Plus, Trash2, Edit2, User, CalendarPlus } from 'lucide-react';
+import { FileText, Camera, Plus, Trash2, Edit2, User, CalendarPlus, UserPlus, AlertTriangle } from 'lucide-react';
 import { api } from '../lib/api';
 
 const OWNER_ID = '__owner__';
@@ -17,7 +17,7 @@ interface ProntuarioProps {
   selectedClienteId: string | null;
   userId: string;
   onClose?: () => void;
-  onAddAgendamento?: (agendamento: Omit<Agendamento, 'id'>, extra?: { telefone?: string }) => void;
+  onAddAgendamento?: (agendamento: Omit<Agendamento, 'id'>, extra?: { telefone?: string }) => Promise<void>;
   userName?: string;
 }
 
@@ -44,11 +44,22 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
 
   // States for quick-schedule modal
   const [showAgendarModal, setShowAgendarModal] = useState(false);
+  const [showAgendarConfirm, setShowAgendarConfirm] = useState(false);
   const [agendarData, setAgendarData] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [agendarHora, setAgendarHora] = useState('14:30');
   const [agendarProcedimento, setAgendarProcedimento] = useState('');
   const [agendarProfissionalId, setAgendarProfissionalId] = useState<string>(OWNER_ID);
   const [equipe, setEquipe] = useState<Array<{ id: string; nome: string; cargo: string }>>([]);
+
+  // States for global Acolher modal (fresh patient, no pre-fill)
+  const [showAcolherModal, setShowAcolherModal] = useState(false);
+  const [acolherNome, setAcolherNome] = useState('');
+  const [acolherTelefone, setAcolherTelefone] = useState('');
+  const [acolherProcedimento, setAcolherProcedimento] = useState('');
+  const [acolherData, setAcolherData] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [acolherHora, setAcolherHora] = useState('14:30');
+  const [acolherProfissionalId, setAcolherProfissionalId] = useState<string>(OWNER_ID);
+  const [conflictMessage, setConflictMessage] = useState<string | null>(null);
 
   // States for image gallery uploader
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -91,10 +102,11 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
   }, [equipe, userName]);
 
   useEffect(() => {
-    if (procedimentos.length > 0 && !agendarProcedimento) {
-      setAgendarProcedimento(procedimentos[0].nome);
+    if (procedimentos.length > 0) {
+      if (!agendarProcedimento) setAgendarProcedimento(procedimentos[0].nome);
+      if (!acolherProcedimento) setAcolherProcedimento(procedimentos[0].nome);
     }
-  }, [procedimentos, agendarProcedimento]);
+  }, [procedimentos, agendarProcedimento, acolherProcedimento]);
 
   useEffect(() => {
     if (profissionais.length > 0) {
@@ -186,25 +198,80 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
   const handleAgendarSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentCliente || !onAddAgendamento) return;
+    setShowAgendarModal(false);
+    setShowAgendarConfirm(true);
+  };
+
+  const handleAgendarConfirm = async () => {
+    if (!currentCliente || !onAddAgendamento) return;
     const proc = procedimentos.find(p => p.nome === agendarProcedimento);
     const duracao = proc?.duracaoMinutos ?? 60;
     const profSelecionado = profissionais.find(p => p.id === agendarProfissionalId);
-    onAddAgendamento(
-      {
-        clienteId: currentCliente.id,
-        clienteNome: currentCliente.nome,
-        data: agendarData,
-        horaInicio: agendarHora,
-        horaFim: addMinutesToTime(agendarHora, duracao),
-        profissional: profSelecionado?.nome ?? userName ?? 'Responsável da Clínica',
-        sala: proc?.salaRequerida || 'Cabine 01 - Clínica',
-        procedimento: agendarProcedimento,
-        status: 'agendada',
-        valor: proc?.preco ?? 0,
-      },
-      { telefone: currentCliente.telefone || undefined }
-    );
-    setShowAgendarModal(false);
+    try {
+      await onAddAgendamento(
+        {
+          clienteId: currentCliente.id,
+          clienteNome: currentCliente.nome,
+          data: agendarData,
+          horaInicio: agendarHora,
+          horaFim: addMinutesToTime(agendarHora, duracao),
+          profissional: profSelecionado?.nome ?? userName ?? 'Responsável da Clínica',
+          sala: proc?.salaRequerida || 'Cabine 01 - Clínica',
+          procedimento: agendarProcedimento,
+          status: 'agendada',
+          valor: proc?.preco ?? 0,
+        },
+        { telefone: currentCliente.telefone || undefined }
+      );
+      setShowAgendarConfirm(false);
+    } catch (err: unknown) {
+      const e = err as { code?: string; message?: string };
+      if (e?.code === 'AGENDAMENTO_CONFLITO') {
+        setShowAgendarConfirm(false);
+        setConflictMessage(e.message ?? 'Conflito de horário detectado.');
+      }
+    }
+  };
+
+  const handleAcolherSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!onAddAgendamento || !acolherNome.trim()) return;
+
+    const rawTelefone = acolherTelefone.replace(/\D/g, '');
+    if (rawTelefone && rawTelefone.length < 10) {
+      alert('Por favor, informe um telefone de contato válido com DDD (mínimo 10 dígitos).');
+      return;
+    }
+
+    const proc = procedimentos.find((p) => p.nome === acolherProcedimento);
+    const duracao = proc?.duracaoMinutos ?? 60;
+    const profSelecionado = profissionais.find((p) => p.id === acolherProfissionalId);
+
+    try {
+      await onAddAgendamento(
+        {
+          clienteId: 'c_' + Math.random().toString(36).slice(2, 10),
+          clienteNome: acolherNome.trim(),
+          data: acolherData,
+          horaInicio: acolherHora,
+          horaFim: addMinutesToTime(acolherHora, duracao),
+          profissional: profSelecionado?.nome ?? userName ?? 'Responsável da Clínica',
+          sala: proc?.salaRequerida || 'Cabine 01 - Clínica',
+          procedimento: acolherProcedimento,
+          status: 'agendada',
+          valor: proc?.preco ?? 0,
+        },
+        { telefone: acolherTelefone.trim() || undefined }
+      );
+      setAcolherNome('');
+      setAcolherTelefone('');
+      setShowAcolherModal(false);
+    } catch (err: unknown) {
+      const e = err as { code?: string; message?: string };
+      if (e?.code === 'AGENDAMENTO_CONFLITO') {
+        setConflictMessage(e.message ?? 'Conflito de horário detectado.');
+      }
+    }
   };
 
   const handleSaveProfile = async () => {
@@ -403,13 +470,24 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
    */
   return (
     <div style={{ animation: 'fadeIn 0.4s ease-out' }}>
-      <div style={{ marginBottom: '32px' }}>
-        <h1 style={{ fontSize: '28px', color: 'var(--color-text-main)', marginBottom: '6px' }}>
-          Prontuário Estético Visual
-        </h1>
-        <p style={{ color: 'var(--color-text-muted)', fontSize: '14px' }}>
-          Consulte o histórico completo de bem-estar de suas clientes, evoluções clínicas e evoluções de fotos.
-        </p>
+      <div className="prontuario-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+        <div>
+          <h1 style={{ fontSize: '28px', color: 'var(--color-text-main)', marginBottom: '6px' }}>
+            Prontuário Estético Visual
+          </h1>
+          <p style={{ color: 'var(--color-text-muted)', fontSize: '14px' }}>
+            Consulte o histórico completo de bem-estar de suas clientes, evoluções clínicas e evoluções de fotos.
+          </p>
+        </div>
+        {onAddAgendamento && (
+          <button
+            onClick={() => setShowAcolherModal(true)}
+            className="btn btn-primary"
+          >
+            <UserPlus size={16} />
+            <span>Acolher nova(o) paciente</span>
+          </button>
+        )}
       </div>
 
       <div className="prontuario-grid" style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '32px', alignItems: 'start' }}>
@@ -921,6 +999,150 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
 
       </div>
 
+      {/* Global Acolher modal — fresh patient, no pre-fill */}
+      {showAcolherModal && (
+        <div
+          className="modal-overlay"
+          style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, animation: 'fadeIn 0.2s ease-out' }}
+          onClick={() => setShowAcolherModal(false)}
+        >
+          <div
+            className="card"
+            style={{ maxWidth: '440px', width: '92%', padding: '32px' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 style={{ marginBottom: '20px' }}>Acolher Paciente</h3>
+            <form onSubmit={handleAcolherSubmit}>
+              <div className="form-group">
+                <label className="form-label">Nome da Paciente</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={acolherNome}
+                  onChange={e => setAcolherNome(e.target.value)}
+                  placeholder="Ex: Amanda Santos"
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Telefone</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={acolherTelefone}
+                  onChange={e => setAcolherTelefone(formatTelefone(e.target.value))}
+                  placeholder="(XX) 9XXXX-XXXX"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Procedimento</label>
+                <select
+                  className="form-select"
+                  value={acolherProcedimento}
+                  onChange={e => setAcolherProcedimento(e.target.value)}
+                >
+                  {procedimentos.length === 0 ? (
+                    <option value="">Cadastre procedimentos primeiro</option>
+                  ) : (
+                    procedimentos.map(p => (
+                      <option key={p.id} value={p.nome}>{p.nome} — R$ {p.preco.toLocaleString('pt-BR')}</option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Profissional Responsável</label>
+                {profissionais.length === 1 ? (
+                  <input type="text" className="form-input" value={`${profissionais[0].nome} (${profissionais[0].cargo})`} readOnly />
+                ) : (
+                  <select
+                    className="form-select"
+                    value={acolherProfissionalId}
+                    onChange={e => setAcolherProfissionalId(e.target.value)}
+                  >
+                    {profissionais.map(p => (
+                      <option key={p.id} value={p.id}>{p.nome} — {p.cargo}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-group">
+                  <label className="form-label">Data</label>
+                  <input type="date" className="form-input" value={acolherData} onChange={e => setAcolherData(e.target.value)} required />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Horário de Início</label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <select
+                      className="form-select"
+                      style={{ flex: 1 }}
+                      value={acolherHora.split(':')[0]}
+                      onChange={e => setAcolherHora(`${e.target.value}:${acolherHora.split(':')[1] || '00'}`)}
+                    >
+                      {Array.from({ length: 15 }, (_, i) => i + 8).map(h => {
+                        const hr = String(h).padStart(2, '0');
+                        return <option key={hr} value={hr}>{hr}h</option>;
+                      })}
+                    </select>
+                    <span style={{ display: 'flex', alignItems: 'center', fontWeight: 600, color: 'var(--color-text-main)' }}>:</span>
+                    <select
+                      className="form-select"
+                      style={{ flex: 1 }}
+                      value={acolherHora.split(':')[1] || '00'}
+                      onChange={e => setAcolherHora(`${acolherHora.split(':')[0] || '08'}:${e.target.value}`)}
+                    >
+                      {['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'].map(m => (
+                        <option key={m} value={m}>{m}m</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
+                <button type="button" onClick={() => setShowAcolherModal(false)} className="btn btn-outline">Cancelar</button>
+                <button type="submit" className="btn btn-primary" disabled={!acolherProcedimento}>
+                  <UserPlus size={15} />
+                  Confirmar Agendamento
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Conflict error modal */}
+      {conflictMessage && (
+        <div
+          className="modal-overlay"
+          style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2100 }}
+        >
+          <div className="card" style={{ maxWidth: '420px', width: '92%', padding: '32px', textAlign: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
+              <AlertTriangle size={40} style={{ color: '#f59e0b' }} />
+            </div>
+            <h3 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text-main)' }}>
+              Conflito de Horário
+            </h3>
+            <p style={{ fontSize: '14px', color: 'var(--color-text-muted)', lineHeight: '1.6', marginBottom: '24px' }}>
+              {conflictMessage}
+            </p>
+            <button
+              className="btn btn-primary"
+              style={{ width: '100%' }}
+              onClick={() => setConflictMessage(null)}
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Quick-schedule modal */}
       {showAgendarModal && currentCliente && (
         <div
@@ -1018,13 +1240,94 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
                 <button type="button" onClick={() => setShowAgendarModal(false)} className="btn btn-outline">Cancelar</button>
                 <button type="submit" className="btn btn-primary" disabled={!agendarProcedimento}>
                   <CalendarPlus size={15} />
-                  Confirmar Agendamento
+                  Revisar Agendamento
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* Appointment confirmation modal */}
+      {showAgendarConfirm && currentCliente && (() => {
+        const proc = procedimentos.find(p => p.nome === agendarProcedimento);
+        const duracao = proc?.duracaoMinutos ?? 60;
+        const profSelecionado = profissionais.find(p => p.id === agendarProfissionalId);
+        const profNome = profSelecionado?.nome ?? userName ?? 'Responsável da Clínica';
+        const horaFim = addMinutesToTime(agendarHora, duracao);
+        const dataFormatada = agendarData
+          ? new Date(agendarData + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+          : '';
+        const row = (label: string, value: string) => (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '8px 0', borderBottom: '1px solid var(--color-border)' }}>
+            <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', flexShrink: 0 }}>{label}</span>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-main)', textAlign: 'right' }}>{value}</span>
+          </div>
+        );
+        return (
+          <div
+            className="modal-overlay"
+            style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, animation: 'fadeIn 0.2s ease-out' }}
+          >
+            <div className="card" style={{ maxWidth: '440px', width: '92%', padding: '32px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+                <CalendarPlus size={20} style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
+                <h3 style={{ fontSize: '18px', fontWeight: 600 }}>Confirmar Agendamento</h3>
+              </div>
+
+              {/* Patient badge */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'var(--color-primary-light)', border: '1px solid var(--color-border-hover)', borderRadius: 'var(--border-radius-md)', padding: '10px 14px', marginBottom: '20px' }}>
+                {currentCliente.fotoUrl ? (
+                  <img src={currentCliente.fotoUrl} alt={currentCliente.nome} style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                ) : (
+                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#e2e8e6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-primary)', flexShrink: 0 }}>
+                    <User size={16} />
+                  </div>
+                )}
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-main)' }}>{currentCliente.nome}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Paciente selecionada</div>
+                </div>
+              </div>
+
+              {/* Summary rows */}
+              <div style={{ marginBottom: '24px' }}>
+                {row('Procedimento', agendarProcedimento)}
+                {row('Profissional', profNome)}
+                {row('Data', dataFormatada)}
+                {row('Horário', `${agendarHora} – ${horaFim} (${duracao} min)`)}
+                {proc && row('Valor', `R$ ${proc.preco.toLocaleString('pt-BR')}`)}
+              </div>
+
+              {/* Actions */}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  className="btn btn-outline"
+                  style={{ flex: 1 }}
+                  onClick={() => setShowAgendarConfirm(false)}
+                >
+                  Cancelar
+                </button>
+                <button
+                  className="btn btn-outline"
+                  style={{ flex: 1 }}
+                  onClick={() => { setShowAgendarConfirm(false); setShowAgendarModal(true); }}
+                >
+                  Editar
+                </button>
+                <button
+                  className="btn btn-primary"
+                  style={{ flex: 2 }}
+                  onClick={handleAgendarConfirm}
+                >
+                  <CalendarPlus size={15} />
+                  Confirmar
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Lightbox Modal */}
       {lightboxImage && (

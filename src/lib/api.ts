@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { ApiError, humanizeError } from './errors';
+import { findAgendamentoConflict } from './agendaConflict';
 import type {
   Agendamento,
   Cliente,
@@ -281,6 +282,29 @@ export const api = {
       if (!agendamento.clienteId) {
         throw new ApiError('Selecione o cliente antes de criar o agendamento.', 400);
       }
+
+      // Trava de conflito (autoridade): pacientes e profissionais não podem se sobrepor no mesmo horário
+      const { data: existentes, error: fetchError } = await supabase
+        .from('agendamentos')
+        .select('*, clientes ( nome, foto_url )')
+        .eq('user_id', uid)
+        .eq('data', agendamento.data);
+      if (fetchError) throw fetchError;
+
+      const conflito = findAgendamentoConflict(
+        {
+          clienteId: agendamento.clienteId,
+          profissional: agendamento.profissional,
+          data: agendamento.data,
+          horaInicio: agendamento.horaInicio,
+          horaFim: agendamento.horaFim,
+        },
+        (existentes ?? []).map(mapAgendamento)
+      );
+      if (conflito) {
+        throw new ApiError(conflito.mensagem, 409, 'AGENDAMENTO_CONFLITO');
+      }
+
       const { data, error } = await supabase
         .from('agendamentos')
         .insert([
@@ -350,6 +374,46 @@ export const api = {
   ): Promise<Agendamento> {
     return run(async () => {
       const uid = await requireUserId(userId);
+
+      // Se houver mudança que afete a alocação (hora/profissional), revalida conflitos
+      const precisaValidar =
+        updates.horaInicio !== undefined ||
+        updates.horaFim !== undefined ||
+        updates.profissional !== undefined;
+
+      if (precisaValidar) {
+        const { data: atual, error: fetchAtualErr } = await supabase
+          .from('agendamentos')
+          .select('*, clientes ( nome, foto_url )')
+          .eq('id', id)
+          .eq('user_id', uid)
+          .single();
+        if (fetchAtualErr) throw fetchAtualErr;
+        const atualMapped = mapAgendamento(atual);
+
+        const { data: existentes, error: listErr } = await supabase
+          .from('agendamentos')
+          .select('*, clientes ( nome, foto_url )')
+          .eq('user_id', uid)
+          .eq('data', atualMapped.data);
+        if (listErr) throw listErr;
+
+        const conflito = findAgendamentoConflict(
+          {
+            clienteId: atualMapped.clienteId,
+            profissional: updates.profissional ?? atualMapped.profissional,
+            data: atualMapped.data,
+            horaInicio: updates.horaInicio ?? atualMapped.horaInicio,
+            horaFim: updates.horaFim ?? atualMapped.horaFim,
+          },
+          (existentes ?? []).map(mapAgendamento),
+          id
+        );
+        if (conflito) {
+          throw new ApiError(conflito.mensagem, 409, 'AGENDAMENTO_CONFLITO');
+        }
+      }
+
       const dbUpdates: Record<string, unknown> = {};
       if (updates.horaInicio !== undefined) dbUpdates.hora_inicio = updates.horaInicio;
       if (updates.horaFim !== undefined) dbUpdates.hora_fim = updates.horaFim;
