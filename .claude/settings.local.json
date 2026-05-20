@@ -9,7 +9,8 @@
       "Bash(Select-Object -First 50)",
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\rapha\\\\OneDrive\\\\Documents\\\\GitHub\\\\CRM Estética\\\\crm-estetica\" -Recurse -Depth 2)",
       "Bash(Select-Object FullName, PSIsContainer)",
-      "Bash(Format-Table -AutoSize)"
+      "Bash(Format-Table -AutoSize)",
+      "Bash(npx vite *)"
     ]
   }
 }

@@ -723,6 +723,18 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
+/* Consultas carousel — hide native scrollbar, keep touch scroll */
+.consultas-carousel::-webkit-scrollbar {
+  display: none;
+}
+
+/* On mobile, hide the arrow buttons (touch swipe handles navigation) */
+@media (max-width: 640px) {
+  .carousel-nav-arrows {
+    display: none !important;
+  }
+}
+
 /* ── Very small (≤ 400px) ───────────────────────────────────────────── */
 @media (max-width: 400px) {
   .main-content {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { Agendamento, Cliente, EvolucaoClinica, GaleriaItem, Procedimento, Profissional } from '../types';
-import { FileText, Camera, Plus, Trash2, Edit2, User, CalendarPlus, UserPlus, AlertTriangle } from 'lucide-react';
+import { FileText, Camera, Plus, Trash2, Edit2, User, CalendarPlus, UserPlus, AlertTriangle, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { api } from '../lib/api';
 
 const OWNER_ID = '__owner__';
@@ -61,6 +61,11 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
   const [acolherProfissionalId, setAcolherProfissionalId] = useState<string>(OWNER_ID);
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
 
+  // Ref for consultation carousel scroll navigation
+  const carouselRef = React.useRef<HTMLDivElement>(null);
+  // Appointments linked to the active client (fetched on client change)
+  const [agendamentosCliente, setAgendamentosCliente] = useState<Agendamento[]>([]);
+
   // States for image gallery uploader
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [showAddPhoto, setShowAddPhoto] = useState(false);
@@ -100,6 +105,23 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
     };
     return [responsavel, ...equipe.map(m => ({ id: m.id, nome: m.nome, cargo: m.cargo || 'Profissional', isResponsavel: false }))];
   }, [equipe, userName]);
+
+  // Past: all clinical evolutions sorted newest-first
+  const pastConsultas = useMemo(
+    () => [...evolucoes].sort((a, b) => b.data.localeCompare(a.data)),
+    [evolucoes],
+  );
+
+  // Future: linked appointments ≥ today, sorted chronologically
+  const futureConsultas = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    return agendamentosCliente
+      .filter((a) => a.data >= today && a.status !== 'finalizada')
+      .sort((a, b) => {
+        const d = a.data.localeCompare(b.data);
+        return d !== 0 ? d : a.horaInicio.localeCompare(b.horaInicio);
+      });
+  }, [agendamentosCliente]);
 
   useEffect(() => {
     if (procedimentos.length > 0) {
@@ -168,6 +190,38 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
     };
   }, [activeClienteId, userId]);
 
+  // Fetch future appointments for the active client (used by the consultation carousel)
+  useEffect(() => {
+    let cancelled = false;
+    const cliente = clientes.find((c) => c.id === activeClienteId);
+    if (!activeClienteId || !cliente) {
+      setAgendamentosCliente([]);
+      return;
+    }
+    const today = new Date().toISOString().split('T')[0];
+    const futureLimit = new Date();
+    futureLimit.setFullYear(futureLimit.getFullYear() + 1);
+    api
+      .getAgendamentosRange(userId, today, futureLimit.toISOString().split('T')[0])
+      .then((data) => {
+        if (cancelled) return;
+        const nomeLower = cliente.nome.trim().toLocaleLowerCase('pt-BR');
+        setAgendamentosCliente(
+          data.filter(
+            (a) =>
+              a.clienteId === activeClienteId ||
+              (a.clienteNome || '').trim().toLocaleLowerCase('pt-BR') === nomeLower,
+          ),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setAgendamentosCliente([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeClienteId, userId, clientes]);
+
   const formatDataNascimento = (value: string) => {
     const numbersOnly = value.replace(/\D/g, '');
     const truncated = numbersOnly.slice(0, 8);
@@ -193,6 +247,10 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
     } else {
       return `(${truncated.slice(0, 2)}) ${truncated.slice(2, 7)}-${truncated.slice(7)}`;
     }
+  };
+
+  const scrollCarousel = (dir: 'left' | 'right') => {
+    carouselRef.current?.scrollBy({ left: dir === 'right' ? 240 : -240, behavior: 'smooth' });
   };
 
   const handleAgendarSubmit = (e: React.FormEvent) => {
@@ -707,6 +765,182 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
                 {(currentCliente.tags || []).map((tag: string) => (
                   <span key={tag} className="badge badge-sage">{tag}</span>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Linha do Tempo de Consultas */}
+          {currentCliente && (
+            <div className="card" style={{ padding: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Calendar size={18} style={{ color: 'var(--color-primary)' }} />
+                  <h3 style={{ fontSize: '16px', fontWeight: 600 }}>Linha do Tempo de Consultas</h3>
+                </div>
+                <div className="carousel-nav-arrows" style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    onClick={() => scrollCarousel('left')}
+                    className="btn btn-outline"
+                    style={{ padding: '6px 10px' }}
+                    aria-label="Rolar para a esquerda"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <button
+                    onClick={() => scrollCarousel('right')}
+                    className="btn btn-outline"
+                    style={{ padding: '6px 10px' }}
+                    aria-label="Rolar para a direita"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              </div>
+
+              <div
+                ref={carouselRef}
+                className="consultas-carousel"
+                style={{
+                  display: 'flex',
+                  gap: '12px',
+                  overflowX: 'auto',
+                  scrollSnapType: 'x mandatory',
+                  paddingBottom: '6px',
+                  scrollbarWidth: 'none',
+                } as React.CSSProperties}
+              >
+                {pastConsultas.length === 0 && futureConsultas.length === 0 ? (
+                  <div style={{
+                    flex: 1, padding: '24px',
+                    border: '1px dashed var(--color-border)',
+                    borderRadius: 'var(--border-radius-md)',
+                    textAlign: 'center', fontSize: '12px', color: 'var(--color-text-muted)',
+                  }}>
+                    Nenhuma consulta registrada para esta paciente.
+                  </div>
+                ) : (
+                  <>
+                    {/* Past consultation cards (evolucoes, newest first) */}
+                    {pastConsultas.map((ev) => (
+                      <div
+                        key={ev.id}
+                        style={{
+                          flexShrink: 0, width: '200px', scrollSnapAlign: 'start',
+                          border: '1px solid var(--color-border)',
+                          borderLeft: '3px solid var(--color-success)',
+                          borderRadius: 'var(--border-radius-md)',
+                          padding: '14px 16px', backgroundColor: '#E8F0EE',
+                          display: 'flex', flexDirection: 'column', gap: '6px',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
+                          <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)' }}>
+                            {new Date(ev.data + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          </span>
+                          <span style={{
+                            fontSize: '9px', padding: '2px 6px', borderRadius: '20px', flexShrink: 0,
+                            background: 'var(--color-success-light)', color: 'var(--color-success)',
+                            fontWeight: 600, whiteSpace: 'nowrap',
+                          }}>
+                            Realizada
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-main)', lineHeight: '1.4', maxHeight: '2.8em', overflow: 'hidden' }}>
+                          {ev.procedimento}
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <User size={10} style={{ flexShrink: 0 }} />
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.profissional}</span>
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* "Hoje" divider — only when there are past cards */}
+                    {pastConsultas.length > 0 && (
+                      <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 4px', gap: '4px' }}>
+                        <div style={{ width: '1px', height: '44px', background: 'var(--color-border)' }} />
+                        <span style={{
+                          fontSize: '9px', fontWeight: 700, color: 'var(--color-text-muted)',
+                          background: 'var(--bg-card)', padding: '3px 8px',
+                          border: '1px solid var(--color-border)', borderRadius: '20px',
+                          whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '0.06em',
+                        }}>
+                          Hoje
+                        </span>
+                        <div style={{ width: '1px', height: '44px', background: 'var(--color-border)' }} />
+                      </div>
+                    )}
+
+                    {/* Future appointment cards or empty-state card */}
+                    {futureConsultas.length > 0 ? (
+                      futureConsultas.map((ag) => (
+                        <div
+                          key={ag.id}
+                          style={{
+                            flexShrink: 0, width: '200px', scrollSnapAlign: 'start',
+                            border: '1px solid var(--color-border)',
+                            borderLeft: '3px solid var(--color-primary)',
+                            borderRadius: 'var(--border-radius-md)',
+                            padding: '14px 16px', backgroundColor: '#FFFFFF',
+                            display: 'flex', flexDirection: 'column', gap: '6px',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
+                            <div>
+                              <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-primary)' }}>
+                                {new Date(ag.data + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                              </div>
+                              <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 500 }}>
+                                {ag.horaInicio.substring(0, 5)}
+                              </div>
+                            </div>
+                            <span style={{
+                              fontSize: '9px', padding: '2px 6px', borderRadius: '20px', flexShrink: 0,
+                              background: 'var(--color-primary-light)', color: 'var(--color-primary)',
+                              fontWeight: 600, whiteSpace: 'nowrap',
+                            }}>
+                              Agendada
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-main)', lineHeight: '1.4', maxHeight: '2.8em', overflow: 'hidden' }}>
+                            {ag.procedimento}
+                          </div>
+                          <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <User size={10} style={{ flexShrink: 0 }} />
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ag.profissional}</span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div
+                        style={{
+                          flexShrink: 0, width: '220px', scrollSnapAlign: 'start',
+                          border: '1px dashed var(--color-border)',
+                          borderRadius: 'var(--border-radius-md)',
+                          padding: '24px 16px', backgroundColor: '#FAFBFB',
+                          display: 'flex', flexDirection: 'column',
+                          alignItems: 'center', justifyContent: 'center',
+                          gap: '10px', textAlign: 'center',
+                        }}
+                      >
+                        <CalendarPlus size={22} style={{ color: 'var(--color-text-muted)', opacity: 0.4 }} />
+                        <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
+                          Nenhuma consulta futura agendada
+                        </p>
+                        {onAddAgendamento && (
+                          <button
+                            onClick={() => setShowAgendarModal(true)}
+                            className="btn btn-outline"
+                            style={{ padding: '6px 14px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '5px' }}
+                          >
+                            <CalendarPlus size={12} />
+                            Agendar
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </div>
           )}
