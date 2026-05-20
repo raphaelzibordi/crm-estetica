@@ -367,7 +367,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
       {/* Grid columns */}
       <div className="esteira-container">
         {colunas.map((col) => {
-          const colAgendamentos = agendamentos.filter((a) => a.status === col.id);
+          // Checkout column also retains 'finalizada' for the day so the receptionist
+          // can see what was actually completed and billed; finalized cards stay
+          // until midnight (when App.tsx refetches "today's" agendamentos).
+          const colAgendamentos = agendamentos.filter((a) =>
+            col.id === 'checkout'
+              ? a.status === 'checkout' || a.status === 'finalizada'
+              : a.status === col.id,
+          );
           const isHover = dragOverCol === col.id;
 
           return (
@@ -413,6 +420,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   colAgendamentos.map((item) => {
                     const isOverWait = col.id === 'chegou' && (item.tempoEsperaMinutos ?? 0) >= 10;
                     const isDragging = dragId === item.id;
+                    const isFinalizada = item.status === 'finalizada';
                     const scheduleAlert = col.id === 'agendada'
                       ? getScheduleAlertStyle(item.horaInicio, currentDateTime)
                       : null;
@@ -420,11 +428,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       <div
                         key={item.id}
                         className={`esteira-card ${isDragging ? 'active-drag' : ''}`}
-                        draggable
+                        draggable={!isFinalizada}
                         onDragStart={(e) => handleDragStart(e, item.id)}
                         onDragEnd={handleDragEnd}
                         style={{
-                          cursor: isDragging ? 'grabbing' : 'grab',
+                          cursor: isFinalizada ? 'default' : (isDragging ? 'grabbing' : 'grab'),
+                          opacity: isFinalizada ? 0.78 : 1,
+                          ...(isFinalizada
+                            ? { backgroundColor: 'var(--color-success-light)', borderColor: 'var(--color-success)' }
+                            : {}),
                           ...(scheduleAlert && !isDragging
                             ? { backgroundColor: scheduleAlert.background, borderColor: scheduleAlert.borderColor }
                             : {}),
@@ -458,7 +470,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.profissional}</span>
                             </div>
                           </div>
-                          {onUpdateAgendamentoDados && (
+                          {onUpdateAgendamentoDados && !isFinalizada && (
                             <button
                               onClick={(e) => { e.stopPropagation(); openEditModal(item); }}
                               title="Editar atendimento"
@@ -505,6 +517,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
                             <span style={{ color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 500 }}>
                               <UserCheck size={12} />
                               <span>Em Cabine</span>
+                            </span>
+                          ) : isFinalizada ? (
+                            <span style={{ color: 'var(--color-success)', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+                              <CheckCircle size={12} />
+                              <span>R$ {item.valor}{item.metodoPagamento ? ` · ${item.metodoPagamento}` : ''}</span>
                             </span>
                           ) : (
                             <span style={{ color: 'var(--color-text-muted)' }}>
@@ -558,7 +575,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                 Concluir
                               </button>
                             )}
-                            {col.id === 'checkout' && (
+                            {col.id === 'checkout' && !isFinalizada && (
                               <button
                                 onClick={() => {
                                   setMetodoPagamento('pix');
@@ -570,6 +587,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
                               >
                                 <CheckCircle size={10} /> Finalizar
                               </button>
+                            )}
+                            {col.id === 'checkout' && isFinalizada && (
+                              <span
+                                className="badge badge-success"
+                                style={{ fontSize: '10px', padding: '3px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              >
+                                <CheckCircle size={10} /> Concluída
+                              </span>
                             )}
                           </div>
                         </div>

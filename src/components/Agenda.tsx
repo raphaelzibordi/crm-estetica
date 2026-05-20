@@ -1090,8 +1090,14 @@ const WeekGrid: React.FC<WeekGridProps> = ({
                         (e.currentTarget as HTMLDivElement).style.background = 'var(--color-primary)';
                       }}
                     >
-                      <div style={{ fontWeight: 600 }}>{a.horaInicio} {a.clienteNome}</div>
-                      <div style={{ opacity: 0.85, fontSize: '10px' }}>{a.procedimento}</div>
+                      <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.horaInicio.substring(0, 5)} {a.clienteNome}</div>
+                      <div style={{ opacity: 0.85, fontSize: '10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.procedimento}</div>
+                      {a.profissional && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '3px', marginTop: '2px', opacity: 0.75, fontSize: '9px', overflow: 'hidden' }}>
+                          <Users size={8} style={{ flexShrink: 0 }} />
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.profissional}</span>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

@@ -106,11 +106,33 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
     return [responsavel, ...equipe.map(m => ({ id: m.id, nome: m.nome, cargo: m.cargo || 'Profissional', isResponsavel: false }))];
   }, [equipe, userName]);
 
-  // Past: all clinical evolutions sorted newest-first
-  const pastConsultas = useMemo(
-    () => [...evolucoes].sort((a, b) => b.data.localeCompare(a.data)),
-    [evolucoes],
-  );
+  // Past: clinical evolutions + finalized appointments (deduped),
+  // sorted newest-first. Finalized agendamentos must appear here so the
+  // patient's history reflects what was actually completed and billed.
+  const pastConsultas = useMemo(() => {
+    const evolucaoKeys = new Set(
+      evolucoes.map((e) => `${e.data}|${e.procedimento.trim().toLocaleLowerCase('pt-BR')}`),
+    );
+    const fromEvolucoes = evolucoes.map((e) => ({
+      id: e.id,
+      data: e.data,
+      profissional: e.profissional,
+      procedimento: e.procedimento,
+    }));
+    const fromFinalizadas = agendamentosCliente
+      .filter(
+        (a) =>
+          a.status === 'finalizada' &&
+          !evolucaoKeys.has(`${a.data}|${a.procedimento.trim().toLocaleLowerCase('pt-BR')}`),
+      )
+      .map((a) => ({
+        id: a.id,
+        data: a.data,
+        profissional: a.profissional,
+        procedimento: a.procedimento,
+      }));
+    return [...fromEvolucoes, ...fromFinalizadas].sort((a, b) => b.data.localeCompare(a.data));
+  }, [evolucoes, agendamentosCliente]);
 
   // Future: linked appointments ≥ today, sorted chronologically
   const futureConsultas = useMemo(() => {
@@ -198,11 +220,17 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
       setAgendamentosCliente([]);
       return;
     }
-    const today = new Date().toISOString().split('T')[0];
+    // Span ±1 year so the carousel can show finalized past consultations too.
+    const pastLimit = new Date();
+    pastLimit.setFullYear(pastLimit.getFullYear() - 1);
     const futureLimit = new Date();
     futureLimit.setFullYear(futureLimit.getFullYear() + 1);
     api
-      .getAgendamentosRange(userId, today, futureLimit.toISOString().split('T')[0])
+      .getAgendamentosRange(
+        userId,
+        pastLimit.toISOString().split('T')[0],
+        futureLimit.toISOString().split('T')[0],
+      )
       .then((data) => {
         if (cancelled) return;
         const nomeLower = cliente.nome.trim().toLocaleLowerCase('pt-BR');
@@ -826,20 +854,20 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
                         key={ev.id}
                         style={{
                           flexShrink: 0, width: '200px', scrollSnapAlign: 'start',
-                          border: '1px solid var(--color-border)',
-                          borderLeft: '3px solid var(--color-success)',
+                          border: '1px solid #CBD5E1',
+                          borderLeft: '3px solid #94A3B8',
                           borderRadius: 'var(--border-radius-md)',
-                          padding: '14px 16px', backgroundColor: '#E8F0EE',
+                          padding: '14px 16px', backgroundColor: '#F1F5F9',
                           display: 'flex', flexDirection: 'column', gap: '6px',
                         }}
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
-                          <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)' }}>
+                          <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748B' }}>
                             {new Date(ev.data + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
                           </span>
                           <span style={{
                             fontSize: '9px', padding: '2px 6px', borderRadius: '20px', flexShrink: 0,
-                            background: 'var(--color-success-light)', color: 'var(--color-success)',
+                            background: '#E2E8F0', color: '#475569',
                             fontWeight: 600, whiteSpace: 'nowrap',
                           }}>
                             Realizada
