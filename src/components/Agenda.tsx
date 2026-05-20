@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import type { Agendamento, Procedimento, Profissional } from '../types';
 import { Users, Clock, Sparkles, ChevronLeft, ChevronRight, CalendarRange, AlertTriangle } from 'lucide-react';
 import { api } from '../lib/api';
-import { findAgendamentoConflict } from '../lib/agendaConflict';
+import { findAgendamentoConflict, calcularEncaixeSugestoes, type EncaixeSugestao } from '../lib/agendaConflict';
 
 const OWNER_ID = '__owner__';
 
@@ -86,14 +86,9 @@ export const Agenda: React.FC<AgendaProps> = ({
   // Encaixe ideal (visão Hoje)
   const [selectedProcedimento, setSelectedProcedimento] = useState<string>('');
   const [selectedProfessional, setSelectedProfessional] = useState<string>(OWNER_ID);
-  const [sugestoes, setSugestoes] = useState<{
-    hora: string;
-    profissional: string;
-    sala: string;
-    motivo: string;
-    confiabilidade: string;
-  }[]>([]);
+  const [sugestoes, setSugestoes] = useState<EncaixeSugestao[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
+  const [loadingEncaixe, setLoadingEncaixe] = useState(false);
 
   // ============================================================
   // STATES E HANDLERS DE ACOLHIMENTO E CANCELAMENTO
@@ -244,8 +239,10 @@ export const Agenda: React.FC<AgendaProps> = ({
       setShowAddModal(false);
       setNewNome('');
       setNewTelefone('');
+      setHasSearched(false);
+      setSugestoes([]);
       alert('Nova(o) paciente acolhida(o) com sucesso!');
-      
+
       setCursor(prev => new Date(prev)); // Force range reload
     } catch (err) {
       console.error(err);
@@ -345,54 +342,30 @@ export const Agenda: React.FC<AgendaProps> = ({
   const handleEncaixeIdeal = () => {
     const proc = procedimentos.find((p) => p.id === selectedProcedimento);
     if (!proc) return;
-    const profEscolhido = profissionais.find((p) => p.id === selectedProfessional);
-    const nomeProf =
-      profEscolhido?.nome || proc.profissionalResponsavel || userName || 'Responsável da Clínica';
-    setSugestoes([
-      {
-        hora: '11:00',
-        profissional: nomeProf,
-        sala: proc.salaRequerida,
-        motivo: 'Intervalo perfeito de 90min entre procedimentos. A cabine estará higienizada.',
-        confiabilidade: '98%',
-      },
-      {
-        hora: '13:00',
-        profissional: nomeProf,
-        sala: proc.salaRequerida,
-        motivo: 'Horário logo após o almoço da profissional, cabine totalmente disponível.',
-        confiabilidade: '95%',
-      },
-      {
-        hora: '17:00',
-        profissional: nomeProf,
-        sala: proc.salaRequerida,
-        motivo: 'Último bloco do dia. Permite atendimento calmo e sem sobreposição de fluxo.',
-        confiabilidade: '90%',
-      },
-    ]);
+    setLoadingEncaixe(true);
     setHasSearched(true);
+    const sugs = calcularEncaixeSugestoes(
+      agendamentos,
+      profissionais,
+      proc.duracaoMinutos,
+      proc.salaRequerida,
+      selectedProfessional,
+    );
+    setSugestoes(sugs);
+    setLoadingEncaixe(false);
   };
 
-  const agendarSugerido = (sug: { hora: string; profissional: string; sala: string }) => {
+  const agendarSugerido = (sug: EncaixeSugestao) => {
     const proc = procedimentos.find((p) => p.id === selectedProcedimento);
     if (!proc) return;
-    const [h, m] = sug.hora.split(':').map((x) => parseInt(x, 10));
-    const fimHora = pad2(((h + Math.ceil(proc.duracaoMinutos / 60)) % 24));
-    onAddAgendamento({
-      clienteId: 'c_' + Math.random().toString(36).slice(2, 10),
-      clienteNome: 'Mariana Azevedo (Encaixe)',
-      data: toISODate(new Date()),
-      horaInicio: sug.hora,
-      horaFim: `${fimHora}:${pad2(m)}`,
-      profissional: sug.profissional,
-      sala: sug.sala,
-      procedimento: proc.nome,
-      status: 'agendada',
-      valor: proc.preco,
-    });
-    setSugestoes((prev) => prev.filter((item) => item.hora !== sug.hora));
-    alert(`Encaixe realizado com sucesso para ${sug.hora}!`);
+    setNewData(toISODate(cursor));
+    setNewHora(sug.hora);
+    setNewProcedimento(proc.nome);
+    setNewProfissionalId(sug.profissionalId);
+    setNewNome('');
+    setNewTelefone('');
+    setConflictMessage(null);
+    setShowAddModal(true);
   };
 
   // ============================================================
@@ -707,12 +680,22 @@ export const Agenda: React.FC<AgendaProps> = ({
             {hasSearched && (
               <div style={{ animation: 'fadeIn 0.3s ease-out' }}>
                 <h4 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Sugestões Encontradas ({sugestoes.length})
+                  {loadingEncaixe ? 'Calculando…' : `Sugestões Encontradas (${sugestoes.length})`}
                 </h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {sugestoes.length === 0 ? (
+                  {loadingEncaixe ? (
                     <div className="card" style={{ padding: '20px', textAlign: 'center', fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                      Nenhum horário atende aos critérios com segurança clínica hoje.
+                      Analisando a grade do dia…
+                    </div>
+                  ) : sugestoes.length === 0 ? (
+                    <div className="card" style={{ padding: '20px', textAlign: 'center' }}>
+                      <AlertTriangle size={28} style={{ color: 'var(--color-warning)', margin: '0 auto 10px' }} />
+                      <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-main)', marginBottom: '6px' }}>
+                        Agenda lotada
+                      </p>
+                      <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
+                        Não há janela livre suficiente para encaixar este procedimento hoje. Tente outro profissional ou outra data.
+                      </p>
                     </div>
                   ) : (
                     sugestoes.map((sug, idx) => (
@@ -724,15 +707,26 @@ export const Agenda: React.FC<AgendaProps> = ({
                         backgroundColor: '#FFFFFF',
                         borderLeft: '4px solid var(--color-primary)',
                       }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-primary)' }}>{sug.hora}</span>
-                          <span className="badge badge-success" style={{ fontSize: '10px' }}>Compatibilidade {sug.confiabilidade}</span>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                          <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-primary)' }}>
+                            {sug.hora} – {sug.horaFim}
+                          </span>
+                          <span className="badge badge-success" style={{ fontSize: '10px' }}>
+                            {sug.gapMinutos} min livres
+                          </span>
                         </div>
                         <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
-                          <div style={{ marginBottom: '4px' }}><strong>Cabine:</strong> {sug.sala}</div>
-                          <div>{sug.motivo}</div>
+                          <div style={{ marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Users size={11} /> {sug.profissional}
+                          </div>
+                          <div style={{ marginBottom: '4px' }}><strong>Cabine:</strong> {sug.sala || '—'}</div>
+                          <div style={{ lineHeight: '1.5' }}>{sug.motivo}</div>
                         </div>
-                        <button onClick={() => agendarSugerido(sug)} className="btn btn-secondary" style={{ padding: '6px 12px', width: '100%', fontSize: '11px', justifyContent: 'center' }}>
+                        <button
+                          onClick={() => agendarSugerido(sug)}
+                          className="btn btn-secondary"
+                          style={{ padding: '8px 12px', width: '100%', fontSize: '12px', justifyContent: 'center', minHeight: '40px' }}
+                        >
                           Confirmar Encaixe
                         </button>
                       </div>

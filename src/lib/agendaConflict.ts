@@ -74,3 +74,113 @@ export function findAgendamentoConflict(
 
   return null;
 }
+
+// ============================================================
+// ENCAIXE INTELIGENTE — gap-finding algorithm
+// ============================================================
+
+const WORK_START_MIN = 8 * 60;
+const WORK_END_MIN = 18 * 60;
+
+function timeToMin(t: string): number {
+  const parts = (t || '00:00').split(':');
+  return parseInt(parts[0], 10) * 60 + parseInt(parts[1] || '0', 10);
+}
+
+function minToTime(min: number): string {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+export interface EncaixeSugestao {
+  hora: string;
+  horaFim: string;
+  profissional: string;
+  profissionalId: string;
+  sala: string;
+  motivo: string;
+  gapMinutos: number;
+}
+
+/**
+ * Scan the day's appointments for each professional and return time windows
+ * that are free for at least `duracaoMinutos`. Optionally filter to one
+ * professional via `profissionalIdFiltro`.
+ */
+export function calcularEncaixeSugestoes(
+  agendamentos: Agendamento[],
+  profissionais: ReadonlyArray<{ id: string; nome: string }>,
+  duracaoMinutos: number,
+  salaRequerida: string,
+  profissionalIdFiltro?: string,
+): EncaixeSugestao[] {
+  const targets = profissionalIdFiltro
+    ? profissionais.filter((p) => p.id === profissionalIdFiltro)
+    : profissionais;
+
+  const sugestoes: EncaixeSugestao[] = [];
+
+  for (const prof of targets) {
+    const profNomeLower = (prof.nome ?? '').trim().toLocaleLowerCase('pt-BR');
+
+    const ocupados = agendamentos
+      .filter(
+        (a) =>
+          STATUS_OCUPADOS.includes(a.status) &&
+          (a.profissional ?? '').trim().toLocaleLowerCase('pt-BR') === profNomeLower,
+      )
+      .map((a) => ({ start: timeToMin(a.horaInicio), end: timeToMin(a.horaFim) }))
+      .sort((a, b) => a.start - b.start);
+
+    let cursor = WORK_START_MIN;
+    for (const { start, end } of ocupados) {
+      if (start > cursor) {
+        const gap = start - cursor;
+        if (gap >= duracaoMinutos) {
+          sugestoes.push(buildSugestao(cursor, duracaoMinutos, gap, prof, salaRequerida));
+        }
+      }
+      cursor = Math.max(cursor, end);
+    }
+
+    if (cursor < WORK_END_MIN) {
+      const gap = WORK_END_MIN - cursor;
+      if (gap >= duracaoMinutos) {
+        sugestoes.push(buildSugestao(cursor, duracaoMinutos, gap, prof, salaRequerida));
+      }
+    }
+  }
+
+  sugestoes.sort((a, b) => a.hora.localeCompare(b.hora));
+  return sugestoes;
+}
+
+function buildSugestao(
+  startMin: number,
+  duracaoMinutos: number,
+  gapMinutos: number,
+  prof: { id: string; nome: string },
+  salaRequerida: string,
+): EncaixeSugestao {
+  const extra = gapMinutos - duracaoMinutos;
+  let motivo: string;
+  if (extra >= 30) {
+    motivo = `Janela de ${gapMinutos} min — ${extra} min de margem para higienização da cabine.`;
+  } else if (startMin >= 12 * 60 && startMin < 14 * 60) {
+    motivo = `Início do turno da tarde. Cabine recém-higienizada e disponível.`;
+  } else if (extra > 0) {
+    motivo = `Janela de ${gapMinutos} min — tempo ideal para um procedimento de ${duracaoMinutos} min.`;
+  } else {
+    motivo = `Janela exata de ${gapMinutos} min para este procedimento.`;
+  }
+  return {
+    hora: minToTime(startMin),
+    horaFim: minToTime(startMin + duracaoMinutos),
+    profissional: prof.nome,
+    profissionalId: prof.id,
+    sala: salaRequerida,
+    motivo,
+    gapMinutos,
+  };
+}
