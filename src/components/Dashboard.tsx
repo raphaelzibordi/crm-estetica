@@ -30,6 +30,46 @@ function addMinutesToTime(hhmm: string, minutes: number): string {
   return `${hh}:${mm}`;
 }
 
+// Returns visual alert props for a scheduled (agendada) card based on current time.
+// Proximity warning  : ≤ 15 min until appointment → warm amber pastel
+// Overdue            : appointment time already passed → soft rose pastel
+// On time / no alert : null  (caller skips styling)
+function getScheduleAlertStyle(
+  horaInicio: string,
+  now: Date,
+): {
+  background: string;
+  borderColor: string;
+  label: string;
+  labelBg: string;
+  labelColor: string;
+} | null {
+  const [h, m] = (horaInicio || '').substring(0, 5).split(':').map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return null;
+  const apptMin = h * 60 + m;
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const diff = apptMin - nowMin; // negative = past, positive = future
+  if (diff < 0) {
+    return {
+      background: '#FFF1F2',
+      borderColor: '#FECDD3',
+      label: 'Atrasada',
+      labelBg: '#FECDD3',
+      labelColor: '#9F1239',
+    };
+  }
+  if (diff <= 15) {
+    return {
+      background: '#FFFBEB',
+      borderColor: '#FDE68A',
+      label: 'Em breve',
+      labelBg: '#FEF3C7',
+      labelColor: '#78350F',
+    };
+  }
+  return null;
+}
+
 export const Dashboard: React.FC<DashboardProps> = ({
   agendamentos,
   onUpdateStatus,
@@ -373,6 +413,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   colAgendamentos.map((item) => {
                     const isOverWait = col.id === 'chegou' && (item.tempoEsperaMinutos ?? 0) >= 10;
                     const isDragging = dragId === item.id;
+                    const scheduleAlert = col.id === 'agendada'
+                      ? getScheduleAlertStyle(item.horaInicio, currentDateTime)
+                      : null;
                     return (
                       <div
                         key={item.id}
@@ -380,7 +423,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         draggable
                         onDragStart={(e) => handleDragStart(e, item.id)}
                         onDragEnd={handleDragEnd}
-                        style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
+                        style={{
+                          cursor: isDragging ? 'grabbing' : 'grab',
+                          ...(scheduleAlert && !isDragging
+                            ? { backgroundColor: scheduleAlert.background, borderColor: scheduleAlert.borderColor }
+                            : {}),
+                        }}
                       >
                         <div className="esteira-card-header" style={{ alignItems: 'flex-start' }}>
                           {item.clienteFoto ? (
@@ -429,6 +477,22 @@ export const Dashboard: React.FC<DashboardProps> = ({
                           <span style={{ fontSize: '9px', background: '#F0F0F0', color: '#666', padding: '2px 6px', borderRadius: '4px' }}>
                             {item.sala.split(' - ')[0]}
                           </span>
+                          {scheduleAlert && (
+                            <span style={{
+                              fontSize: '9px',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              fontWeight: 600,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                              background: scheduleAlert.labelBg,
+                              color: scheduleAlert.labelColor,
+                            }}>
+                              <AlertTriangle size={9} />
+                              {scheduleAlert.label}
+                            </span>
+                          )}
                         </div>
 
                         <div className="esteira-card-footer">
