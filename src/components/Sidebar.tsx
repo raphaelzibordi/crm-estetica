@@ -110,7 +110,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         onClick={() => setIsMobileOpen(false)}
       />
 
-      <div className={`sidebar${isMobileOpen ? ' mobile-open' : ''}`} style={{ position: 'relative' }}>
+      <div className={`sidebar${isMobileOpen ? ' mobile-open' : ''}`}>
         {/* Close button — mobile only */}
         <button
           className="sidebar-close-btn"

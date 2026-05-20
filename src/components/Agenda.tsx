@@ -750,7 +750,7 @@ export const Agenda: React.FC<AgendaProps> = ({
           justifyContent: 'center',
           zIndex: 1000
         }}>
-          <div className="card" style={{ width: '440px', padding: '32px' }}>
+          <div className="card" style={{ maxWidth: '440px', width: '92%', padding: '32px' }}>
             <h3 style={{ marginBottom: '20px' }}>Acolher Paciente</h3>
             <form onSubmit={handleCreate}>
               <div className="form-group">

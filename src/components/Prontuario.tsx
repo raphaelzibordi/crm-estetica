@@ -475,7 +475,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
                         <input
                           type="text"
                           className="form-input"
-                          style={{ fontSize: '20px', fontWeight: 600, padding: '4px 8px', margin: 0, width: '300px' }}
+                          style={{ fontSize: '20px', fontWeight: 600, padding: '4px 8px', margin: 0, width: '100%', maxWidth: '300px' }}
                           value={editNome}
                           onChange={(e) => setEditNome(e.target.value)}
                           placeholder="Nome da paciente"

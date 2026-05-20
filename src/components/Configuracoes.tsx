@@ -381,8 +381,8 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
 
       {/* ── MODAL: MEMBRO ── */}
       {showMembroModal && (
-        <div onClick={() => setShowMembroModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
-          <div onClick={e => e.stopPropagation()} className="card" style={{ width: '460px', padding: '32px' }}>
+        <div onClick={() => setShowMembroModal(false)} className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
+          <div onClick={e => e.stopPropagation()} className="card" style={{ maxWidth: '460px', width: '92%', padding: '32px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
               <h3 style={{ fontSize: '18px', fontWeight: 600 }}>{editingMembroId ? 'Editar Membro' : 'Novo Membro da Equipe'}</h3>
               <button onClick={() => setShowMembroModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)' }}><X size={18} /></button>

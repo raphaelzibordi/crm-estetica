@@ -422,7 +422,7 @@ export const Gestao: React.FC<GestaoProps> = ({ userId }) => {
       {/* ── MODAL: ESTOQUE ──────────────────────────────────────────────── */}
       {showEstoqueModal && (
         <div className="modal-overlay" onClick={() => setShowEstoqueModal(false)} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
-          <div onClick={e => e.stopPropagation()} className="card" style={{ width: '420px', padding: '32px' }}>
+          <div onClick={e => e.stopPropagation()} className="card" style={{ maxWidth: '420px', width: '92%', padding: '32px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
               <h3 style={{ fontSize: '18px', fontWeight: 600 }}>{editingEstoqueId ? 'Editar Insumo' : 'Novo Insumo'}</h3>
               <button onClick={() => setShowEstoqueModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)' }}><X size={18} /></button>
@@ -460,7 +460,7 @@ export const Gestao: React.FC<GestaoProps> = ({ userId }) => {
       {/* ── MODAL: PROCEDIMENTO ─────────────────────────────────────────── */}
       {showProcModal && (
         <div className="modal-overlay" onClick={() => setShowProcModal(false)} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
-          <div onClick={e => e.stopPropagation()} className="card" style={{ width: '460px', padding: '32px' }}>
+          <div onClick={e => e.stopPropagation()} className="card" style={{ maxWidth: '460px', width: '92%', padding: '32px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
               <h3 style={{ fontSize: '18px', fontWeight: 600 }}>{editingProcId ? 'Editar Procedimento' : 'Novo Procedimento'}</h3>
               <button onClick={() => setShowProcModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)' }}><X size={18} /></button>

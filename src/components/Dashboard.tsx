@@ -531,7 +531,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           justifyContent: 'center',
           zIndex: 1000
         }}>
-          <div className="card" style={{ width: '440px', padding: '32px' }}>
+          <div className="card" style={{ maxWidth: '440px', width: '92%', padding: '32px' }}>
             <h3 style={{ marginBottom: '20px' }}>Agendar Cuidados</h3>
             <form onSubmit={handleCreate}>
               <div className="form-group">
@@ -667,7 +667,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           zIndex: 1000
         }}>
-          <div className="card" style={{ width: '400px', padding: '28px' }}>
+          <div className="card" style={{ maxWidth: '400px', width: '92%', padding: '28px' }}>
             <h3 style={{ marginBottom: '20px', fontSize: '16px' }}>Editar Atendimento</h3>
 
             <div className="form-group">
@@ -767,7 +767,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           justifyContent: 'center',
           zIndex: 1000
         }}>
-          <div className="card" style={{ width: '420px', padding: '32px' }}>
+          <div className="card" style={{ maxWidth: '420px', width: '92%', padding: '32px' }}>
             <h3 style={{ marginBottom: '8px' }}>Finalizar Atendimento</h3>
             <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '20px' }}>
               Selecione a forma de pagamento utilizada para concluir o checkout.
