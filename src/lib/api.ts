@@ -1050,6 +1050,52 @@ export const api = {
     });
   },
 
+  // ── Versão por intervalo de datas (filtro histórico do painel financeiro) ──
+  // Reaproveita a mesma agregação do fechamento diário, mas filtrando o range
+  // com .gte/.lte. Mantém compatibilidade com o tipo FechamentoFinanceiro.
+  async getFechamentoFinanceiroRange(
+    userId: string | undefined,
+    inicio: string,
+    fim: string
+  ): Promise<FechamentoFinanceiro> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('agendamentos')
+        .select('valor, metodo_pagamento')
+        .eq('user_id', uid)
+        .gte('data', inicio)
+        .lte('data', fim)
+        .eq('status', 'finalizada');
+      if (error) throw error;
+
+      const rows = data ?? [];
+      const faturamentoTotal = rows.reduce((sum, r: any) => sum + Number(r.valor || 0), 0);
+      const comissoesPagas = Math.round(faturamentoTotal * 0.3 * 100) / 100;
+
+      const metodosLabel: Record<string, string> = {
+        pix: 'Pix',
+        credito: 'Cartão de Crédito',
+        debito: 'Cartão de Débito',
+        dinheiro: 'Dinheiro',
+      };
+      const buckets: Record<string, number> = {};
+      for (const r of rows as any[]) {
+        const key = (r.metodo_pagamento as string) || 'nao_informado';
+        buckets[key] = (buckets[key] ?? 0) + Number(r.valor || 0);
+      }
+      const formasPagamento = Object.entries(buckets)
+        .map(([metodo, valor]) => ({
+          metodo: metodosLabel[metodo] ?? 'Não informado',
+          valor,
+          percentual: faturamentoTotal > 0 ? Math.round((valor / faturamentoTotal) * 100) : 0,
+        }))
+        .sort((a, b) => b.valor - a.valor);
+
+      return { faturamentoTotal, comissoesPagas, formasPagamento };
+    });
+  },
+
   // ============================================================
   // CLIENTES EM RETORNO (computado a partir de agendamentos + procedimentos)
   // ============================================================

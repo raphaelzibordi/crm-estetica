@@ -552,6 +552,128 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--color-primary);
 }
 
+/* ── Gestão Financeiro: Filtro Global de Período ───────────────────── */
+.financeiro-filter-card {
+  border: 1px solid var(--color-border);
+}
+
+.financeiro-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.financeiro-filter-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-main);
+  flex-shrink: 0;
+}
+
+.financeiro-filter-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1 1 auto;
+}
+
+.financeiro-chip {
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--color-border);
+  background: #fff;
+  color: var(--color-text-muted);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.financeiro-chip:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.financeiro-chip.is-active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+.financeiro-filter-summary {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-main);
+  padding: 6px 12px;
+  background: #f8f8f6;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Gestão Financeiro: grid de métodos de pagamento ──────────────── */
+.financeiro-pagamentos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.financeiro-pagamento-item {
+  padding: 14px 16px;
+  background: #f8f8f6;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+}
+
+/* ── Gestão Financeiro: coluna extra Data quando range > 1 dia ──── */
+.gestao-realizados-list--with-date .gestao-realizados-header,
+.gestao-realizados-list--with-date .gestao-realizados-item {
+  grid-template-columns: 80px 2fr 1.5fr 1.5fr auto;
+}
+
+/* ── Gestão Financeiro: Procedimentos Realizados Hoje ──────────────── */
+.gestao-realizados-header {
+  display: grid;
+  grid-template-columns: 2fr 1.5fr 1.5fr auto;
+  padding: 8px 16px 10px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 2px solid var(--color-border);
+}
+
+.gestao-realizados-item {
+  display: grid;
+  grid-template-columns: 2fr 1.5fr 1.5fr auto;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border);
+  gap: 12px;
+  transition: background 0.15s;
+}
+
+.gestao-realizados-item:last-child {
+  border-bottom: none;
+}
+
+.gestao-realizados-item:hover {
+  background: #fafaf8;
+  border-radius: 8px;
+}
+
+.grri-valor-payment {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 /* ── Tablet & small desktop (≤ 1024px) ─────────────────────────────── */
 @media (max-width: 1024px) {
   .mobile-header {
@@ -720,6 +842,78 @@ h1, h2, h3, h4, h5, h6 {
   /* Comunicacao: stacked */
   .comunicacao-grid {
     grid-template-columns: 1fr !important;
+  }
+
+  /* Gestao Financeiro: filtro de período compacto + chips scrolláveis */
+  .financeiro-filter-row {
+    gap: 12px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .financeiro-filter-label {
+    align-self: flex-start;
+  }
+
+  .financeiro-filter-chips {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 4px;
+    margin: 0 -4px;
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+
+  .financeiro-filter-chips::-webkit-scrollbar {
+    display: none;
+  }
+
+  .financeiro-filter-summary {
+    align-self: flex-start;
+    font-size: 11px;
+  }
+
+  /* Métodos de pagamento: 1 coluna no mobile */
+  .financeiro-pagamentos-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  /* Range > 1 dia: layout colapsa em card vertical (data não vira coluna) */
+  .gestao-realizados-list--with-date .gestao-realizados-item {
+    grid-template-columns: 1fr;
+  }
+
+  /* Gestao Financeiro: realizados list → cards empilhados */
+  .gestao-realizados-header {
+    display: none;
+  }
+
+  .gestao-realizados-item {
+    grid-template-columns: 1fr;
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    margin-bottom: 10px;
+    padding: 14px 16px;
+    gap: 6px;
+  }
+
+  .gestao-realizados-item:last-child {
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+  }
+
+  .gestao-realizados-item:hover {
+    border-radius: 10px;
+  }
+
+  .grri-valor-payment {
+    justify-content: space-between;
+    padding-top: 8px;
+    border-top: 1px solid var(--color-border);
+    margin-top: 2px;
   }
 }
 

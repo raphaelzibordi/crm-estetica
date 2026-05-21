@@ -485,11 +485,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
                           {item.procedimento}
                         </div>
 
-                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
-                          <span style={{ fontSize: '9px', background: '#F0F0F0', color: '#666', padding: '2px 6px', borderRadius: '4px' }}>
-                            {item.sala.split(' - ')[0]}
-                          </span>
-                          {scheduleAlert && (
+                        {scheduleAlert && (
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
                             <span style={{
                               fontSize: '9px',
                               padding: '2px 6px',
@@ -504,8 +501,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
                               <AlertTriangle size={9} />
                               {scheduleAlert.label}
                             </span>
-                          )}
-                        </div>
+                          </div>
+                        )}
 
                         <div className="esteira-card-footer">
                           {col.id === 'chegou' ? (
@@ -516,7 +513,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                           ) : col.id === 'atendimento' ? (
                             <span style={{ color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 500 }}>
                               <UserCheck size={12} />
-                              <span>Em Cabine</span>
+                              <span>Em Atendimento</span>
                             </span>
                           ) : isFinalizada ? (
                             <span style={{ color: 'var(--color-success)', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
