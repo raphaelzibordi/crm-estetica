@@ -135,7 +135,7 @@ export const HistoricoPresenca: React.FC<HistoricoPresencaProps> = ({ clienteId,
               }}
             >
               <div style={{ flexShrink: 0, marginTop: '2px' }}>
-                {statusIcon(item.presencaStatus)}
+                {statusIcon(item.presencaStatus ?? undefined)}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '4px' }}>
@@ -160,7 +160,7 @@ export const HistoricoPresenca: React.FC<HistoricoPresencaProps> = ({ clienteId,
                   color: item.presencaStatus === 'compareceu' ? '#065f46' :
                          item.presencaStatus === 'faltou' ? '#7f1d1d' : '#92400e',
                 }}>
-                  {statusLabel(item.presencaStatus)}
+                  {statusLabel(item.presencaStatus ?? undefined)}
                 </div>
                 {item.faltaMotivo && (
                   <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '6px', fontStyle: 'italic' }}>
