@@ -78,6 +78,15 @@ export interface Agendamento {
   horarioChegada?: string;
   valor: number;
   metodoPagamento?: 'pix' | 'credito' | 'debito' | 'dinheiro';
+  // US-007b: Confirmação automática
+  confirmacaoMetodo?: 'whatsapp' | 'sms';
+  confirmacaoEnviadaEm?: string;
+  confirmacaoStatus?: 'pendente' | 'enviada' | 'entregue' | 'lido';
+  confirmacaoTelefone?: string;
+  // US-007c: Controle de presença/faltas
+  presencaStatus?: 'compareceu' | 'faltou' | 'desmarcou';
+  faltaMotivo?: string;
+  faltaRegistradaEm?: string;
 }
 
 export interface Procedimento {
@@ -192,6 +201,53 @@ export interface BookingSettings {
   bookingEnabled: boolean;
   bookingMinAdvanceHoras: number;
   bookingMaxAdvanceDias: number;
+}
+
+// ── Confirmações Automáticas (US-007b) ───────────────────────────
+
+export interface ConfirmacaoSettings {
+  confirmacaoHabilitada: boolean;
+  confirmacaoMetodoPadrao: 'whatsapp' | 'sms' | 'ambos';
+  confirmacaoHorasAntes: number;    // Primeiro lembrete (ex: 48)
+  confirmacaoHorasAntes2: number;   // Segundo lembrete (ex: 2)
+}
+
+export interface ConfirmacaoLog {
+  id: string;
+  agendamentoId: string;
+  metodo: 'whatsapp' | 'sms';
+  telefone: string;
+  mensagem?: string;
+  status: 'enviada' | 'entregue' | 'erro';
+  erroMensagem?: string;
+  enviadaEm: string;
+}
+
+// ── Controle de Presença/Faltas (US-007c) ─────────────────────
+
+export interface HistoricoPresenca {
+  agendamentoId: string;
+  data: string;
+  horaInicio: string;
+  profissional: string;
+  procedimento: string;
+  presencaStatus: 'compareceu' | 'faltou' | 'desmarcou' | null;
+  faltaMotivo?: string;
+  faltaRegistradaEm?: string;
+}
+
+export interface RiscoFalta {
+  faltasUltimos60dias: number;
+  totalComparecimentos: number;
+  temRisco: boolean; // true se >= 2 faltas em 60 dias
+}
+
+export interface RelatorioFaltas {
+  totalFaltas: number;
+  totalAgendamentos: number;
+  taxaFaltas: number; // percentual
+  faltasPorProfissional?: Record<string, number>;
+  faltasPorProcedimento?: Record<string, number>;
 }
 
 export const IS_TYPED = true;

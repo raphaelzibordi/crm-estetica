@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import type { Agendamento, Cliente, EvolucaoClinica, GaleriaItem, Procedimento, Profissional } from '../types';
 import { FileText, Camera, Plus, Trash2, Edit2, User, CalendarPlus, UserPlus, AlertTriangle, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { api } from '../lib/api';
+import { HistoricoPresenca } from './HistoricoPresenca';
 
 const OWNER_ID = '__owner__';
 
@@ -1130,9 +1131,20 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
             )}
           </div>
 
+          {/* Histórico de Presença e Comparecimentos */}
+          {currentCliente && (
+            <div className="card" style={{ padding: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+                <Calendar size={18} style={{ color: 'var(--color-primary)' }} />
+                <h3 style={{ fontSize: '16px', fontWeight: 600 }}>Histórico de Presença</h3>
+              </div>
+              <HistoricoPresenca clienteId={currentCliente.id} userId={userId} />
+            </div>
+          )}
+
           {/* Histórico e Nova Evolução */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px', alignItems: 'start' }}>
-            
+
             {/* Timeline of Evolutions */}
             <div className="card" style={{ padding: '32px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '24px' }}>

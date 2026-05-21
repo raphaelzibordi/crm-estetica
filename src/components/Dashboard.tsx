@@ -3,6 +3,7 @@ import type { Agendamento, Procedimento, Profissional, StatusJornada } from '../
 import { Clock, UserCheck, UserPlus, CheckCircle, User, Pencil, AlertTriangle } from 'lucide-react';
 import { api } from '../lib/api';
 import { findAgendamentoConflict } from '../lib/agendaConflict';
+import { RegistrarPresenca } from './RegistrarPresenca';
 
 const OWNER_ID = '__owner__';
 
@@ -87,6 +88,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [showCheckoutModal, setShowCheckoutModal] = useState<string | null>(null);
   const [metodoPagamento, setMetodoPagamento] = useState<Agendamento['metodoPagamento']>('pix');
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
+  const [registrarPresencaAgendamento, setRegistrarPresencaAgendamento] = useState<Agendamento | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -573,17 +575,27 @@ export const Dashboard: React.FC<DashboardProps> = ({
                               </button>
                             )}
                             {col.id === 'checkout' && !isFinalizada && (
-                              <button
-                                onClick={() => {
-                                  setMetodoPagamento('pix');
-                                  setShowCheckoutModal(item.id);
-                                }}
-                                className="btn btn-primary"
-                                style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '10px', backgroundColor: 'var(--color-success)' }}
-                                title="Finalizar e Cobrar"
-                              >
-                                <CheckCircle size={10} /> Finalizar
-                              </button>
+                              <>
+                                <button
+                                  onClick={() => setRegistrarPresencaAgendamento(item)}
+                                  className="btn btn-outline"
+                                  style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '10px', borderColor: '#5f7d75', color: '#5f7d75' }}
+                                  title="Registrar Presença"
+                                >
+                                  Presença
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setMetodoPagamento('pix');
+                                    setShowCheckoutModal(item.id);
+                                  }}
+                                  className="btn btn-primary"
+                                  style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '10px', backgroundColor: 'var(--color-success)' }}
+                                  title="Finalizar e Cobrar"
+                                >
+                                  <CheckCircle size={10} /> Finalizar
+                                </button>
+                              </>
                             )}
                             {col.id === 'checkout' && isFinalizada && (
                               <span
@@ -927,6 +939,20 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </button>
           </div>
         </div>
+      )}
+
+      {/* Registrar Presença Modal */}
+      {registrarPresencaAgendamento && (
+        <RegistrarPresenca
+          agendamento={registrarPresencaAgendamento}
+          userId={userId || ''}
+          onClose={() => setRegistrarPresencaAgendamento(null)}
+          onSuccess={() => {
+            setRegistrarPresencaAgendamento(null);
+            // Reload agendamentos to reflect updated attendance status
+            window.location.reload();
+          }}
+        />
       )}
     </div>
   );

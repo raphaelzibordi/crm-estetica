@@ -7,14 +7,19 @@ import type {
   ClinicaPublica,
   Cliente,
   ClienteRetorno,
+  ConfirmacaoLog,
+  ConfirmacaoSettings,
   EvolucaoClinica,
   FechamentoFinanceiro,
   GaleriaItem,
+  HistoricoPresenca,
   ItemEstoque,
   MembroEquipe,
   Procedimento,
   ProcedimentoPublico,
   ProfissionalPublico,
+  RelatorioFaltas,
+  RiscoFalta,
   SlotOcupado,
   StatusJornada,
   TemplateMensagem,
@@ -62,6 +67,15 @@ function mapAgendamento(row: any): Agendamento {
     horarioChegada: row.horario_chegada ?? undefined,
     valor: row.valor !== null && row.valor !== undefined ? Number(row.valor) : 0,
     metodoPagamento: (row.metodo_pagamento as Agendamento['metodoPagamento']) ?? undefined,
+    // US-007b: Confirmação
+    confirmacaoMetodo: (row.confirmacao_metodo as Agendamento['confirmacaoMetodo']) ?? undefined,
+    confirmacaoEnviadaEm: row.confirmacao_enviada_em ?? undefined,
+    confirmacaoStatus: (row.confirmacao_status as Agendamento['confirmacaoStatus']) ?? undefined,
+    confirmacaoTelefone: row.confirmacao_telefone ?? undefined,
+    // US-007c: Presença/Faltas
+    presencaStatus: (row.presenca_status as Agendamento['presencaStatus']) ?? undefined,
+    faltaMotivo: row.falta_motivo ?? undefined,
+    faltaRegistradaEm: row.falta_registrada_em ?? undefined,
   };
 }
 
@@ -1341,6 +1355,184 @@ export const api = {
           { user_id: uid, titulo: 'Resgate de Cliente Ausente (60 dias)', gatilho: 'Mais de 60 dias sem visitas', texto: 'Olá, {nome}! Sentimos sua falta na clínica nas últimas semanas. 🌸 Preparamos um carinho especial para o seu retorno: uma sessão exclusiva do nosso protocolo Glow Facial como cortesia ao agendar seu próximo cuidado. Qual dia fica melhor para reservarmos sua cabine?' },
         ]);
       }
+    });
+  },
+
+  // ============================================================
+  // CONFIRMAÇÕES AUTOMÁTICAS (US-007b)
+  // ============================================================
+  async getConfirmacaoSettings(userId?: string): Promise<ConfirmacaoSettings> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .rpc('get_confirmation_settings', { p_user_id: uid });
+      if (error) throw error;
+      return data ?? {
+        confirmacaoHabilitada: true,
+        confirmacaoMetodoPadrao: 'whatsapp',
+        confirmacaoHorasAntes: 48,
+        confirmacaoHorasAntes2: 2,
+      };
+    });
+  },
+
+  async updateConfirmacaoSettings(
+    settings: Partial<ConfirmacaoSettings>,
+    userId?: string
+  ): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const current = await this.getConfirmacaoSettings(uid);
+      const merged = { ...current, ...settings };
+
+      const { error } = await supabase
+        .rpc('update_confirmation_settings', {
+          p_user_id: uid,
+          p_habilitada: merged.confirmacaoHabilitada,
+          p_metodo_padrao: merged.confirmacaoMetodoPadrao,
+          p_horas_antes: merged.confirmacaoHorasAntes,
+          p_horas_antes_2: merged.confirmacaoHorasAntes2,
+        });
+      if (error) throw error;
+    });
+  },
+
+  async logConfirmacaoSent(
+    agendamentoId: string,
+    metodo: 'whatsapp' | 'sms',
+    telefone: string,
+    mensagem: string,
+    status: 'enviada' | 'entregue' | 'erro' = 'enviada',
+    userId?: string
+  ): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { error } = await supabase
+        .rpc('log_confirmation_sent', {
+          p_user_id: uid,
+          p_agendamento_id: agendamentoId,
+          p_metodo: metodo,
+          p_telefone: telefone,
+          p_mensagem: mensagem,
+          p_status: status,
+        });
+      if (error) throw error;
+    });
+  },
+
+  async getPendingConfirmacoes(horasProximas: number = 48, userId?: string): Promise<any[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .rpc('get_pending_confirmations', {
+          p_user_id: uid,
+          p_horas_proximas: horasProximas,
+        });
+      if (error) throw error;
+      return data ?? [];
+    });
+  },
+
+  async getConfirmacaoLog(agendamentoId: string, userId?: string): Promise<ConfirmacaoLog[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('confirmacoes_log')
+        .select('*')
+        .eq('agendamento_id', agendamentoId)
+        .eq('user_id', uid)
+        .order('enviada_em', { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map((row: any) => ({
+        id: row.id,
+        agendamentoId: row.agendamento_id,
+        metodo: row.metodo,
+        telefone: row.telefone,
+        mensagem: row.mensagem,
+        status: row.status,
+        erroMensagem: row.erro_mensagem,
+        enviadaEm: row.enviada_em,
+      }));
+    });
+  },
+
+  // ============================================================
+  // CONTROLE DE PRESENÇA/FALTAS (US-007c)
+  // ============================================================
+  async registerAttendance(
+    agendamentoId: string,
+    presencaStatus: 'compareceu' | 'faltou' | 'desmarcou',
+    motivo?: string,
+    userId?: string
+  ): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { error } = await supabase
+        .rpc('register_attendance', {
+          p_agendamento_id: agendamentoId,
+          p_presenca_status: presencaStatus,
+          p_motivo: motivo ?? null,
+        });
+      if (error) throw error;
+    });
+  },
+
+  async getAttendanceHistory(clienteId: string, userId?: string): Promise<HistoricoPresenca[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .rpc('get_attendance_history', {
+          p_cliente_id: clienteId,
+          p_user_id: uid,
+        });
+      if (error) throw error;
+      return (data ?? []).map((row: any) => ({
+        agendamentoId: row.agendamentoId,
+        data: row.data,
+        horaInicio: row.horaInicio,
+        profissional: row.profissional,
+        procedimento: row.procedimento,
+        presencaStatus: row.presencaStatus,
+        faltaMotivo: row.faltaMotivo,
+        faltaRegistradaEm: row.faltaRegistradaEm,
+      }));
+    });
+  },
+
+  async getNoShowRisk(clienteId: string, userId?: string): Promise<RiscoFalta> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .rpc('get_no_show_count_60days', {
+          p_cliente_id: clienteId,
+          p_user_id: uid,
+        });
+      if (error) throw error;
+      return {
+        faltasUltimos60dias: data.faltasUltimos60dias ?? 0,
+        totalComparecimentos: data.totalComparecimentos ?? 0,
+        temRisco: data.temRisco ?? false,
+      };
+    });
+  },
+
+  async getNoShowReport(dataInicio: string, dataFim: string, userId?: string): Promise<RelatorioFaltas> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .rpc('get_no_show_report', {
+          p_user_id: uid,
+          p_data_inicio: dataInicio,
+          p_data_fim: dataFim,
+        });
+      if (error) throw error;
+      return {
+        totalFaltas: data.totalFaltas ?? 0,
+        totalAgendamentos: data.totalAgendamentos ?? 0,
+        taxaFaltas: data.taxaFaltas ?? 0,
+        faltasPorProfissional: data.faltasPorProfissional ?? {},
+        faltasPorProcedimento: data.faltasPorProcedimento ?? {},
+      };
     });
   },
 };

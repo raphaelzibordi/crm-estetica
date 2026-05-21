@@ -3,15 +3,16 @@ import type { Agendamento, FechamentoFinanceiro, ItemEstoque, Procedimento } fro
 import {
   AlertTriangle, DollarSign, Wallet, LayoutDashboard,
   FileSpreadsheet, Plus, Edit2, Trash2, X, Check, Package, Stethoscope,
-  User, Users, Receipt, Calendar, Activity,
+  User, Users, Receipt, Calendar, Activity, BarChart3,
 } from 'lucide-react';
 import { api } from '../lib/api';
+import { RelatorioFaltas } from './RelatorioFaltas';
 
 interface GestaoProps { userId: string; }
 
 const EMPTY_FECHAMENTO: FechamentoFinanceiro = { faturamentoTotal: 0, comissoesPagas: 0, formasPagamento: [] };
 
-type ActiveTab = 'dashboard' | 'financeiro' | 'estoque' | 'procedimentos';
+type ActiveTab = 'dashboard' | 'financeiro' | 'estoque' | 'procedimentos' | 'faltas';
 
 // ──────────────────────────────────────────────────────────────────────
 // FILTRO DE PERÍODO — presets + range customizado
@@ -294,6 +295,9 @@ export const Gestao: React.FC<GestaoProps> = ({ userId }) => {
           </button>
           <button style={tabStyle('procedimentos')} onClick={() => setTab('procedimentos')}>
             <Stethoscope size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Procedimentos
+          </button>
+          <button style={tabStyle('faltas')} onClick={() => setTab('faltas')}>
+            <BarChart3 size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Faltas & Ausências
           </button>
         </div>
       </div>
@@ -664,6 +668,13 @@ export const Gestao: React.FC<GestaoProps> = ({ userId }) => {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── TAB: FALTAS & AUSÊNCIAS ─────────────────────────────────────── */}
+      {tab === 'faltas' && (
+        <div>
+          <RelatorioFaltas userId={userId} />
         </div>
       )}
 
