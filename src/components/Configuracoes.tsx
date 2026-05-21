@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { User, Building2, Users, Plus, X, Check, Edit2, Trash2, Shield, Link, ToggleLeft, ToggleRight, Copy, Eye, EyeOff, MessageSquare, Bell } from 'lucide-react';
+import { User, Building2, Users, Plus, X, Check, Edit2, Trash2, Shield, Link, ToggleLeft, ToggleRight, Copy, Eye, EyeOff, Bell } from 'lucide-react';
 import { api } from '../lib/api';
 import type { BookingSettings, ConfirmacaoSettings, MembroEquipe, Procedimento } from '../types';
 

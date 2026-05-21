@@ -1466,7 +1466,7 @@ export const api = {
     userId?: string
   ): Promise<void> {
     return run(async () => {
-      const uid = await requireUserId(userId);
+      await requireUserId(userId);
       const { error } = await supabase
         .rpc('register_attendance', {
           p_agendamento_id: agendamentoId,

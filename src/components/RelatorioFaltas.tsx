@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart3, Download, Loader2, Calendar } from 'lucide-react';
+import { BarChart3, Download, Loader2 } from 'lucide-react';
 import { api } from '../lib/api';
-import type { RelatorioFaltas } from '../types';
+import type { RelatorioFaltas as RelatorioFaltasData } from '../types';
 
 interface RelatorioFaltasProps {
   userId: string;
 }
 
 export const RelatorioFaltas: React.FC<RelatorioFaltasProps> = ({ userId }) => {
-  const [relatorio, setRelatorio] = useState<RelatorioFaltas | null>(null);
+  const [relatorio, setRelatorio] = useState<RelatorioFaltasData | null>(null);
   const [loading, setLoading] = useState(false);
   const [dataInicio, setDataInicio] = useState(() => {
     const d = new Date();

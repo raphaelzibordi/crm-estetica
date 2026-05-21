@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle2, AlertCircle, XCircle, Loader2 } from 'lucide-react';
 import { api } from '../lib/api';
-import type { HistoricoPresenca, RiscoFalta } from '../types';
+import type { HistoricoPresenca as HistoricoPresencaData, RiscoFalta } from '../types';
 
 interface HistoricoPresencaProps {
   clienteId: string;
@@ -9,7 +9,7 @@ interface HistoricoPresencaProps {
 }
 
 export const HistoricoPresenca: React.FC<HistoricoPresencaProps> = ({ clienteId, userId }) => {
-  const [historico, setHistorico] = useState<HistoricoPresenca[]>([]);
+  const [historico, setHistorico] = useState<HistoricoPresencaData[]>([]);
   const [risco, setRisco] = useState<RiscoFalta | null>(null);
   const [loading, setLoading] = useState(true);
 
