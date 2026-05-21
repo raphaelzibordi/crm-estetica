@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { User, Building2, Users, Plus, X, Check, Edit2, Trash2, Shield } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { User, Building2, Users, Plus, X, Check, Edit2, Trash2, Shield, Link, ToggleLeft, ToggleRight, Copy, Eye, EyeOff } from 'lucide-react';
 import { api } from '../lib/api';
-import type { MembroEquipe } from '../types';
+import type { BookingSettings, MembroEquipe, Procedimento } from '../types';
 
 interface ConfiguracoesProps {
   userId: string;
@@ -9,7 +9,7 @@ interface ConfiguracoesProps {
   onProfileUpdate?: (update: { nome?: string; fotoUrl?: string }) => void;
 }
 
-type ActiveTab = 'perfil' | 'equipe';
+type ActiveTab = 'perfil' | 'equipe' | 'agendamento';
 
 const CARGOS_SUGERIDOS = [
   'Diretora da Clínica',
@@ -41,6 +41,19 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
   const [savingPerfil, setSavingPerfil] = useState(false);
   const [perfilOk, setPerfilOk] = useState(false);
 
+  // ── Agendamento online state ──
+  const [booking, setBooking] = useState<BookingSettings>({
+    bookingSlug: null,
+    bookingEnabled: false,
+    bookingMinAdvanceHoras: 1,
+    bookingMaxAdvanceDias: 30,
+  });
+  const [bookingSlugInput, setBookingSlugInput] = useState('');
+  const [savingBooking, setSavingBooking] = useState(false);
+  const [bookingOk, setBookingOk]       = useState(false);
+  const [bookingCopied, setBookingCopied] = useState(false);
+  const [bookingProcedimentos, setBookingProcedimentos] = useState<Procedimento[]>([]);
+
   // ── Equipe state ──
   const [equipe, setEquipe] = useState<MembroEquipe[]>([]);
   const [showMembroModal, setShowMembroModal] = useState(false);
@@ -52,7 +65,19 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
   const [mCargoCustom, setMCargoCustom] = useState(false);
   const [savingMembro, setSavingMembro] = useState(false);
 
-  useEffect(() => { loadPerfil(); loadEquipeRemota(); }, [userId]);
+  useEffect(() => { loadPerfil(); loadEquipeRemota(); loadBookingSettings(); }, [userId]);
+
+  const loadBookingSettings = useCallback(async () => {
+    try {
+      const [s, procs] = await Promise.all([
+        api.getBookingSettings(userId),
+        api.getProcedimentos(userId),
+      ]);
+      setBooking(s);
+      setBookingSlugInput(s.bookingSlug ?? '');
+      setBookingProcedimentos(procs);
+    } catch (e) { console.error('Erro ao carregar configurações de booking', e); }
+  }, [userId]);
 
   const loadEquipeRemota = async () => {
     try { setEquipe(await api.getEquipe(userId)); }
@@ -168,6 +193,55 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
     }
   };
 
+  // ── Booking handlers ──
+  const slugFromName = (name: string) =>
+    name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+  const handleSaveBooking = async () => {
+    setSavingBooking(true);
+    try {
+      const slug = bookingSlugInput.trim() || slugFromName(nomeClinica || 'clinica');
+      await api.updateBookingSettings({
+        bookingSlug: slug,
+        bookingEnabled:         booking.bookingEnabled,
+        bookingMinAdvanceHoras: booking.bookingMinAdvanceHoras,
+        bookingMaxAdvanceDias:  booking.bookingMaxAdvanceDias,
+      }, userId);
+      setBooking(prev => ({ ...prev, bookingSlug: slug }));
+      setBookingSlugInput(slug);
+      setBookingOk(true);
+      setTimeout(() => setBookingOk(false), 3000);
+    } catch (err: any) {
+      alert(`Erro ao salvar: ${err?.message || err}`);
+    } finally { setSavingBooking(false); }
+  };
+
+  const handleCopyLink = () => {
+    const url = `${window.location.origin}/agenda/${booking.bookingSlug}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setBookingCopied(true);
+      setTimeout(() => setBookingCopied(false), 2500);
+    });
+  };
+
+  const handleToggleProcedimentoVisivel = async (id: string, visivel: boolean) => {
+    setBookingProcedimentos(prev => prev.map(p => p.id === id ? { ...p, bookingVisivel: visivel } : p));
+    try { await api.updateProcedimentoBookingVisivel(id, visivel, userId); }
+    catch (err: any) {
+      alert(`Erro: ${err?.message || err}`);
+      setBookingProcedimentos(prev => prev.map(p => p.id === id ? { ...p, bookingVisivel: !visivel } : p));
+    }
+  };
+
+  const handleToggleEquipeVisivel = async (id: string, visivel: boolean) => {
+    setEquipe(prev => prev.map(m => m.id === id ? { ...m, bookingVisivel: visivel } : m));
+    try { await api.updateEquipeBookingVisivel(id, visivel, userId); }
+    catch (err: any) {
+      alert(`Erro: ${err?.message || err}`);
+      setEquipe(prev => prev.map(m => m.id === id ? { ...m, bookingVisivel: !visivel } : m));
+    }
+  };
+
   const handleDeleteMembro = async (id: string) => {
     if (!window.confirm('Remover este membro da equipe?')) return;
     try {
@@ -202,9 +276,10 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
       </div>
 
       {/* Tab bar */}
-      <div style={{ display: 'flex', gap: '4px', background: '#f8f8f6', border: '1px solid var(--color-border)', borderRadius: '10px', padding: '4px', marginBottom: '28px', width: 'fit-content' }}>
+      <div style={{ display: 'flex', gap: '4px', background: '#f8f8f6', border: '1px solid var(--color-border)', borderRadius: '10px', padding: '4px', marginBottom: '28px', width: 'fit-content', flexWrap: 'wrap' }}>
         {tabBtn('perfil', 'Perfil & Clínica', Building2)}
         {tabBtn('equipe', 'Gestão de Equipe', Users)}
+        {tabBtn('agendamento', 'Agendamento Online', Link)}
       </div>
 
       {/* ── TAB: PERFIL ── */}
@@ -371,6 +446,180 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
                       <button onClick={() => openMembroModal(m)} className="btn btn-outline" style={{ padding: '4px 8px' }}><Edit2 size={12} /></button>
                       <button onClick={() => handleDeleteMembro(m.id)} className="btn btn-outline" style={{ padding: '4px 8px', borderColor: '#fca5a5', color: '#ef4444' }}><Trash2 size={12} /></button>
                     </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB: AGENDAMENTO ONLINE ── */}
+      {tab === 'agendamento' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+          {/* Ativar / Desativar */}
+          <div className="card" style={{ padding: '28px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+              <Link size={16} style={{ color: 'var(--color-primary)' }} />
+              <h3 style={{ fontSize: '16px', fontWeight: 600 }}>Link Público de Agendamento</h3>
+            </div>
+
+            {/* Enable toggle */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: booking.bookingEnabled ? 'var(--color-primary-light)' : '#f8f8f6', borderRadius: '10px', marginBottom: '20px', border: '1px solid var(--color-border)' }}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--color-text-main)' }}>Agendamento online ativo</div>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{booking.bookingEnabled ? 'Pacientes podem agendar pelo link público' : 'Link desativado — pacientes não conseguem agendar'}</div>
+              </div>
+              <button
+                onClick={() => setBooking(prev => ({ ...prev, bookingEnabled: !prev.bookingEnabled }))}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: booking.bookingEnabled ? 'var(--color-primary)' : 'var(--color-text-muted)' }}
+              >
+                {booking.bookingEnabled ? <ToggleRight size={36} /> : <ToggleLeft size={36} />}
+              </button>
+            </div>
+
+            {/* Slug input */}
+            <div className="form-group" style={{ marginBottom: '16px' }}>
+              <label className="form-label">Endereço do link (slug)</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
+                  <span style={{ padding: '0 12px', fontSize: '12px', color: 'var(--color-text-muted)', whiteSpace: 'nowrap', borderRight: '1px solid var(--color-border)', background: '#f8f8f6', alignSelf: 'stretch', display: 'flex', alignItems: 'center' }}>
+                    /agenda/
+                  </span>
+                  <input
+                    className="form-input"
+                    style={{ border: 'none', borderRadius: 0, flex: 1 }}
+                    value={bookingSlugInput}
+                    onChange={e => setBookingSlugInput(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/--+/g, '-'))}
+                    placeholder={slugFromName(nomeClinica || 'minha-clinica')}
+                  />
+                </div>
+                {booking.bookingSlug && (
+                  <button
+                    type="button"
+                    onClick={handleCopyLink}
+                    className="btn btn-outline"
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', fontSize: '12px' }}
+                  >
+                    <Copy size={12} />{bookingCopied ? 'Copiado!' : 'Copiar link'}
+                  </button>
+                )}
+              </div>
+              {booking.bookingSlug && (
+                <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '6px' }}>
+                  Link atual: <strong>{window.location.origin}/agenda/{booking.bookingSlug}</strong>
+                </p>
+              )}
+            </div>
+
+            {/* Min advance + max window */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+              <div className="form-group">
+                <label className="form-label">Antecedência mínima</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input
+                    type="number"
+                    className="form-input"
+                    min={0} max={48}
+                    value={booking.bookingMinAdvanceHoras}
+                    onChange={e => setBooking(prev => ({ ...prev, bookingMinAdvanceHoras: Number(e.target.value) }))}
+                    style={{ width: '80px' }}
+                  />
+                  <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>horas</span>
+                </div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Janela máxima</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input
+                    type="number"
+                    className="form-input"
+                    min={1} max={180}
+                    value={booking.bookingMaxAdvanceDias}
+                    onChange={e => setBooking(prev => ({ ...prev, bookingMaxAdvanceDias: Number(e.target.value) }))}
+                    style={{ width: '80px' }}
+                  />
+                  <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>dias</span>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                onClick={handleSaveBooking}
+                className="btn btn-primary"
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '140px', justifyContent: 'center' }}
+                disabled={savingBooking}
+              >
+                {bookingOk ? <><Check size={16} />Salvo!</> : savingBooking ? 'Salvando...' : <><Check size={16} />Salvar Configurações</>}
+              </button>
+            </div>
+          </div>
+
+          {/* Procedimentos visíveis */}
+          <div className="card" style={{ padding: '28px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+              <Eye size={16} style={{ color: 'var(--color-primary)' }} />
+              <h3 style={{ fontSize: '16px', fontWeight: 600 }}>Procedimentos no Link Público</h3>
+            </div>
+            <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginBottom: '16px' }}>
+              Defina quais procedimentos os pacientes podem selecionar ao agendar online.
+            </p>
+            {bookingProcedimentos.length === 0 ? (
+              <p style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>Nenhum procedimento cadastrado.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {bookingProcedimentos.map(p => (
+                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderRadius: '8px', border: '1px solid var(--color-border)', background: p.bookingVisivel !== false ? 'var(--color-primary-light)' : '#f8f8f6' }}>
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-main)' }}>{p.nome}</div>
+                      <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{p.duracaoMinutos} min · {p.preco.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
+                    </div>
+                    <button
+                      onClick={() => handleToggleProcedimentoVisivel(p.id, !(p.bookingVisivel !== false))}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: p.bookingVisivel !== false ? 'var(--color-primary)' : 'var(--color-text-muted)' }}
+                      title={p.bookingVisivel !== false ? 'Ocultar do link público' : 'Mostrar no link público'}
+                    >
+                      {p.bookingVisivel !== false ? <Eye size={18} /> : <EyeOff size={18} />}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Profissionais visíveis */}
+          <div className="card" style={{ padding: '28px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+              <Users size={16} style={{ color: 'var(--color-primary)' }} />
+              <h3 style={{ fontSize: '16px', fontWeight: 600 }}>Profissionais no Link Público</h3>
+            </div>
+            <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginBottom: '16px' }}>
+              Defina quais profissionais aparecem para o paciente escolher ao agendar online.
+            </p>
+            {equipe.length === 0 ? (
+              <p style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>Nenhum membro da equipe cadastrado. Adicione membros na aba "Gestão de Equipe".</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {equipe.map(m => (
+                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderRadius: '8px', border: '1px solid var(--color-border)', background: m.bookingVisivel !== false ? 'var(--color-primary-light)' : '#f8f8f6' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '14px', flexShrink: 0 }}>
+                        {m.nome.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-main)' }}>{m.nome}</div>
+                        <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{m.cargo}</div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleToggleEquipeVisivel(m.id, !(m.bookingVisivel !== false))}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: m.bookingVisivel !== false ? 'var(--color-primary)' : 'var(--color-text-muted)' }}
+                      title={m.bookingVisivel !== false ? 'Ocultar do link público' : 'Mostrar no link público'}
+                    >
+                      {m.bookingVisivel !== false ? <Eye size={18} /> : <EyeOff size={18} />}
+                    </button>
                   </div>
                 ))}
               </div>

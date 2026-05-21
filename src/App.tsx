@@ -9,15 +9,29 @@ import { Gestao } from './components/Gestao';
 import { Auth } from './components/Auth';
 import { Configuracoes } from './components/Configuracoes';
 import { WelcomeModal } from './components/WelcomeModal';
+import { AgendamentoPublico } from './components/AgendamentoPublico';
 import type { Agendamento, StatusJornada, UserRole } from './types';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { api } from './lib/api';
 import { ApiError, isUnauthorized } from './lib/errors';
 
+// Detecta se a URL atual é uma página pública de agendamento (/agenda/:slug)
+function getPublicBookingSlug(): string | null {
+  const match = window.location.pathname.match(/^\/agenda\/([^/]+)\/?$/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 // Abas que membros da equipe NÃO podem acessar.
 const TABS_BLOQUEADAS_EQUIPE = new Set(['comunicacao', 'gestao', 'configuracoes']);
 
+// Roteador raiz: delega para página pública ou app autenticado.
 function App() {
+  const publicSlug = getPublicBookingSlug();
+  if (publicSlug) return <AgendamentoPublico slug={publicSlug} />;
+  return <AppMain />;
+}
+
+function AppMain() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -33,6 +47,7 @@ function App() {
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [selectedClienteId, setSelectedClienteId] = useState<string | null>(null);
+  const [onlineBookingAlert, setOnlineBookingAlert] = useState<string | null>(null);
 
   // Guarda de rota para membros da equipe: redireciona para 'dashboard' se tentarem
   // acessar aba bloqueada (inclusive via setCurrentTab direto).
@@ -163,6 +178,27 @@ function App() {
 
   useEffect(() => {
     if (tenantId) loadAgendamentosDoDia();
+  }, [tenantId, loadAgendamentosDoDia]);
+
+  // ── Notificação realtime: novo agendamento online ────────────────
+  useEffect(() => {
+    if (!tenantId) return;
+    const channel = supabase
+      .channel(`online-bookings-${tenantId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'agendamentos', filter: `user_id=eq.${tenantId}` },
+        (payload) => {
+          if ((payload.new as any)?.origem_online) {
+            const nome = (payload.new as any)?.profissional ?? '';
+            setOnlineBookingAlert(`Novo agendamento online recebido${nome ? ` com ${nome}` : ''}!`);
+            loadAgendamentosDoDia();
+            setTimeout(() => setOnlineBookingAlert(null), 6000);
+          }
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [tenantId, loadAgendamentosDoDia]);
 
   // ============================================================
@@ -428,6 +464,31 @@ function App() {
             sessionStorage.setItem('lumina_welcome_shown', '1');
           }}
         />
+      )}
+
+      {/* Toast: novo agendamento online */}
+      {onlineBookingAlert && (
+        <div
+          style={{
+            position: 'fixed', bottom: 24, right: 24, zIndex: 9000,
+            background: '#2C302E', color: '#fff',
+            padding: '14px 20px', borderRadius: '12px',
+            fontSize: '14px', fontWeight: 500,
+            boxShadow: '0 8px 30px rgba(0,0,0,0.2)',
+            display: 'flex', alignItems: 'center', gap: '10px',
+            animation: 'fadeIn 0.3s ease-out',
+            maxWidth: 340,
+          }}
+        >
+          <span style={{ fontSize: '20px' }}>📅</span>
+          <span>{onlineBookingAlert}</span>
+          <button
+            onClick={() => setOnlineBookingAlert(null)}
+            style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '16px', opacity: 0.7, marginLeft: 4, flexShrink: 0 }}
+          >
+            ×
+          </button>
+        </div>
       )}
     </div>
   );

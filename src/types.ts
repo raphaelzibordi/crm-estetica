@@ -89,6 +89,7 @@ export interface Procedimento {
   preco: number;
   salaRequerida: string;
   profissionalResponsavel: string;
+  bookingVisivel?: boolean;
 }
 
 export interface MembroEquipe {
@@ -98,6 +99,7 @@ export interface MembroEquipe {
   cargo: string;
   fotoUrl?: string;
   ativo: boolean;
+  bookingVisivel?: boolean;
 }
 
 export interface Profissional {
@@ -155,5 +157,41 @@ export interface GaleriaItem {
 }
 
 export type MetodoPagamento = 'pix' | 'credito' | 'debito' | 'dinheiro';
+
+// ── Agendamento Online (US-007) ──────────────────────────────────
+
+export interface ClinicaPublica {
+  userId: string;
+  nomeClinica: string;
+  minAdvanceHoras: number;
+  maxAdvanceDias: number;
+}
+
+export interface ProfissionalPublico {
+  id: string;
+  nome: string;
+  cargo: string;
+}
+
+export interface ProcedimentoPublico {
+  id: string;
+  nome: string;
+  duracaoMinutos: number;
+  preco: number;
+  salaRequerida: string;
+  profissionalResponsavel: string;
+}
+
+export interface SlotOcupado {
+  horaInicio: string; // HH:MM
+  horaFim: string;    // HH:MM
+}
+
+export interface BookingSettings {
+  bookingSlug: string | null;
+  bookingEnabled: boolean;
+  bookingMinAdvanceHoras: number;
+  bookingMaxAdvanceDias: number;
+}
 
 export const IS_TYPED = true;

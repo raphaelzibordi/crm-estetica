@@ -657,3 +657,237 @@ create policy "Avatar delete by owner" on storage.objects
 -- SELECT: leitura pública (bucket já é public, mas a policy garante)
 create policy "Avatar public read" on storage.objects
   for select using (bucket_id = 'avatars');
+
+-- =================================================================
+-- US-007: Agendamento Online com Link Público
+-- =================================================================
+
+-- Campos de booking online na tabela usuarios
+alter table public.usuarios
+  add column if not exists booking_slug               text unique,
+  add column if not exists booking_enabled            boolean not null default false,
+  add column if not exists booking_min_advance_horas  integer not null default 1,
+  add column if not exists booking_max_advance_dias   integer not null default 30;
+
+-- Marca agendamentos criados pelo fluxo público
+alter table public.agendamentos
+  add column if not exists origem_online boolean not null default false;
+
+-- Visibilidade dos procedimentos no link público
+alter table public.procedimentos
+  add column if not exists booking_visivel boolean not null default true;
+
+-- Visibilidade dos membros de equipe no link público
+alter table public.equipe
+  add column if not exists booking_visivel boolean not null default true;
+
+-- Índice para lookup rápido por slug
+create unique index if not exists idx_usuarios_booking_slug
+  on public.usuarios(booking_slug)
+  where booking_slug is not null;
+
+-- Habilitar realtime na tabela agendamentos para notificações in-app
+alter publication supabase_realtime add table public.agendamentos;
+
+-- =================================================================
+-- RPC: Busca clínica pelo slug (acesso público, sem autenticação)
+-- =================================================================
+create or replace function public.get_clinic_by_slug(p_slug text)
+returns json
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_result json;
+begin
+  select json_build_object(
+    'userId',          u.id,
+    'nomeClinica',     coalesce(u.nome_clinica, ''),
+    'minAdvanceHoras', u.booking_min_advance_horas,
+    'maxAdvanceDias',  u.booking_max_advance_dias
+  ) into v_result
+  from public.usuarios u
+  where u.booking_slug = p_slug
+    and u.booking_enabled = true;
+  return v_result;
+end;
+$$;
+
+-- =================================================================
+-- RPC: Lista profissionais visíveis para booking público
+-- =================================================================
+create or replace function public.get_public_professionals(p_user_id uuid)
+returns json
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_result json;
+begin
+  select json_agg(
+    json_build_object(
+      'id',    e.id,
+      'nome',  e.nome,
+      'cargo', coalesce(e.cargo, '')
+    ) order by e.nome
+  ) into v_result
+  from public.equipe e
+  where e.user_id        = p_user_id
+    and e.ativo          = true
+    and e.booking_visivel = true;
+  return coalesce(v_result, '[]'::json);
+end;
+$$;
+
+-- =================================================================
+-- RPC: Lista procedimentos visíveis para booking público
+-- =================================================================
+create or replace function public.get_public_procedures(p_user_id uuid)
+returns json
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_result json;
+begin
+  select json_agg(
+    json_build_object(
+      'id',                      p.id,
+      'nome',                    p.nome,
+      'duracaoMinutos',          p.duracao_minutos,
+      'preco',                   p.preco,
+      'salaRequerida',           coalesce(p.sala_requerida, ''),
+      'profissionalResponsavel', coalesce(p.profissional_responsavel, '')
+    ) order by p.nome
+  ) into v_result
+  from public.procedimentos p
+  where p.user_id          = p_user_id
+    and p.booking_visivel   = true;
+  return coalesce(v_result, '[]'::json);
+end;
+$$;
+
+-- =================================================================
+-- RPC: Retorna horários ocupados de um profissional em uma data
+--      (sem dados de paciente — apenas intervalos de tempo)
+-- =================================================================
+create or replace function public.get_booked_slots(
+  p_user_id      uuid,
+  p_date         date,
+  p_profissional text
+)
+returns json
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_result json;
+begin
+  select json_agg(
+    json_build_object(
+      'horaInicio', to_char(a.hora_inicio, 'HH24:MI'),
+      'horaFim',    to_char(a.hora_fim,    'HH24:MI')
+    )
+  ) into v_result
+  from public.agendamentos a
+  where a.user_id      = p_user_id
+    and a.data         = p_date
+    and a.profissional = p_profissional
+    and a.status       <> 'finalizada';
+  return coalesce(v_result, '[]'::json);
+end;
+$$;
+
+-- =================================================================
+-- RPC: Cria agendamento pelo fluxo público (atômico + anti-race-condition)
+-- =================================================================
+create or replace function public.create_public_booking(
+  p_clinic_slug        text,
+  p_profissional       text,
+  p_procedimento       text,
+  p_data               date,
+  p_hora_inicio        time,
+  p_hora_fim           time,
+  p_sala               text,
+  p_valor              numeric,
+  p_paciente_nome      text,
+  p_paciente_telefone  text,
+  p_paciente_email     text
+)
+returns json
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id      uuid;
+  v_cliente_id   uuid;
+  v_ag_id        uuid;
+  v_conflict     boolean := false;
+begin
+  -- Busca clínica e valida que booking está ativo
+  select u.id into v_user_id
+  from public.usuarios u
+  where u.booking_slug   = p_clinic_slug
+    and u.booking_enabled = true;
+
+  if v_user_id is null then
+    raise exception 'Clínica não encontrada ou agendamento online desativado.'
+      using errcode = 'P0001';
+  end if;
+
+  -- Lock advisory por profissional+data para serializar concorrência
+  perform pg_advisory_xact_lock(
+    ('x' || substr(md5(v_user_id::text || p_data::text || p_profissional), 1, 16))::bit(64)::bigint
+  );
+
+  -- Verifica conflito de horário
+  select exists(
+    select 1 from public.agendamentos a
+    where a.user_id      = v_user_id
+      and a.data         = p_data
+      and a.profissional = p_profissional
+      and a.status       <> 'finalizada'
+      and a.hora_inicio  < p_hora_fim
+      and a.hora_fim     > p_hora_inicio
+  ) into v_conflict;
+
+  if v_conflict then
+    raise exception 'SLOT_UNAVAILABLE: Este horário já foi reservado. Escolha outro.'
+      using errcode = 'P0002';
+  end if;
+
+  -- Encontra ou cria paciente pelo telefone
+  select id into v_cliente_id
+  from public.clientes
+  where user_id  = v_user_id
+    and telefone = p_paciente_telefone
+  limit 1;
+
+  if v_cliente_id is null then
+    insert into public.clientes (user_id, nome, telefone, email, status_retencao, tags)
+    values (v_user_id, p_paciente_nome, p_paciente_telefone, p_paciente_email, 'em_dia', '{}')
+    returning id into v_cliente_id;
+  end if;
+
+  -- Cria o agendamento com flag origem_online
+  insert into public.agendamentos (
+    user_id, cliente_id, data, hora_inicio, hora_fim,
+    profissional, sala, procedimento, status, valor, origem_online
+  )
+  values (
+    v_user_id, v_cliente_id, p_data, p_hora_inicio, p_hora_fim,
+    p_profissional, p_sala, p_procedimento, 'agendada', p_valor, true
+  )
+  returning id into v_ag_id;
+
+  return json_build_object(
+    'id',      v_ag_id,
+    'status',  'agendada'
+  );
+end;
+$$;

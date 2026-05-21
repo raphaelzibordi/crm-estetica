@@ -3,6 +3,8 @@ import { ApiError, humanizeError } from './errors';
 import { findAgendamentoConflict } from './agendaConflict';
 import type {
   Agendamento,
+  BookingSettings,
+  ClinicaPublica,
   Cliente,
   ClienteRetorno,
   EvolucaoClinica,
@@ -11,6 +13,9 @@ import type {
   ItemEstoque,
   MembroEquipe,
   Procedimento,
+  ProcedimentoPublico,
+  ProfissionalPublico,
+  SlotOcupado,
   StatusJornada,
   TemplateMensagem,
   UserProfile,
@@ -81,6 +86,7 @@ function mapProcedimento(row: any): Procedimento {
     preco: row.preco !== null && row.preco !== undefined ? Number(row.preco) : 0,
     salaRequerida: row.sala_requerida ?? '',
     profissionalResponsavel: row.profissional_responsavel ?? '',
+    bookingVisivel: row.booking_visivel ?? true,
   };
 }
 
@@ -111,6 +117,7 @@ function mapMembroEquipe(row: any): MembroEquipe {
     cargo: row.cargo ?? '',
     fotoUrl: row.foto_url ?? undefined,
     ativo: row.ativo ?? true,
+    bookingVisivel: row.booking_visivel ?? true,
   };
 }
 
@@ -1175,6 +1182,129 @@ export const api = {
       // Ordena por urgência (mais tempo de ausência primeiro)
       retornos.sort((a, b) => b.tempoAusenciaDias - a.tempoAusenciaDias);
       return retornos;
+    });
+  },
+
+  // ============================================================
+  // AGENDAMENTO ONLINE — acesso público (sem auth)
+  // ============================================================
+  async getClinicaBySlug(slug: string): Promise<ClinicaPublica | null> {
+    const { data, error } = await supabase.rpc('get_clinic_by_slug', { p_slug: slug });
+    if (error) throw humanizeError(error);
+    return (data as ClinicaPublica) ?? null;
+  },
+
+  async getProfissionaisPublicos(userId: string): Promise<ProfissionalPublico[]> {
+    const { data, error } = await supabase.rpc('get_public_professionals', { p_user_id: userId });
+    if (error) throw humanizeError(error);
+    return (data as ProfissionalPublico[]) ?? [];
+  },
+
+  async getProcedimentosPublicos(userId: string): Promise<ProcedimentoPublico[]> {
+    const { data, error } = await supabase.rpc('get_public_procedures', { p_user_id: userId });
+    if (error) throw humanizeError(error);
+    return (data as ProcedimentoPublico[]) ?? [];
+  },
+
+  async getSlotsOcupados(userId: string, date: string, profissional: string): Promise<SlotOcupado[]> {
+    const { data, error } = await supabase.rpc('get_booked_slots', {
+      p_user_id:      userId,
+      p_date:         date,
+      p_profissional: profissional,
+    });
+    if (error) throw humanizeError(error);
+    return (data as SlotOcupado[]) ?? [];
+  },
+
+  async createPublicBooking(params: {
+    clinicSlug:         string;
+    profissional:       string;
+    procedimento:       string;
+    data:               string;
+    horaInicio:         string;
+    horaFim:            string;
+    sala:               string;
+    valor:              number;
+    pacienteNome:       string;
+    pacienteTelefone:   string;
+    pacienteEmail:      string;
+  }): Promise<{ id: string }> {
+    const { data, error } = await supabase.rpc('create_public_booking', {
+      p_clinic_slug:        params.clinicSlug,
+      p_profissional:       params.profissional,
+      p_procedimento:       params.procedimento,
+      p_data:               params.data,
+      p_hora_inicio:        params.horaInicio,
+      p_hora_fim:           params.horaFim,
+      p_sala:               params.sala,
+      p_valor:              params.valor,
+      p_paciente_nome:      params.pacienteNome,
+      p_paciente_telefone:  params.pacienteTelefone,
+      p_paciente_email:     params.pacienteEmail,
+    });
+    if (error) throw humanizeError(error);
+    return data as { id: string };
+  },
+
+  // ============================================================
+  // CONFIGURAÇÕES DE AGENDAMENTO ONLINE (autenticado)
+  // ============================================================
+  async getBookingSettings(userId?: string): Promise<BookingSettings> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('usuarios')
+        .select('booking_slug, booking_enabled, booking_min_advance_horas, booking_max_advance_dias')
+        .eq('id', uid)
+        .single();
+      if (error) throw error;
+      return {
+        bookingSlug:              data.booking_slug ?? null,
+        bookingEnabled:           data.booking_enabled ?? false,
+        bookingMinAdvanceHoras:   data.booking_min_advance_horas ?? 1,
+        bookingMaxAdvanceDias:    data.booking_max_advance_dias ?? 30,
+      };
+    });
+  },
+
+  async updateBookingSettings(settings: Partial<BookingSettings>, userId?: string): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const updates: Record<string, unknown> = {};
+      if (settings.bookingSlug !== undefined)
+        updates.booking_slug = settings.bookingSlug || null;
+      if (settings.bookingEnabled !== undefined)
+        updates.booking_enabled = settings.bookingEnabled;
+      if (settings.bookingMinAdvanceHoras !== undefined)
+        updates.booking_min_advance_horas = settings.bookingMinAdvanceHoras;
+      if (settings.bookingMaxAdvanceDias !== undefined)
+        updates.booking_max_advance_dias = settings.bookingMaxAdvanceDias;
+      const { error } = await supabase.from('usuarios').update(updates).eq('id', uid);
+      if (error) throw error;
+    });
+  },
+
+  async updateProcedimentoBookingVisivel(id: string, visivel: boolean, userId?: string): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { error } = await supabase
+        .from('procedimentos')
+        .update({ booking_visivel: visivel })
+        .eq('id', id)
+        .eq('user_id', uid);
+      if (error) throw error;
+    });
+  },
+
+  async updateEquipeBookingVisivel(id: string, visivel: boolean, userId?: string): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { error } = await supabase
+        .from('equipe')
+        .update({ booking_visivel: visivel })
+        .eq('id', id)
+        .eq('user_id', uid);
+      if (error) throw error;
     });
   },
 
