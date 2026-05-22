@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { User, Building2, Users, Plus, X, Check, Edit2, Trash2, Shield, Link, ToggleLeft, ToggleRight, Copy, Eye, EyeOff, Bell } from 'lucide-react';
+import { User, Building2, Users, Plus, X, Check, Edit2, Trash2, Shield, Link, ToggleLeft, ToggleRight, Copy, Eye, EyeOff, Bell, FileText } from 'lucide-react';
 import { api } from '../lib/api';
-import type { BookingSettings, ConfirmacaoSettings, MembroEquipe, Procedimento } from '../types';
+import type { BookingSettings, ConfirmacaoSettings, DocumentoModelo, DocumentoTipo, MembroEquipe, Procedimento } from '../types';
+import { MODELOS_PADRAO } from './AssinaturaDigital';
 
 interface ConfiguracoesProps {
   userId: string;
@@ -9,7 +10,7 @@ interface ConfiguracoesProps {
   onProfileUpdate?: (update: { nome?: string; fotoUrl?: string }) => void;
 }
 
-type ActiveTab = 'perfil' | 'equipe' | 'agendamento' | 'confirmacoes';
+type ActiveTab = 'perfil' | 'equipe' | 'agendamento' | 'confirmacoes' | 'documentos';
 
 const CARGOS_SUGERIDOS = [
   'Diretora da Clínica',
@@ -75,7 +76,21 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
   const [mCargoCustom, setMCargoCustom] = useState(false);
   const [savingMembro, setSavingMembro] = useState(false);
 
-  useEffect(() => { loadPerfil(); loadEquipeRemota(); loadBookingSettings(); loadConfirmacaoSettings(); }, [userId]);
+  // ── Documentos state (US-025) ──
+  const [docTemplates, setDocTemplates] = useState<DocumentoModelo[]>([]);
+  const [showDocModal, setShowDocModal] = useState(false);
+  const [editingDocId, setEditingDocId] = useState<string | null>(null);
+  const [docNome, setDocNome] = useState('');
+  const [docTipo, setDocTipo] = useState<DocumentoTipo>('outro');
+  const [docConteudo, setDocConteudo] = useState('');
+  const [savingDoc, setSavingDoc] = useState(false);
+
+  useEffect(() => { loadPerfil(); loadEquipeRemota(); loadBookingSettings(); loadConfirmacaoSettings(); loadDocTemplates(); }, [userId]);
+
+  const loadDocTemplates = async () => {
+    try { setDocTemplates(await api.getDocumentTemplates(userId)); }
+    catch { /* silently fail — table may not exist yet */ }
+  };
 
   const loadBookingSettings = useCallback(async () => {
     try {
@@ -309,6 +324,7 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
         {tabBtn('equipe', 'Gestão de Equipe', Users)}
         {tabBtn('agendamento', 'Agendamento Online', Link)}
         {tabBtn('confirmacoes', 'Confirmações Automáticas', Bell)}
+        {tabBtn('documentos', 'Modelos de Documentos', FileText)}
       </div>
 
       {/* ── TAB: PERFIL ── */}
@@ -783,6 +799,165 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
       )}
 
       {/* ── MODAL: MEMBRO ── */}
+      {/* ── TAB: DOCUMENTOS ── */}
+      {tab === 'documentos' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div className="card" style={{ padding: '28px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+              <div>
+                <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>Modelos de Documentos</h3>
+                <p style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Gerencie os modelos usados para contratos, consentimentos e prescrições (CA-05).</p>
+              </div>
+              <button
+                onClick={() => { setEditingDocId(null); setDocNome(''); setDocTipo('outro'); setDocConteudo(''); setShowDocModal(true); }}
+                className="btn btn-primary"
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}
+              >
+                <Plus size={14} /> Novo Modelo
+              </button>
+            </div>
+
+            {/* Modelos padrão (read-only) */}
+            <div style={{ marginBottom: '16px' }}>
+              <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '10px' }}>
+                Modelos Padrão
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {MODELOS_PADRAO.map((m, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--border-radius-md)', background: '#fafbfb' }}>
+                    <FileText size={14} style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-main)' }}>{m.nome}</div>
+                    </div>
+                    <span style={{ fontSize: '10px', color: 'var(--color-text-muted)', background: 'var(--color-border)', padding: '2px 8px', borderRadius: '20px' }}>
+                      Padrão
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Modelos personalizados */}
+            {docTemplates.length > 0 && (
+              <div>
+                <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '10px' }}>
+                  Modelos Personalizados
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {docTemplates.map((tmpl) => (
+                    <div key={tmpl.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--border-radius-md)' }}>
+                      <FileText size={14} style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tmpl.nome}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{tmpl.tipo}</div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                        <button
+                          onClick={() => { setEditingDocId(tmpl.id); setDocNome(tmpl.nome); setDocTipo(tmpl.tipo); setDocConteudo(tmpl.conteudo); setShowDocModal(true); }}
+                          className="btn btn-outline"
+                          style={{ padding: '4px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                        >
+                          <Edit2 size={11} /> Editar
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (!window.confirm('Excluir este modelo de documento?')) return;
+                            await api.deleteDocumentTemplate(tmpl.id, userId);
+                            setDocTemplates((prev) => prev.filter((t) => t.id !== tmpl.id));
+                          }}
+                          className="btn btn-outline"
+                          style={{ padding: '4px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px', borderColor: '#fca5a5', color: '#ef4444' }}
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Criar/Editar Modelo */}
+      {showDocModal && (
+        <div
+          className="modal-overlay"
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: '16px' }}
+          onClick={() => setShowDocModal(false)}
+        >
+          <div
+            className="card"
+            style={{ width: '100%', maxWidth: '660px', maxHeight: '90vh', overflowY: 'auto', padding: '32px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: 600 }}>{editingDocId ? 'Editar Modelo' : 'Novo Modelo de Documento'}</h3>
+              <button onClick={() => setShowDocModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)' }}><X size={18} /></button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div className="form-group">
+                <label className="form-label">Nome do Modelo</label>
+                <input className="form-input" value={docNome} onChange={(e) => setDocNome(e.target.value)} placeholder="Ex: Contrato de Harmonização Facial" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Tipo</label>
+                <select className="form-select" value={docTipo} onChange={(e) => setDocTipo(e.target.value as DocumentoTipo)}>
+                  <option value="contrato">Contrato</option>
+                  <option value="tcle">TCLE — Consentimento Livre e Esclarecido</option>
+                  <option value="termo_anestesia">Termo de Anestesia</option>
+                  <option value="termo_fotografias">Autorização de Fotografias</option>
+                  <option value="prescricao">Prescrição Médica</option>
+                  <option value="outro">Outro</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Conteúdo do Documento</label>
+                <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: '6px' }}>
+                  Use {'{{nome_paciente}}'}, {'{{data}}'}, {'{{procedimento}}'}, {'{{profissional}}'}, {'{{crmProfissional}}'} como variáveis dinâmicas.
+                </p>
+                <textarea
+                  rows={14}
+                  className="form-textarea"
+                  value={docConteudo}
+                  onChange={(e) => setDocConteudo(e.target.value)}
+                  placeholder="Digite o conteúdo do documento com variáveis {{nome_paciente}}, {{data}}, etc..."
+                  style={{ resize: 'vertical', fontFamily: 'inherit', fontSize: '13px', lineHeight: '1.6' }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                <button onClick={() => setShowDocModal(false)} className="btn btn-outline">Cancelar</button>
+                <button
+                  disabled={savingDoc || !docNome.trim() || !docConteudo.trim()}
+                  onClick={async () => {
+                    setSavingDoc(true);
+                    try {
+                      const vars = [...docConteudo.matchAll(/\{\{(\w+)\}\}/g)].map((m) => m[1]);
+                      const uniq = [...new Set(vars)];
+                      if (editingDocId) {
+                        const updated = await api.updateDocumentTemplate(editingDocId, { nome: docNome, tipo: docTipo, conteudo: docConteudo, variaveis: uniq }, userId);
+                        setDocTemplates((prev) => prev.map((t) => t.id === editingDocId ? updated : t));
+                      } else {
+                        const created = await api.createDocumentTemplate({ nome: docNome, tipo: docTipo, conteudo: docConteudo, variaveis: uniq }, userId);
+                        setDocTemplates((prev) => [...prev, created]);
+                      }
+                      setShowDocModal(false);
+                    } catch (err: any) {
+                      alert(`Erro ao salvar modelo: ${err?.message || err}`);
+                    } finally { setSavingDoc(false); }
+                  }}
+                  className="btn btn-primary"
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Check size={14} /> {savingDoc ? 'Salvando...' : 'Salvar Modelo'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showMembroModal && (
         <div onClick={() => setShowMembroModal(false)} className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
           <div onClick={e => e.stopPropagation()} className="card" style={{ maxWidth: '460px', width: '92%', padding: '32px' }}>

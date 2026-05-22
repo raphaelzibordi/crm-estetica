@@ -10,6 +10,7 @@ import { Auth } from './components/Auth';
 import { Configuracoes } from './components/Configuracoes';
 import { WelcomeModal } from './components/WelcomeModal';
 import { AgendamentoPublico } from './components/AgendamentoPublico';
+import { AssinaturaPublica } from './components/AssinaturaPublica';
 import type { Agendamento, StatusJornada, UserRole } from './types';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { api } from './lib/api';
@@ -21,6 +22,12 @@ function getPublicBookingSlug(): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
+// Detecta se a URL atual é uma página pública de assinatura (/assinar/:token)
+function getPublicSigningToken(): string | null {
+  const match = window.location.pathname.match(/^\/assinar\/([^/]+)\/?$/);
+  return match ? match[1] : null;
+}
+
 // Abas que membros da equipe NÃO podem acessar.
 const TABS_BLOQUEADAS_EQUIPE = new Set(['comunicacao', 'gestao', 'configuracoes']);
 
@@ -28,6 +35,8 @@ const TABS_BLOQUEADAS_EQUIPE = new Set(['comunicacao', 'gestao', 'configuracoes'
 function App() {
   const publicSlug = getPublicBookingSlug();
   if (publicSlug) return <AgendamentoPublico slug={publicSlug} />;
+  const signingToken = getPublicSigningToken();
+  if (signingToken) return <AssinaturaPublica token={signingToken} />;
   return <AppMain />;
 }
 

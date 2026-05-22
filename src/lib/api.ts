@@ -16,6 +16,9 @@ import type {
   ComissaoTipo,
   ConfirmacaoLog,
   ConfirmacaoSettings,
+  DocumentoAssinado,
+  DocumentoModelo,
+  DocumentoSignatureLink,
   EvolucaoClinica,
   FechamentoComissao,
   FechamentoFinanceiro,
@@ -215,6 +218,47 @@ function mapAnamneseFormulario(row: any): AnamneseFormulario {
     campos: (row.campos ?? []) as AnamneseCampo[],
     ativo: Boolean(row.ativo ?? true),
     createdAt: row.created_at ?? '',
+  };
+}
+
+function mapDocumentoModelo(row: any): DocumentoModelo {
+  return {
+    id:         row.id,
+    nome:       row.nome ?? '',
+    tipo:       row.tipo ?? 'outro',
+    conteudo:   row.conteudo ?? '',
+    variaveis:  Array.isArray(row.variaveis) ? row.variaveis : [],
+    ativo:      Boolean(row.ativo ?? true),
+    createdAt:  row.created_at ?? '',
+  };
+}
+
+function mapDocumentoAssinado(row: any): DocumentoAssinado {
+  return {
+    id:                 row.id,
+    clienteId:          row.cliente_id,
+    modeloId:           row.modelo_id ?? null,
+    titulo:             row.titulo ?? '',
+    conteudoFinal:      row.conteudo_final ?? '',
+    hashIntegridade:    row.hash_integridade ?? '',
+    assinaturaData:     row.assinatura_data ?? null,
+    assinaturaMetodo:   row.assinatura_metodo ?? null,
+    assinadoEm:         row.assinado_em ?? null,
+    assinadoIp:         row.assinado_ip ?? null,
+    assinadoDispositivo: row.assinado_dispositivo ?? null,
+    profissional:       row.profissional ?? '',
+    status:             row.status ?? 'pendente',
+    createdAt:          row.created_at ?? '',
+  };
+}
+
+function mapSignatureLink(row: any): DocumentoSignatureLink {
+  return {
+    id:          row.id,
+    documentoId: row.documento_id,
+    token:       row.token ?? '',
+    expiraEm:    row.expira_em ?? '',
+    usadoEm:     row.usado_em ?? null,
   };
 }
 
@@ -2128,6 +2172,209 @@ export const api = {
         .eq('user_id', uid);
       if (error) throw error;
     });
+  },
+
+  // ── US-025: Assinatura Digital ──────────────────────────────────
+
+  async getDocumentTemplates(userId?: string): Promise<DocumentoModelo[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('document_templates')
+        .select('*')
+        .eq('user_id', uid)
+        .eq('ativo', true)
+        .order('nome');
+      if (error) throw error;
+      return (data ?? []).map(mapDocumentoModelo);
+    });
+  },
+
+  async createDocumentTemplate(
+    dados: Pick<DocumentoModelo, 'nome' | 'tipo' | 'conteudo' | 'variaveis'>,
+    userId?: string
+  ): Promise<DocumentoModelo> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('document_templates')
+        .insert([{
+          user_id:   uid,
+          nome:      dados.nome,
+          tipo:      dados.tipo,
+          conteudo:  dados.conteudo,
+          variaveis: dados.variaveis,
+        }])
+        .select()
+        .single();
+      if (error) throw error;
+      return mapDocumentoModelo(data);
+    });
+  },
+
+  async updateDocumentTemplate(
+    id: string,
+    dados: Partial<Pick<DocumentoModelo, 'nome' | 'tipo' | 'conteudo' | 'variaveis' | 'ativo'>>,
+    userId?: string
+  ): Promise<DocumentoModelo> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      if (dados.nome !== undefined) patch.nome = dados.nome;
+      if (dados.tipo !== undefined) patch.tipo = dados.tipo;
+      if (dados.conteudo !== undefined) patch.conteudo = dados.conteudo;
+      if (dados.variaveis !== undefined) patch.variaveis = dados.variaveis;
+      if (dados.ativo !== undefined) patch.ativo = dados.ativo;
+      const { data, error } = await supabase
+        .from('document_templates')
+        .update(patch)
+        .eq('id', id)
+        .eq('user_id', uid)
+        .select()
+        .single();
+      if (error) throw error;
+      return mapDocumentoModelo(data);
+    });
+  },
+
+  async deleteDocumentTemplate(id: string, userId?: string): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { error } = await supabase
+        .from('document_templates')
+        .update({ ativo: false, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('user_id', uid);
+      if (error) throw error;
+    });
+  },
+
+  async getDocumentSignatures(userId: string, clienteId: string): Promise<DocumentoAssinado[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('document_signatures')
+        .select('*')
+        .eq('user_id', uid)
+        .eq('cliente_id', clienteId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map(mapDocumentoAssinado);
+    });
+  },
+
+  async createDocumentSignature(
+    dados: {
+      clienteId: string;
+      modeloId: string | null;
+      titulo: string;
+      conteudoFinal: string;
+      hashIntegridade: string;
+      profissional: string;
+      assinaturaData?: string;
+      assinaturaMetodo?: 'presencial' | 'remoto';
+      assinadoIp?: string;
+      assinadoDispositivo?: string;
+    },
+    userId?: string
+  ): Promise<DocumentoAssinado> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const isPresencial = dados.assinaturaMetodo === 'presencial' && dados.assinaturaData;
+      const { data, error } = await supabase
+        .from('document_signatures')
+        .insert([{
+          user_id:             uid,
+          cliente_id:          dados.clienteId,
+          modelo_id:           dados.modeloId,
+          titulo:              dados.titulo,
+          conteudo_final:      dados.conteudoFinal,
+          hash_integridade:    dados.hashIntegridade,
+          profissional:        dados.profissional,
+          assinatura_data:     dados.assinaturaData ?? null,
+          assinatura_metodo:   dados.assinaturaMetodo ?? null,
+          assinado_em:         isPresencial ? new Date().toISOString() : null,
+          assinado_ip:         dados.assinadoIp ?? null,
+          assinado_dispositivo: dados.assinadoDispositivo ?? null,
+          status:              isPresencial ? 'assinado' : 'pendente',
+        }])
+        .select()
+        .single();
+      if (error) throw error;
+      return mapDocumentoAssinado(data);
+    });
+  },
+
+  async signDocumentPresencial(
+    id: string,
+    assinaturaData: string,
+    userId?: string
+  ): Promise<DocumentoAssinado> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('document_signatures')
+        .update({
+          assinatura_data:   assinaturaData,
+          assinatura_metodo: 'presencial',
+          assinado_em:       new Date().toISOString(),
+          status:            'assinado',
+        })
+        .eq('id', id)
+        .eq('user_id', uid)
+        .select()
+        .single();
+      if (error) throw error;
+      return mapDocumentoAssinado(data);
+    });
+  },
+
+  async createSignatureLink(documentoId: string, userId?: string): Promise<DocumentoSignatureLink> {
+    return run(async () => {
+      await requireUserId(userId);
+      const expiraEm = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+      const { data, error } = await supabase
+        .from('document_signature_links')
+        .insert([{ documento_id: documentoId, expira_em: expiraEm }])
+        .select()
+        .single();
+      if (error) throw error;
+      return mapSignatureLink(data);
+    });
+  },
+
+  async getDocumentByToken(token: string): Promise<{
+    titulo: string;
+    conteudo: string;
+    profissional: string;
+    hash: string;
+    expiraEm: string;
+  } | null> {
+    const { data, error } = await supabase.rpc('get_document_for_signing', { p_token: token });
+    if (error || !data?.success) return null;
+    return {
+      titulo:      data.titulo,
+      conteudo:    data.conteudo,
+      profissional: data.profissional,
+      hash:        data.hash,
+      expiraEm:    data.expira_em,
+    };
+  },
+
+  async signDocumentByToken(
+    token: string,
+    assinaturaData: string,
+    ip?: string,
+    dispositivo?: string
+  ): Promise<{ success: boolean; error?: string }> {
+    const { data, error } = await supabase.rpc('sign_document_by_token', {
+      p_token:       token,
+      p_assinatura:  assinaturaData,
+      p_ip:          ip ?? null,
+      p_dispositivo: dispositivo ?? null,
+    });
+    if (error) return { success: false, error: error.message };
+    return data as { success: boolean; error?: string };
   },
 };
 

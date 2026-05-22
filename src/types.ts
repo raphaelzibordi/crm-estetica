@@ -352,4 +352,54 @@ export interface AnamneseResposta {
   createdAt: string;
 }
 
+// ── Assinatura Digital (US-025) ───────────────────────────────────
+
+export type DocumentoTipo =
+  | 'contrato'
+  | 'tcle'
+  | 'termo_anestesia'
+  | 'termo_fotografias'
+  | 'prescricao'
+  | 'outro';
+
+export type DocumentoStatus = 'pendente' | 'assinado' | 'expirado';
+export type AssinaturaMetodo = 'presencial' | 'remoto';
+
+export interface DocumentoModelo {
+  id: string;
+  nome: string;
+  tipo: DocumentoTipo;
+  conteudo: string;
+  variaveis: string[];
+  ativo: boolean;
+  createdAt: string;
+}
+
+export interface DocumentoAssinado {
+  id: string;
+  clienteId: string;
+  clienteNome?: string;
+  modeloId: string | null;
+  modeloNome?: string;
+  titulo: string;
+  conteudoFinal: string;
+  hashIntegridade: string;
+  assinaturaData: string | null;
+  assinaturaMetodo: AssinaturaMetodo | null;
+  assinadoEm: string | null;
+  assinadoIp: string | null;
+  assinadoDispositivo: string | null;
+  profissional: string;
+  status: DocumentoStatus;
+  createdAt: string;
+}
+
+export interface DocumentoSignatureLink {
+  id: string;
+  documentoId: string;
+  token: string;
+  expiraEm: string;
+  usadoEm: string | null;
+}
+
 export const IS_TYPED = true;

@@ -4,6 +4,7 @@ import { FileText, Camera, Plus, Trash2, Edit2, User, CalendarPlus, UserPlus, Al
 import { api } from '../lib/api';
 import { HistoricoPresenca } from './HistoricoPresenca';
 import { AnamneseDigital } from './AnamneseDigital';
+import { AssinaturaDigital } from './AssinaturaDigital';
 
 const OWNER_ID = '__owner__';
 
@@ -982,6 +983,16 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
               clienteNome={currentCliente.nome}
               userId={userId}
               procedimentos={procedimentos.map((p) => ({ id: p.id, nome: p.nome }))}
+              userName={userName}
+            />
+          )}
+
+          {/* Assinatura Digital de Documentos (US-025) */}
+          {currentCliente && (
+            <AssinaturaDigital
+              clienteId={activeClienteId}
+              clienteNome={currentCliente.nome}
+              userId={userId}
               userName={userName}
             />
           )}
