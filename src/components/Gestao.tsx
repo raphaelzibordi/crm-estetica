@@ -3,16 +3,17 @@ import type { Agendamento, FechamentoFinanceiro, ItemEstoque, Procedimento } fro
 import {
   AlertTriangle, DollarSign, Wallet, LayoutDashboard,
   FileSpreadsheet, Plus, Edit2, Trash2, X, Check, Package, Stethoscope,
-  User, Users, Receipt, Calendar, Activity, BarChart3,
+  User, Users, Receipt, Calendar, Activity, BarChart3, TrendingUp,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { RelatorioFaltas } from './RelatorioFaltas';
+import { Comissoes } from './Comissoes';
 
-interface GestaoProps { userId: string; }
+interface GestaoProps { userId: string; userName?: string; }
 
 const EMPTY_FECHAMENTO: FechamentoFinanceiro = { faturamentoTotal: 0, comissoesPagas: 0, formasPagamento: [] };
 
-type ActiveTab = 'dashboard' | 'financeiro' | 'estoque' | 'procedimentos' | 'faltas';
+type ActiveTab = 'dashboard' | 'financeiro' | 'estoque' | 'procedimentos' | 'faltas' | 'comissoes';
 
 // ──────────────────────────────────────────────────────────────────────
 // FILTRO DE PERÍODO — presets + range customizado
@@ -74,7 +75,7 @@ function diasNoIntervalo(start: string, end: string): number {
 
 
 
-export const Gestao: React.FC<GestaoProps> = ({ userId }) => {
+export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor' }) => {
   const [tab, setTab] = useState<ActiveTab>('dashboard');
   const [estoque, setEstoque] = useState<ItemEstoque[]>([]);
   const [financeiro, setFinanceiro] = useState<FechamentoFinanceiro>(EMPTY_FECHAMENTO);
@@ -299,6 +300,9 @@ export const Gestao: React.FC<GestaoProps> = ({ userId }) => {
           <button style={tabStyle('faltas')} onClick={() => setTab('faltas')}>
             <BarChart3 size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Faltas & Ausências
           </button>
+          <button style={tabStyle('comissoes')} onClick={() => setTab('comissoes')}>
+            <TrendingUp size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Comissões
+          </button>
         </div>
       </div>
 
@@ -324,7 +328,7 @@ export const Gestao: React.FC<GestaoProps> = ({ userId }) => {
               <div style={{ fontSize: '26px', fontWeight: 700, color: 'var(--color-primary)' }}>
                 {(financeiro.faturamentoTotal - financeiro.comissoesPagas).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
               </div>
-              <div style={{ fontSize: '11px', color: 'var(--color-primary)', marginTop: '4px' }}>Após comissões (70%)</div>
+              <div style={{ fontSize: '11px', color: 'var(--color-primary)', marginTop: '4px' }}>Após comissões</div>
             </div>
 
             <div className="card" style={{ padding: '22px', borderLeft: criticos > 0 ? '4px solid #ef4444' : '4px solid #6b9e78' }}>
@@ -676,6 +680,11 @@ export const Gestao: React.FC<GestaoProps> = ({ userId }) => {
         <div>
           <RelatorioFaltas userId={userId} />
         </div>
+      )}
+
+      {/* ── TAB: COMISSÕES ──────────────────────────────────────────────── */}
+      {tab === 'comissoes' && (
+        <Comissoes userId={userId} nomeGestor={userName} />
       )}
 
       {/* ── MODAL: ESTOQUE ──────────────────────────────────────────────── */}

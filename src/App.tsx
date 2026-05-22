@@ -440,7 +440,7 @@ function AppMain() {
         )}
 
         {currentTab === 'gestao' && userRole === 'dono' && (
-          <Gestao userId={effectiveTenantId} />
+          <Gestao userId={effectiveTenantId} userName={userName} />
         )}
 
         {currentTab === 'configuracoes' && userRole === 'dono' && (

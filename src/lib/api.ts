@@ -7,9 +7,13 @@ import type {
   ClinicaPublica,
   Cliente,
   ClienteRetorno,
+  Comissao,
+  ComissaoRegra,
+  ComissaoTipo,
   ConfirmacaoLog,
   ConfirmacaoSettings,
   EvolucaoClinica,
+  FechamentoComissao,
   FechamentoFinanceiro,
   GaleriaItem,
   HistoricoPresenca,
@@ -18,6 +22,7 @@ import type {
   Procedimento,
   ProcedimentoPublico,
   ProfissionalPublico,
+  RelatorioComissaoProfissional,
   RelatorioFaltas,
   RiscoFalta,
   SlotOcupado,
@@ -145,6 +150,138 @@ function mapEstoque(row: any): ItemEstoque {
     status: (row.status as ItemEstoque['status']) ?? 'normal',
     ultimaReposicao: row.ultima_reposicao ?? '',
   };
+}
+
+function mapComissaoRegra(row: any, equipeMap: Map<string, string>, procMap: Map<string, string>): ComissaoRegra {
+  const hasProf = row.profissional_id !== null && row.profissional_id !== undefined;
+  const hasProc = row.procedimento_id !== null && row.procedimento_id !== undefined;
+  return {
+    id: row.id,
+    profissionalId: row.profissional_id ?? null,
+    profissionalNome: hasProf ? (equipeMap.get(row.profissional_id) ?? 'Desconhecido') : undefined,
+    procedimentoId: row.procedimento_id ?? null,
+    procedimentoNome: hasProc ? (procMap.get(row.procedimento_id) ?? 'Desconhecido') : undefined,
+    tipo: row.tipo as ComissaoTipo,
+    valor: Number(row.valor),
+    ativo: Boolean(row.ativo),
+    prioridade: hasProf && hasProc ? 'especifica' : hasProf ? 'por_profissional' : 'por_procedimento',
+  };
+}
+
+function mapComissao(row: any): Comissao {
+  return {
+    id: row.id,
+    agendamentoId: row.agendamento_id,
+    profissionalId: row.profissional_id ?? null,
+    profissionalNome: row.profissional_nome ?? '',
+    procedimentoNome: row.procedimento_nome ?? '',
+    regraId: row.regra_id ?? null,
+    tipo: (row.tipo as ComissaoTipo) ?? null,
+    percentualAplicado: row.percentual_aplicado !== null ? Number(row.percentual_aplicado) : null,
+    valorBase: Number(row.valor_base ?? 0),
+    valorComissao: Number(row.valor_comissao ?? 0),
+    dataAtendimento: row.data_atendimento,
+    fechamentoId: row.fechamento_id ?? null,
+    semRegra: Boolean(row.sem_regra),
+    estornada: Boolean(row.estornada),
+  };
+}
+
+function mapFechamentoComissao(row: any): FechamentoComissao {
+  return {
+    id: row.id,
+    profissionalId: row.profissional_id ?? null,
+    profissionalNome: row.profissional_nome ?? null,
+    dataInicio: row.data_inicio,
+    dataFim: row.data_fim,
+    totalComissao: Number(row.total_comissao ?? 0),
+    quantidadeAtendimentos: Number(row.quantidade_atendimentos ?? 0),
+    fechadoEm: row.fechado_em,
+    fechadoPor: row.fechado_por ?? '',
+    observacoes: row.observacoes ?? undefined,
+  };
+}
+
+// Calcula e registra comissão no momento do checkout (chamado internamente)
+async function calcularComissaoCheckout(
+  uid: string,
+  ag: { id: string; profissional: string; procedimento: string; valor: number; data: string }
+): Promise<void> {
+  try {
+    const profNome = (ag.profissional ?? '').trim();
+    const procNome = (ag.procedimento ?? '').trim();
+
+    // Busca equipe e regras em paralelo
+    const [equipeRes, regrasRes, procRes] = await Promise.all([
+      supabase.from('equipe').select('id, nome').eq('user_id', uid).eq('ativo', true),
+      supabase.from('comissao_regras').select('*').eq('user_id', uid).eq('ativo', true),
+      supabase.from('procedimentos').select('id, nome').eq('user_id', uid),
+    ]);
+
+    const equipe = equipeRes.data ?? [];
+    const procedimentos = procRes.data ?? [];
+    const regras = regrasRes.data ?? [];
+
+    // Resolve IDs por nome (case-insensitive)
+    const profissionalId = equipe.find(
+      (e: any) => e.nome?.toLowerCase() === profNome.toLowerCase()
+    )?.id ?? null;
+
+    const procedimentoId = procedimentos.find(
+      (p: any) => p.nome?.toLowerCase() === procNome.toLowerCase()
+    )?.id ?? null;
+
+    // Seleciona melhor regra pela hierarquia de prioridade
+    let melhorRegra: any = null;
+
+    if (profissionalId && procedimentoId) {
+      melhorRegra = regras.find(
+        (r: any) => r.profissional_id === profissionalId && r.procedimento_id === procedimentoId
+      );
+    }
+    if (!melhorRegra && profissionalId) {
+      melhorRegra = regras.find(
+        (r: any) => r.profissional_id === profissionalId && r.procedimento_id === null
+      );
+    }
+    if (!melhorRegra && procedimentoId) {
+      melhorRegra = regras.find(
+        (r: any) => r.profissional_id === null && r.procedimento_id === procedimentoId
+      );
+    }
+
+    const valorBase = Number(ag.valor ?? 0);
+    let valorComissao = 0;
+    let percentualAplicado: number | null = null;
+
+    if (melhorRegra) {
+      if (melhorRegra.tipo === 'percentual') {
+        percentualAplicado = Number(melhorRegra.valor);
+        valorComissao = Math.round(valorBase * (percentualAplicado / 100) * 100) / 100;
+      } else {
+        valorComissao = Number(melhorRegra.valor);
+      }
+    }
+
+    await supabase.from('comissoes').insert({
+      user_id: uid,
+      agendamento_id: ag.id,
+      profissional_id: profissionalId,
+      profissional_nome: profNome || 'Sem profissional',
+      procedimento_nome: procNome || 'Sem procedimento',
+      regra_id: melhorRegra?.id ?? null,
+      tipo: melhorRegra?.tipo ?? null,
+      percentual_aplicado: percentualAplicado,
+      valor_base: valorBase,
+      valor_comissao: valorComissao,
+      data_atendimento: ag.data,
+      sem_regra: !melhorRegra,
+      estornada: false,
+    });
+  } catch (err) {
+    // Falha no cálculo de comissão não deve bloquear o checkout
+    console.error('[comissao] Erro ao calcular comissão no checkout:', err);
+  }
 }
 
 async function run<T>(op: () => Promise<T>): Promise<T> {
@@ -375,13 +512,21 @@ export const api = {
         .single();
       if (error) throw error;
 
-      // Quando o atendimento é finalizado, registra a data como última visita do cliente
       if (updates.status === 'finalizada' && data?.cliente_id) {
         await supabase
           .from('clientes')
           .update({ data_ultima_visita: data.data })
           .eq('id', data.cliente_id)
           .eq('user_id', uid);
+
+        // US-034: calcula e registra comissão automaticamente no checkout
+        await calcularComissaoCheckout(uid, {
+          id: data.id,
+          profissional: data.profissional ?? '',
+          procedimento: data.procedimento ?? '',
+          valor: Number(data.valor ?? 0),
+          data: data.data,
+        });
       }
 
       return mapAgendamento(data);
@@ -1036,17 +1181,27 @@ export const api = {
   ): Promise<FechamentoFinanceiro> {
     return run(async () => {
       const uid = await requireUserId(userId);
-      const { data, error } = await supabase
-        .from('agendamentos')
-        .select('valor, metodo_pagamento')
-        .eq('user_id', uid)
-        .eq('data', dataStr)
-        .eq('status', 'finalizada');
-      if (error) throw error;
+      const [agRes, comRes] = await Promise.all([
+        supabase
+          .from('agendamentos')
+          .select('valor, metodo_pagamento')
+          .eq('user_id', uid)
+          .eq('data', dataStr)
+          .eq('status', 'finalizada'),
+        supabase
+          .from('comissoes')
+          .select('valor_comissao')
+          .eq('user_id', uid)
+          .eq('data_atendimento', dataStr)
+          .eq('estornada', false),
+      ]);
+      if (agRes.error) throw agRes.error;
 
-      const rows = data ?? [];
+      const rows = agRes.data ?? [];
       const faturamentoTotal = rows.reduce((sum, r: any) => sum + Number(r.valor || 0), 0);
-      const comissoesPagas = Math.round(faturamentoTotal * 0.3 * 100) / 100;
+      const comissoesPagas = Math.round(
+        (comRes.data ?? []).reduce((sum, r: any) => sum + Number(r.valor_comissao || 0), 0) * 100
+      ) / 100;
 
       const metodosLabel: Record<string, string> = {
         pix: 'Pix',
@@ -1071,9 +1226,6 @@ export const api = {
     });
   },
 
-  // ── Versão por intervalo de datas (filtro histórico do painel financeiro) ──
-  // Reaproveita a mesma agregação do fechamento diário, mas filtrando o range
-  // com .gte/.lte. Mantém compatibilidade com o tipo FechamentoFinanceiro.
   async getFechamentoFinanceiroRange(
     userId: string | undefined,
     inicio: string,
@@ -1081,18 +1233,29 @@ export const api = {
   ): Promise<FechamentoFinanceiro> {
     return run(async () => {
       const uid = await requireUserId(userId);
-      const { data, error } = await supabase
-        .from('agendamentos')
-        .select('valor, metodo_pagamento')
-        .eq('user_id', uid)
-        .gte('data', inicio)
-        .lte('data', fim)
-        .eq('status', 'finalizada');
-      if (error) throw error;
+      const [agRes, comRes] = await Promise.all([
+        supabase
+          .from('agendamentos')
+          .select('valor, metodo_pagamento')
+          .eq('user_id', uid)
+          .gte('data', inicio)
+          .lte('data', fim)
+          .eq('status', 'finalizada'),
+        supabase
+          .from('comissoes')
+          .select('valor_comissao')
+          .eq('user_id', uid)
+          .gte('data_atendimento', inicio)
+          .lte('data_atendimento', fim)
+          .eq('estornada', false),
+      ]);
+      if (agRes.error) throw agRes.error;
 
-      const rows = data ?? [];
+      const rows = agRes.data ?? [];
       const faturamentoTotal = rows.reduce((sum, r: any) => sum + Number(r.valor || 0), 0);
-      const comissoesPagas = Math.round(faturamentoTotal * 0.3 * 100) / 100;
+      const comissoesPagas = Math.round(
+        (comRes.data ?? []).reduce((sum, r: any) => sum + Number(r.valor_comissao || 0), 0) * 100
+      ) / 100;
 
       const metodosLabel: Record<string, string> = {
         pix: 'Pix',
@@ -1533,6 +1696,243 @@ export const api = {
         faltasPorProfissional: data.faltasPorProfissional ?? {},
         faltasPorProcedimento: data.faltasPorProcedimento ?? {},
       };
+    });
+  },
+  // ============================================================
+  // COMISSÕES (US-034)
+  // ============================================================
+
+  async getComissaoRegras(userId?: string): Promise<ComissaoRegra[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const [regrasRes, equipeRes, procRes] = await Promise.all([
+        supabase.from('comissao_regras').select('*').eq('user_id', uid).order('created_at'),
+        supabase.from('equipe').select('id, nome').eq('user_id', uid),
+        supabase.from('procedimentos').select('id, nome').eq('user_id', uid),
+      ]);
+      if (regrasRes.error) throw regrasRes.error;
+
+      const equipeMap = new Map((equipeRes.data ?? []).map((e: any) => [e.id, e.nome]));
+      const procMap = new Map((procRes.data ?? []).map((p: any) => [p.id, p.nome]));
+      return (regrasRes.data ?? []).map((r: any) => mapComissaoRegra(r, equipeMap, procMap));
+    });
+  },
+
+  async createComissaoRegra(
+    regra: Omit<ComissaoRegra, 'id' | 'prioridade' | 'profissionalNome' | 'procedimentoNome'>,
+    userId?: string
+  ): Promise<ComissaoRegra> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      if (!regra.profissionalId && !regra.procedimentoId) {
+        throw new ApiError('Defina ao menos um profissional ou procedimento para a regra.', 400);
+      }
+      const { data, error } = await supabase
+        .from('comissao_regras')
+        .insert({
+          user_id: uid,
+          profissional_id: regra.profissionalId ?? null,
+          procedimento_id: regra.procedimentoId ?? null,
+          tipo: regra.tipo,
+          valor: regra.valor,
+          ativo: regra.ativo,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      const [equipeRes, procRes] = await Promise.all([
+        supabase.from('equipe').select('id, nome').eq('user_id', uid),
+        supabase.from('procedimentos').select('id, nome').eq('user_id', uid),
+      ]);
+      const equipeMap = new Map((equipeRes.data ?? []).map((e: any) => [e.id, e.nome]));
+      const procMap = new Map((procRes.data ?? []).map((p: any) => [p.id, p.nome]));
+      return mapComissaoRegra(data, equipeMap, procMap);
+    });
+  },
+
+  async updateComissaoRegra(
+    id: string,
+    updates: Partial<Omit<ComissaoRegra, 'id' | 'prioridade' | 'profissionalNome' | 'procedimentoNome'>>,
+    userId?: string
+  ): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const dbUpdates: Record<string, unknown> = {};
+      if (updates.profissionalId !== undefined) dbUpdates.profissional_id = updates.profissionalId ?? null;
+      if (updates.procedimentoId !== undefined) dbUpdates.procedimento_id = updates.procedimentoId ?? null;
+      if (updates.tipo !== undefined) dbUpdates.tipo = updates.tipo;
+      if (updates.valor !== undefined) dbUpdates.valor = updates.valor;
+      if (updates.ativo !== undefined) dbUpdates.ativo = updates.ativo;
+      const { error } = await supabase
+        .from('comissao_regras')
+        .update(dbUpdates)
+        .eq('id', id)
+        .eq('user_id', uid);
+      if (error) throw error;
+    });
+  },
+
+  async deleteComissaoRegra(id: string, userId?: string): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { error } = await supabase
+        .from('comissao_regras')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', uid);
+      if (error) throw error;
+    });
+  },
+
+  async getRelatorioComissoes(
+    userId: string | undefined,
+    filtros: { inicio: string; fim: string; profissionalId?: string | null }
+  ): Promise<RelatorioComissaoProfissional[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      let q = supabase
+        .from('comissoes')
+        .select('*')
+        .eq('user_id', uid)
+        .gte('data_atendimento', filtros.inicio)
+        .lte('data_atendimento', filtros.fim)
+        .eq('estornada', false)
+        .order('data_atendimento', { ascending: false });
+
+      if (filtros.profissionalId) {
+        q = q.eq('profissional_id', filtros.profissionalId);
+      }
+
+      const { data, error } = await q;
+      if (error) throw error;
+
+      const comissoes = (data ?? []).map(mapComissao);
+
+      // Agrupa por profissional
+      const gruposMap = new Map<string, RelatorioComissaoProfissional>();
+      for (const c of comissoes) {
+        const chave = c.profissionalNome;
+        if (!gruposMap.has(chave)) {
+          gruposMap.set(chave, {
+            profissionalNome: c.profissionalNome,
+            profissionalId: c.profissionalId,
+            totalAtendimentos: 0,
+            totalBase: 0,
+            totalComissao: 0,
+            itens: [],
+          });
+        }
+        const g = gruposMap.get(chave)!;
+        g.totalAtendimentos += 1;
+        g.totalBase = Math.round((g.totalBase + c.valorBase) * 100) / 100;
+        g.totalComissao = Math.round((g.totalComissao + c.valorComissao) * 100) / 100;
+        g.itens.push(c);
+      }
+
+      return Array.from(gruposMap.values()).sort(
+        (a, b) => b.totalComissao - a.totalComissao
+      );
+    });
+  },
+
+  async getAlertasSemRegra(
+    userId: string | undefined,
+    filtros: { inicio: string; fim: string }
+  ): Promise<Comissao[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('comissoes')
+        .select('*')
+        .eq('user_id', uid)
+        .gte('data_atendimento', filtros.inicio)
+        .lte('data_atendimento', filtros.fim)
+        .eq('sem_regra', true)
+        .eq('estornada', false)
+        .order('data_atendimento', { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map(mapComissao);
+    });
+  },
+
+  async fecharPeriodoComissoes(
+    userId: string | undefined,
+    params: {
+      profissionalId: string | null;
+      profissionalNome: string | null;
+      dataInicio: string;
+      dataFim: string;
+      fechadoPor: string;
+      observacoes?: string;
+    }
+  ): Promise<FechamentoComissao> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+
+      // Busca comissões abertas do período
+      let q = supabase
+        .from('comissoes')
+        .select('id, valor_comissao')
+        .eq('user_id', uid)
+        .gte('data_atendimento', params.dataInicio)
+        .lte('data_atendimento', params.dataFim)
+        .eq('estornada', false)
+        .is('fechamento_id', null);
+
+      if (params.profissionalId) {
+        q = q.eq('profissional_id', params.profissionalId);
+      }
+
+      const { data: comissoesAbertas, error: fetchErr } = await q;
+      if (fetchErr) throw fetchErr;
+
+      const itens = comissoesAbertas ?? [];
+      const totalComissao = Math.round(
+        itens.reduce((s: number, r: any) => s + Number(r.valor_comissao || 0), 0) * 100
+      ) / 100;
+
+      // Cria o fechamento
+      const { data: fechamento, error: insertErr } = await supabase
+        .from('fechamentos_comissao')
+        .insert({
+          user_id: uid,
+          profissional_id: params.profissionalId ?? null,
+          profissional_nome: params.profissionalNome ?? null,
+          data_inicio: params.dataInicio,
+          data_fim: params.dataFim,
+          total_comissao: totalComissao,
+          quantidade_atendimentos: itens.length,
+          fechado_por: params.fechadoPor,
+          observacoes: params.observacoes ?? null,
+        })
+        .select()
+        .single();
+      if (insertErr) throw insertErr;
+
+      // Vincula as comissões ao fechamento (torna imutáveis)
+      if (itens.length > 0) {
+        const ids = itens.map((r: any) => r.id);
+        await supabase
+          .from('comissoes')
+          .update({ fechamento_id: fechamento.id })
+          .in('id', ids)
+          .eq('user_id', uid);
+      }
+
+      return mapFechamentoComissao(fechamento);
+    });
+  },
+
+  async getFechamentosComissao(userId?: string): Promise<FechamentoComissao[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('fechamentos_comissao')
+        .select('*')
+        .eq('user_id', uid)
+        .order('fechado_em', { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map(mapFechamentoComissao);
     });
   },
 };

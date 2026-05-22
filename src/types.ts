@@ -250,4 +250,60 @@ export interface RelatorioFaltas {
   faltasPorProcedimento?: Record<string, number>;
 }
 
+// ── Comissões (US-034) ────────────────────────────────────────────
+
+export type ComissaoTipo = 'percentual' | 'fixo';
+export type ComissaoPrioridade = 'especifica' | 'por_profissional' | 'por_procedimento';
+
+export interface ComissaoRegra {
+  id: string;
+  profissionalId: string | null;
+  profissionalNome?: string;
+  procedimentoId: string | null;
+  procedimentoNome?: string;
+  tipo: ComissaoTipo;
+  valor: number;
+  ativo: boolean;
+  prioridade: ComissaoPrioridade;
+}
+
+export interface Comissao {
+  id: string;
+  agendamentoId: string;
+  profissionalId: string | null;
+  profissionalNome: string;
+  procedimentoNome: string;
+  regraId: string | null;
+  tipo: ComissaoTipo | null;
+  percentualAplicado: number | null;
+  valorBase: number;
+  valorComissao: number;
+  dataAtendimento: string;
+  fechamentoId: string | null;
+  semRegra: boolean;
+  estornada: boolean;
+}
+
+export interface RelatorioComissaoProfissional {
+  profissionalNome: string;
+  profissionalId: string | null;
+  totalAtendimentos: number;
+  totalBase: number;
+  totalComissao: number;
+  itens: Comissao[];
+}
+
+export interface FechamentoComissao {
+  id: string;
+  profissionalId: string | null;
+  profissionalNome: string | null;
+  dataInicio: string;
+  dataFim: string;
+  totalComissao: number;
+  quantidadeAtendimentos: number;
+  fechadoEm: string;
+  fechadoPor: string;
+  observacoes?: string;
+}
+
 export const IS_TYPED = true;
