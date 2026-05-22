@@ -25,7 +25,10 @@
       "Bash(node /tmp/apply_schema.js)",
       "mcp__claude_ai_Notion__notion-create-comment",
       "Bash(timeout 30 tail -f \"C:\\\\Users\\\\rapha\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-rapha-OneDrive-Documents-GitHub-CRM-Est-tica-crm-estetica\\\\7db87afc-ff7e-4d8e-9b19-6a29b07e4692\\\\tasks\\\\b483w92by.output\")",
-      "mcp__claude_ai_Notion__notion-create-pages"
+      "mcp__claude_ai_Notion__notion-create-pages",
+      "mcp__claude_ai_Supabase__list_projects",
+      "mcp__claude_ai_Supabase__list_tables",
+      "mcp__claude_ai_Supabase__apply_migration"
     ]
   }
 }
