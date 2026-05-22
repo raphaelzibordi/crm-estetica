@@ -69,14 +69,17 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
   // Appointments linked to the active client (fetched on client change)
   const [agendamentosCliente, setAgendamentosCliente] = useState<Agendamento[]>([]);
 
-  // States for image gallery uploader
+  // States for image gallery uploader (US-024: antes/depois)
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const fileInputRefDepois = React.useRef<HTMLInputElement>(null);
   const [showAddPhoto, setShowAddPhoto] = useState(false);
   const [photoFile, setPhotoFile] = useState<string>('');
   const [fileName, setFileName] = useState('');
+  const [photoFileDepois, setPhotoFileDepois] = useState<string>('');
+  const [fileNameDepois, setFileNameDepois] = useState('');
   const [photoDesc, setPhotoDesc] = useState('');
   const [galeriaItems, setGaleriaItems] = useState<GaleriaItem[]>([]);
-  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [lightboxPair, setLightboxPair] = useState<{ antes: string; depois?: string; descricao: string } | null>(null);
 
   useEffect(() => {
     loadClientes();
@@ -414,14 +417,21 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     setFileName(file.name);
-
     const reader = new FileReader();
     reader.onloadend = () => {
-      if (typeof reader.result === 'string') {
-        setPhotoFile(reader.result);
-      }
+      if (typeof reader.result === 'string') setPhotoFile(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleFileChangeDepois = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFileNameDepois(file.name);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') setPhotoFileDepois(reader.result);
     };
     reader.readAsDataURL(file);
   };
@@ -429,7 +439,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
   const handleSavePhotos = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!photoFile || !activeClienteId) {
-      alert('Por favor, selecione uma imagem de evolução.');
+      alert('Por favor, selecione ao menos a foto "Antes".');
       return;
     }
 
@@ -438,6 +448,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
         activeClienteId,
         {
           imagem: photoFile,
+          imagemDepois: photoFileDepois || undefined,
           data: new Date().toISOString().split('T')[0],
           descricao: photoDesc.trim() || 'Sem descrição.',
         },
@@ -445,12 +456,12 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
       );
 
       setGaleriaItems((prev) => [created, ...prev]);
-
       setPhotoFile('');
       setFileName('');
+      setPhotoFileDepois('');
+      setFileNameDepois('');
       setPhotoDesc('');
       setShowAddPhoto(false);
-      alert('Nova imagem de evolução adicionada com sucesso!');
     } catch (err) {
       console.error(err);
       alert('Erro ao salvar imagem de evolução.');
@@ -1002,7 +1013,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Camera size={18} style={{ color: 'var(--color-primary)' }} />
-                <h3 style={{ fontSize: '18px', fontWeight: 600 }}>Evolução por Imagem</h3>
+                <h3 style={{ fontSize: '18px', fontWeight: 600 }}>Galeria Antes / Depois</h3>
               </div>
               <button 
                 onClick={() => setShowAddPhoto(!showAddPhoto)} 
@@ -1010,143 +1021,158 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
                 style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
               >
                 <Plus size={14} />
-                <span>Adicionar Foto</span>
+                <span>Adicionar Comparação</span>
               </button>
             </div>
 
             {showAddPhoto && (
               <form onSubmit={handleSavePhotos} className="card" style={{ padding: '20px', border: '1px solid var(--color-border)', backgroundColor: '#FAFBFB', marginBottom: '24px', animation: 'fadeIn 0.3s ease-out' }}>
-                <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text-main)' }}>Nova Foto de Evolução</h4>
-                
-                <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start', marginBottom: '16px', flexWrap: 'wrap' }}>
-                  <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '220px' }}>
-                    <label className="form-label" style={{ fontSize: '12px' }}>Escolha a Foto</label>
-                    <button 
-                      type="button" 
+                <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text-main)' }}>Nova Comparação Antes / Depois</h4>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '16px' }}>
+                  {/* Foto Antes */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label className="form-label" style={{ fontSize: '12px' }}>
+                      Foto <strong>Antes</strong> <span style={{ color: 'var(--color-danger, #e53e3e)', fontSize: '11px' }}>*obrigatório</span>
+                    </label>
+                    <button
+                      type="button"
                       onClick={() => fileInputRef.current?.click()}
                       className="btn btn-outline"
                       style={{ padding: '8px 16px', fontSize: '12px', width: 'fit-content' }}
                     >
                       Escolher Imagem
                     </button>
-                    <input 
-                      type="file" 
-                      ref={fileInputRef}
-                      style={{ display: 'none' }}
-                      accept="image/*" 
-                      onChange={handleFileChange}
-                    />
-                    {fileName && (
-                      <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
-                        {fileName}
-                      </span>
+                    <input type="file" ref={fileInputRef} style={{ display: 'none' }} accept="image/*" onChange={handleFileChange} />
+                    {fileName && <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{fileName}</span>}
+                    {photoFile && (
+                      <div style={{ position: 'relative', borderRadius: 'var(--border-radius-sm)', overflow: 'hidden', border: '2px solid var(--color-primary)', maxWidth: '160px' }}>
+                        <div style={{ position: 'absolute', top: '6px', left: '6px', background: 'var(--color-primary)', color: '#fff', fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', zIndex: 1 }}>ANTES</div>
+                        <img src={photoFile} alt="Antes" style={{ width: '160px', height: '140px', objectFit: 'cover', display: 'block' }} />
+                      </div>
                     )}
                   </div>
-                  
-                  {photoFile && (
-                    <div style={{ position: 'relative', borderRadius: 'var(--border-radius-md)', overflow: 'hidden', border: '1px solid var(--color-border)' }}>
-                      <img src={photoFile} alt="Preview" style={{ width: '120px', height: '120px', objectFit: 'cover' }} />
-                    </div>
-                  )}
+
+                  {/* Foto Depois */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label className="form-label" style={{ fontSize: '12px' }}>
+                      Foto <strong>Depois</strong> <span style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>opcional</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRefDepois.current?.click()}
+                      className="btn btn-outline"
+                      style={{ padding: '8px 16px', fontSize: '12px', width: 'fit-content' }}
+                    >
+                      Escolher Imagem
+                    </button>
+                    <input type="file" ref={fileInputRefDepois} style={{ display: 'none' }} accept="image/*" onChange={handleFileChangeDepois} />
+                    {fileNameDepois && <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{fileNameDepois}</span>}
+                    {photoFileDepois && (
+                      <div style={{ position: 'relative', borderRadius: 'var(--border-radius-sm)', overflow: 'hidden', border: '2px solid #38a169', maxWidth: '160px' }}>
+                        <div style={{ position: 'absolute', top: '6px', left: '6px', background: '#38a169', color: '#fff', fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', zIndex: 1 }}>DEPOIS</div>
+                        <img src={photoFileDepois} alt="Depois" style={{ width: '160px', height: '140px', objectFit: 'cover', display: 'block' }} />
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="form-group" style={{ marginBottom: '20px' }}>
                   <label className="form-label" style={{ fontSize: '12px' }}>Descrição / Procedimento</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    placeholder="Ex: Pós-procedimento imediato de Botox" 
-                    value={photoDesc} 
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Ex: Pós-procedimento imediato de Botox"
+                    value={photoDesc}
                     onChange={(e) => setPhotoDesc(e.target.value)}
                     style={{ fontSize: '12px', padding: '8px 12px' }}
                   />
                 </div>
 
                 <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     onClick={() => {
                       setShowAddPhoto(false);
-                      setPhotoFile('');
-                      setFileName('');
+                      setPhotoFile(''); setFileName('');
+                      setPhotoFileDepois(''); setFileNameDepois('');
                       setPhotoDesc('');
-                    }} 
+                    }}
                     className="btn btn-outline"
                     style={{ padding: '6px 14px', fontSize: '11px' }}
                   >
                     Cancelar
                   </button>
-                  <button 
-                    type="submit" 
-                    className="btn btn-primary"
-                    style={{ padding: '6px 14px', fontSize: '11px' }}
-                  >
-                    Salvar Foto
+                  <button type="submit" className="btn btn-primary" style={{ padding: '6px 14px', fontSize: '11px' }}>
+                    Salvar Comparação
                   </button>
                 </div>
               </form>
             )}
 
             {galeriaItems.length === 0 ? (
-              <div style={{ 
-                padding: '40px', 
-                border: '1px dashed var(--color-border)', 
-                borderRadius: 'var(--border-radius-md)', 
-                textAlign: 'center', 
-                color: 'var(--color-text-muted)' 
+              <div style={{
+                padding: '40px',
+                border: '1px dashed var(--color-border)',
+                borderRadius: 'var(--border-radius-md)',
+                textAlign: 'center',
+                color: 'var(--color-text-muted)'
               }}>
-                Nenhuma foto registrada para esta cliente ainda. Registre a evolução na próxima consulta.
+                Nenhuma foto registrada para esta cliente ainda. Adicione a primeira comparação antes/depois.
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '20px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
                 {galeriaItems.map((gal) => (
-                  <div key={gal.id} className="card" style={{ padding: '12px', border: '1px solid var(--color-border)', backgroundColor: '#FFFFFF', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 'var(--border-radius-sm)' }}>
-                      <img 
-                        src={gal.imagem} 
-                        alt="Evolução" 
-                        onClick={() => setLightboxImage(gal.imagem)}
-                        style={{ width: '100%', height: '180px', objectFit: 'cover', cursor: 'pointer' }}
-                      />
-                      <div style={{ 
-                        position: 'absolute', 
-                        bottom: '8px', 
-                        left: '8px', 
-                        background: 'var(--color-primary)', 
-                        color: '#FFFFFF', 
-                        padding: '3px 8px', 
-                        borderRadius: '4px',
-                        fontSize: '10px' 
-                      }}>
-                        {gal.data ? gal.data.split('-').reverse().join('/') : ''}
+                  <div key={gal.id} className="card" style={{ padding: '12px', border: '1px solid var(--color-border)', backgroundColor: '#FFFFFF', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {/* Imagens lado a lado */}
+                    <div
+                      style={{ display: 'grid', gridTemplateColumns: gal.imagemDepois ? '1fr 1fr' : '1fr', gap: '6px', cursor: 'pointer' }}
+                      onClick={() => setLightboxPair({ antes: gal.imagem, depois: gal.imagemDepois, descricao: gal.descricao })}
+                    >
+                      {/* ANTES */}
+                      <div style={{ position: 'relative', borderRadius: 'var(--border-radius-sm)', overflow: 'hidden' }}>
+                        <div style={{ position: 'absolute', top: '6px', left: '6px', background: 'var(--color-primary)', color: '#fff', fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', zIndex: 1 }}>ANTES</div>
+                        <img src={gal.imagem} alt="Antes" style={{ width: '100%', height: '160px', objectFit: 'cover', display: 'block' }} />
+                      </div>
+                      {/* DEPOIS */}
+                      {gal.imagemDepois && (
+                        <div style={{ position: 'relative', borderRadius: 'var(--border-radius-sm)', overflow: 'hidden' }}>
+                          <div style={{ position: 'absolute', top: '6px', left: '6px', background: '#38a169', color: '#fff', fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', zIndex: 1 }}>DEPOIS</div>
+                          <img src={gal.imagemDepois} alt="Depois" style={{ width: '100%', height: '160px', objectFit: 'cover', display: 'block' }} />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Rodapé do card */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {gal.descricao}
+                        </div>
+                        <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+                          {gal.data ? gal.data.split('-').reverse().join('/') : ''}
+                        </div>
                       </div>
                       <button
                         onClick={() => handleDeletePhoto(gal.id)}
-                        style={{ 
-                          position: 'absolute', 
-                          bottom: '8px', 
-                          right: '8px', 
-                          background: 'var(--color-primary)', 
-                          color: '#FFFFFF', 
-                          border: 'none',
-                          padding: '4px 6px', 
+                        style={{
+                          background: 'transparent',
+                          color: 'var(--color-text-muted)',
+                          border: '1px solid var(--color-border)',
+                          padding: '4px 6px',
                           borderRadius: '4px',
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          transition: 'opacity 0.2s ease',
-                          zIndex: 10
+                          flexShrink: 0
                         }}
-                        title="Remover Imagem"
-                        onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.85')}
-                        onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
+                        title="Remover"
+                        onMouseEnter={(e) => { e.currentTarget.style.color = '#e53e3e'; e.currentTarget.style.borderColor = '#e53e3e'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-muted)'; e.currentTarget.style.borderColor = 'var(--color-border)'; }}
                       >
                         <Trash2 size={12} />
                       </button>
-                    </div>
-                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '4px 2px' }}>
-                      {gal.descricao}
                     </div>
                   </div>
                 ))}
@@ -1626,34 +1652,55 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
         );
       })()}
 
-      {/* Lightbox Modal */}
-      {lightboxImage && (
-        <div 
-          onClick={() => setLightboxImage(null)}
+      {/* Lightbox Modal — Comparação Antes/Depois */}
+      {lightboxPair && (
+        <div
+          onClick={() => setLightboxPair(null)}
           style={{
             position: 'fixed',
             top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.85)',
+            backgroundColor: 'rgba(0, 0, 0, 0.90)',
             zIndex: 9999,
             display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '40px',
+            padding: '32px',
             cursor: 'zoom-out',
             animation: 'fadeIn 0.2s ease-out'
           }}
         >
-          <img 
-            src={lightboxImage} 
-            alt="Visualização Ampliada" 
-            style={{ 
-              maxWidth: '100%', 
-              maxHeight: '100%', 
-              objectFit: 'contain',
-              borderRadius: '8px',
-              boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
-            }}
-          />
+          {lightboxPair.descricao && (
+            <div style={{ color: '#fff', fontSize: '13px', marginBottom: '16px', opacity: 0.8, textAlign: 'center' }}>
+              {lightboxPair.descricao}
+            </div>
+          )}
+          <div
+            style={{ display: 'grid', gridTemplateColumns: lightboxPair.depois ? '1fr 1fr' : '1fr', gap: '16px', maxWidth: '90vw', maxHeight: '80vh' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* ANTES */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+              <span style={{ background: 'var(--color-primary)', color: '#fff', fontSize: '11px', fontWeight: 700, padding: '3px 12px', borderRadius: '4px' }}>ANTES</span>
+              <img
+                src={lightboxPair.antes}
+                alt="Antes"
+                style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}
+              />
+            </div>
+            {/* DEPOIS */}
+            {lightboxPair.depois && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                <span style={{ background: '#38a169', color: '#fff', fontSize: '11px', fontWeight: 700, padding: '3px 12px', borderRadius: '4px' }}>DEPOIS</span>
+                <img
+                  src={lightboxPair.depois}
+                  alt="Depois"
+                  style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}
+                />
+              </div>
+            )}
+          </div>
+          <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '11px', marginTop: '16px' }}>clique em qualquer lugar para fechar</div>
         </div>
       )}
     </div>

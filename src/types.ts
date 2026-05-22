@@ -160,7 +160,8 @@ export interface FechamentoFinanceiro {
 export interface GaleriaItem {
   id: string;
   clienteId: string;
-  imagem: string;
+  imagem: string;      // foto "antes"
+  imagemDepois?: string; // foto "depois" (opcional para retrocompatibilidade)
   data: string;
   descricao: string;
 }

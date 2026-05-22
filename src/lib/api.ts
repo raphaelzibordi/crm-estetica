@@ -135,6 +135,7 @@ function mapGaleria(row: any): GaleriaItem {
     id: row.id,
     clienteId: row.cliente_id,
     imagem: row.imagem ?? '',
+    imagemDepois: row.imagem_depois ?? undefined,
     data: row.data ?? '',
     descricao: row.descricao ?? '',
   };
@@ -1257,7 +1258,7 @@ export const api = {
     return run(async () => {
       const uid = await requireUserId(userId);
       if (!item.imagem) {
-        throw new ApiError('Selecione uma imagem para registrar a evolução.', 400);
+        throw new ApiError('Selecione a imagem "Antes" para registrar a comparação.', 400);
       }
       const { data, error } = await supabase
         .from('galeria_antes_depois')
@@ -1266,6 +1267,7 @@ export const api = {
             user_id: uid,
             cliente_id: clienteId,
             imagem: item.imagem,
+            imagem_depois: item.imagemDepois ?? null,
             data: item.data,
             descricao: item.descricao,
           },
