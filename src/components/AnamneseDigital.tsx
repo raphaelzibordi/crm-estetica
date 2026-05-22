@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  ClipboardList, Plus, ChevronDown, ChevronUp, Send, Pencil, Trash2,
+  ClipboardList, Plus, ChevronDown, ChevronUp, Pencil, Trash2,
   CheckCircle2, Clock, AlertCircle, X, GripVertical, Copy, Check,
   FileSignature, ArrowLeftRight,
 } from 'lucide-react';
