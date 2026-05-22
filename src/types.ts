@@ -306,4 +306,50 @@ export interface FechamentoComissao {
   observacoes?: string;
 }
 
+// ── Anamnese Digital (US-023) ─────────────────────────────────
+
+export type AnamneseCampoTipo =
+  | 'texto_livre'
+  | 'multipla_escolha'
+  | 'sim_nao'
+  | 'escala_numerica'
+  | 'assinatura_consentimento';
+
+export interface AnamneseCampo {
+  id: string;
+  tipo: AnamneseCampoTipo;
+  label: string;
+  obrigatorio: boolean;
+  opcoes?: string[]; // apenas para multipla_escolha
+}
+
+export interface AnamneseFormulario {
+  id: string;
+  nome: string;
+  procedimentoId: string | null;
+  procedimentoNome?: string;
+  campos: AnamneseCampo[];
+  ativo: boolean;
+  createdAt: string;
+}
+
+export type AnamneseStatus = 'pendente' | 'preenchido' | 'assinado';
+
+export interface AnamneseResposta {
+  id: string;
+  clienteId: string;
+  formularioId: string;
+  formularioNome?: string;
+  agendamentoId: string | null;
+  respostas: Record<string, string | string[] | number | boolean>;
+  status: AnamneseStatus;
+  tokenPublico: string;
+  tokenExpiraEm: string | null;
+  assinaturaData: string | null; // base64 PNG
+  assinadoEm: string | null;
+  revisadoPor: string | null;
+  revisadoEm: string | null;
+  createdAt: string;
+}
+
 export const IS_TYPED = true;

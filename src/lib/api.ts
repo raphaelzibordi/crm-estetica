@@ -3,6 +3,10 @@ import { ApiError, humanizeError } from './errors';
 import { findAgendamentoConflict } from './agendaConflict';
 import type {
   Agendamento,
+  AnamneseCampo,
+  AnamneseFormulario,
+  AnamneseResposta,
+  AnamneseStatus,
   BookingSettings,
   ClinicaPublica,
   Cliente,
@@ -199,6 +203,37 @@ function mapFechamentoComissao(row: any): FechamentoComissao {
     fechadoEm: row.fechado_em,
     fechadoPor: row.fechado_por ?? '',
     observacoes: row.observacoes ?? undefined,
+  };
+}
+
+function mapAnamneseFormulario(row: any): AnamneseFormulario {
+  return {
+    id: row.id,
+    nome: row.nome ?? '',
+    procedimentoId: row.procedimento_id ?? null,
+    procedimentoNome: row.procedimento_nome ?? undefined,
+    campos: (row.campos ?? []) as AnamneseCampo[],
+    ativo: Boolean(row.ativo ?? true),
+    createdAt: row.created_at ?? '',
+  };
+}
+
+function mapAnamneseResposta(row: any): AnamneseResposta {
+  return {
+    id: row.id,
+    clienteId: row.cliente_id,
+    formularioId: row.formulario_id,
+    formularioNome: row.formulario_nome ?? undefined,
+    agendamentoId: row.agendamento_id ?? null,
+    respostas: (row.respostas ?? {}) as AnamneseResposta['respostas'],
+    status: (row.status ?? 'pendente') as AnamneseStatus,
+    tokenPublico: row.token_publico ?? '',
+    tokenExpiraEm: row.token_expira_em ?? null,
+    assinaturaData: row.assinatura_data ?? null,
+    assinadoEm: row.assinado_em ?? null,
+    revisadoPor: row.revisado_por ?? null,
+    revisadoEm: row.revisado_em ?? null,
+    createdAt: row.created_at ?? '',
   };
 }
 
@@ -1933,6 +1968,165 @@ export const api = {
         .order('fechado_em', { ascending: false });
       if (error) throw error;
       return (data ?? []).map(mapFechamentoComissao);
+    });
+  },
+
+  // ============================================================
+  // ANAMNESE DIGITAL (US-023)
+  // ============================================================
+
+  async getAnamneseFormularios(userId?: string): Promise<AnamneseFormulario[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('anamnese_formularios')
+        .select('*, procedimentos(nome)')
+        .eq('user_id', uid)
+        .eq('ativo', true)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map((row: any) =>
+        mapAnamneseFormulario({ ...row, procedimento_nome: row.procedimentos?.nome ?? null })
+      );
+    });
+  },
+
+  async createAnamneseFormulario(
+    formulario: Omit<AnamneseFormulario, 'id' | 'createdAt'>,
+    userId?: string
+  ): Promise<AnamneseFormulario> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('anamnese_formularios')
+        .insert({
+          user_id: uid,
+          nome: formulario.nome,
+          procedimento_id: formulario.procedimentoId ?? null,
+          campos: formulario.campos,
+          ativo: formulario.ativo,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return mapAnamneseFormulario(data);
+    });
+  },
+
+  async updateAnamneseFormulario(
+    id: string,
+    updates: Partial<Pick<AnamneseFormulario, 'nome' | 'campos' | 'ativo' | 'procedimentoId'>>,
+    userId?: string
+  ): Promise<AnamneseFormulario> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const patch: Record<string, unknown> = {};
+      if (updates.nome !== undefined) patch.nome = updates.nome;
+      if (updates.campos !== undefined) patch.campos = updates.campos;
+      if (updates.ativo !== undefined) patch.ativo = updates.ativo;
+      if (updates.procedimentoId !== undefined) patch.procedimento_id = updates.procedimentoId;
+      const { data, error } = await supabase
+        .from('anamnese_formularios')
+        .update(patch)
+        .eq('id', id)
+        .eq('user_id', uid)
+        .select()
+        .single();
+      if (error) throw error;
+      return mapAnamneseFormulario(data);
+    });
+  },
+
+  async getAnamneseRespostas(clienteId: string, userId?: string): Promise<AnamneseResposta[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('anamnese_respostas')
+        .select('*, anamnese_formularios(nome)')
+        .eq('user_id', uid)
+        .eq('cliente_id', clienteId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map((row: any) =>
+        mapAnamneseResposta({ ...row, formulario_nome: row.anamnese_formularios?.nome ?? null })
+      );
+    });
+  },
+
+  async createAnamneseResposta(
+    params: {
+      clienteId: string;
+      formularioId: string;
+      agendamentoId?: string | null;
+    },
+    userId?: string
+  ): Promise<AnamneseResposta> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('anamnese_respostas')
+        .insert({
+          user_id: uid,
+          cliente_id: params.clienteId,
+          formulario_id: params.formularioId,
+          agendamento_id: params.agendamentoId ?? null,
+          respostas: {},
+          status: 'pendente',
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return mapAnamneseResposta(data);
+    });
+  },
+
+  async updateAnamneseResposta(
+    id: string,
+    updates: {
+      respostas?: Record<string, string | string[] | number | boolean>;
+      status?: AnamneseStatus;
+      assinaturaData?: string | null;
+      revisadoPor?: string;
+      tokenExpiraEm?: string | null;
+    },
+    userId?: string
+  ): Promise<AnamneseResposta> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const patch: Record<string, unknown> = {};
+      if (updates.respostas !== undefined) patch.respostas = updates.respostas;
+      if (updates.status !== undefined) patch.status = updates.status;
+      if (updates.assinaturaData !== undefined) patch.assinatura_data = updates.assinaturaData;
+      if (updates.revisadoPor !== undefined) {
+        patch.revisado_por = updates.revisadoPor;
+        patch.revisado_em = new Date().toISOString();
+      }
+      if (updates.status === 'assinado') patch.assinado_em = new Date().toISOString();
+      if (updates.tokenExpiraEm !== undefined) patch.token_expira_em = updates.tokenExpiraEm;
+      const { data, error } = await supabase
+        .from('anamnese_respostas')
+        .update(patch)
+        .eq('id', id)
+        .eq('user_id', uid)
+        .select('*, anamnese_formularios(nome)')
+        .single();
+      if (error) throw error;
+      return mapAnamneseResposta({
+        ...data,
+        formulario_nome: (data as any).anamnese_formularios?.nome ?? null,
+      });
+    });
+  },
+
+  async deleteAnamneseFormulario(id: string, userId?: string): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { error } = await supabase
+        .from('anamnese_formularios')
+        .update({ ativo: false })
+        .eq('id', id)
+        .eq('user_id', uid);
+      if (error) throw error;
     });
   },
 };

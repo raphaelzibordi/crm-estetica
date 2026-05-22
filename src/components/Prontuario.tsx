@@ -3,6 +3,7 @@ import type { Agendamento, Cliente, EvolucaoClinica, GaleriaItem, Procedimento, 
 import { FileText, Camera, Plus, Trash2, Edit2, User, CalendarPlus, UserPlus, AlertTriangle, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { api } from '../lib/api';
 import { HistoricoPresenca } from './HistoricoPresenca';
+import { AnamneseDigital } from './AnamneseDigital';
 
 const OWNER_ID = '__owner__';
 
@@ -972,6 +973,17 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
                 )}
               </div>
             </div>
+          )}
+
+          {/* Anamnese Digital (US-023) */}
+          {currentCliente && (
+            <AnamneseDigital
+              clienteId={activeClienteId}
+              clienteNome={currentCliente.nome}
+              userId={userId}
+              procedimentos={procedimentos.map((p) => ({ id: p.id, nome: p.nome }))}
+              userName={userName}
+            />
           )}
 
           {/* Galeria de Evolução por Imagem */}
