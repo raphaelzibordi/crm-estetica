@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  AlertTriangle, Plus, Edit2, X, Check, DollarSign,
+  AlertTriangle, Plus, Edit2, X, Check,
   Percent, Users, Lock, Download, FileText, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { api } from '../lib/api';
