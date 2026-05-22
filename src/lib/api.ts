@@ -1291,6 +1291,46 @@ export const api = {
     });
   },
 
+  async createGaleriaShareLink(
+    clienteId: string,
+    userId?: string
+  ): Promise<{ token: string; expiraEm: string }> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const token = crypto.randomUUID();
+      const { data, error } = await supabase
+        .from('galeria_compartilhamentos')
+        .insert([{ token, user_id: uid, cliente_id: clienteId }])
+        .select('token, expira_em')
+        .single();
+      if (error) throw error;
+      return { token: data.token, expiraEm: data.expira_em };
+    });
+  },
+
+  async getGaleriaPublica(token: string): Promise<{
+    items: GaleriaItem[];
+    clienteNome: string;
+    clinicaNome: string;
+    expiraEm: string;
+  } | null> {
+    const { data, error } = await supabase.rpc('get_galeria_publica', { p_token: token });
+    if (error || !data || data.erro) return null;
+    return {
+      items: (data.items ?? []).map((g: any) => ({
+        id: g.id,
+        clienteId: '',
+        imagem: g.imagem ?? '',
+        imagemDepois: g.imagem_depois ?? undefined,
+        data: g.data ?? '',
+        descricao: g.descricao ?? '',
+      })),
+      clienteNome: data.cliente_nome ?? 'Paciente',
+      clinicaNome: data.clinica_nome ?? 'Clínica',
+      expiraEm: data.expira_em ?? '',
+    };
+  },
+
   // ============================================================
   // FECHAMENTO FINANCEIRO (agregado a partir de agendamentos finalizados)
   // ============================================================

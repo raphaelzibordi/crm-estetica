@@ -11,6 +11,7 @@ import { Configuracoes } from './components/Configuracoes';
 import { WelcomeModal } from './components/WelcomeModal';
 import { AgendamentoPublico } from './components/AgendamentoPublico';
 import { AssinaturaPublica } from './components/AssinaturaPublica';
+import { GaleriaPublica } from './components/GaleriaPublica';
 import type { Agendamento, StatusJornada, UserRole } from './types';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { api } from './lib/api';
@@ -28,6 +29,12 @@ function getPublicSigningToken(): string | null {
   return match ? match[1] : null;
 }
 
+// Detecta se a URL atual é uma galeria compartilhada (/galeria/:token)
+function getPublicGaleriaToken(): string | null {
+  const match = window.location.pathname.match(/^\/galeria\/([^/]+)\/?$/);
+  return match ? match[1] : null;
+}
+
 // Abas que membros da equipe NÃO podem acessar.
 const TABS_BLOQUEADAS_EQUIPE = new Set(['comunicacao', 'gestao', 'configuracoes']);
 
@@ -37,6 +44,8 @@ function App() {
   if (publicSlug) return <AgendamentoPublico slug={publicSlug} />;
   const signingToken = getPublicSigningToken();
   if (signingToken) return <AssinaturaPublica token={signingToken} />;
+  const galeriaToken = getPublicGaleriaToken();
+  if (galeriaToken) return <GaleriaPublica token={galeriaToken} />;
   return <AppMain />;
 }
 

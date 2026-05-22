@@ -80,6 +80,9 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
   const [photoDesc, setPhotoDesc] = useState('');
   const [galeriaItems, setGaleriaItems] = useState<GaleriaItem[]>([]);
   const [lightboxPair, setLightboxPair] = useState<{ antes: string; depois?: string; descricao: string } | null>(null);
+  // CA-06: compartilhamento temporário
+  const [shareLink, setShareLink] = useState<{ url: string; expiraEm: string } | null>(null);
+  const [generatingLink, setGeneratingLink] = useState(false);
 
   useEffect(() => {
     loadClientes();
@@ -477,6 +480,21 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
     } catch (err) {
       console.error(err);
       alert('Erro ao remover foto de evolução.');
+    }
+  };
+
+  const handleShareGaleria = async () => {
+    if (!activeClienteId) return;
+    setGeneratingLink(true);
+    try {
+      const result = await api.createGaleriaShareLink(activeClienteId, userId);
+      const url = `${window.location.origin}/galeria/${result.token}`;
+      setShareLink({ url, expiraEm: result.expiraEm });
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao gerar link de compartilhamento.');
+    } finally {
+      setGeneratingLink(false);
     }
   };
 
@@ -1015,15 +1033,55 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
                 <Camera size={18} style={{ color: 'var(--color-primary)' }} />
                 <h3 style={{ fontSize: '18px', fontWeight: 600 }}>Galeria Antes / Depois</h3>
               </div>
-              <button 
-                onClick={() => setShowAddPhoto(!showAddPhoto)} 
-                className="btn btn-outline"
-                style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
-              >
-                <Plus size={14} />
-                <span>Adicionar Comparação</span>
-              </button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={handleShareGaleria}
+                  disabled={generatingLink || galeriaItems.length === 0}
+                  className="btn btn-outline"
+                  style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', opacity: (generatingLink || galeriaItems.length === 0) ? 0.5 : 1 }}
+                  title={galeriaItems.length === 0 ? 'Adicione fotos para compartilhar' : 'Gerar link temporário (24h)'}
+                >
+                  <span>{generatingLink ? 'Gerando...' : 'Compartilhar'}</span>
+                </button>
+                <button
+                  onClick={() => setShowAddPhoto(!showAddPhoto)}
+                  className="btn btn-outline"
+                  style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Plus size={14} />
+                  <span>Adicionar Comparação</span>
+                </button>
+              </div>
             </div>
+
+            {/* Banner do link gerado (CA-06) */}
+            {shareLink && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', padding: '12px 16px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 'var(--border-radius-md)', marginBottom: '16px', animation: 'fadeIn 0.3s ease-out' }}>
+                <span style={{ fontSize: '11px', color: '#166534', fontWeight: 500, whiteSpace: 'nowrap' }}>Link gerado · válido 24h</span>
+                <input
+                  readOnly
+                  value={shareLink.url}
+                  style={{ flex: 1, minWidth: '200px', fontSize: '11px', padding: '4px 8px', border: '1px solid #86efac', borderRadius: '4px', background: '#fff', color: '#166534', outline: 'none' }}
+                  onFocus={(e) => e.target.select()}
+                />
+                <button
+                  type="button"
+                  onClick={() => navigator.clipboard.writeText(shareLink.url)}
+                  className="btn btn-outline"
+                  style={{ padding: '4px 12px', fontSize: '11px', whiteSpace: 'nowrap' }}
+                >
+                  Copiar Link
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShareLink(null)}
+                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#888', fontSize: '18px', lineHeight: 1, padding: '0 2px' }}
+                  title="Fechar"
+                >
+                  ×
+                </button>
+              </div>
+            )}
 
             {showAddPhoto && (
               <form onSubmit={handleSavePhotos} className="card" style={{ padding: '20px', border: '1px solid var(--color-border)', backgroundColor: '#FAFBFB', marginBottom: '24px', animation: 'fadeIn 0.3s ease-out' }}>
