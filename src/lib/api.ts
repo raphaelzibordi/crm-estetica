@@ -22,15 +22,20 @@ import type {
   EvolucaoClinica,
   FechamentoComissao,
   FechamentoFinanceiro,
+  FechamentoRepasse,
   GaleriaItem,
   HistoricoPresenca,
   ItemEstoque,
   MembroEquipe,
+  PreviewRepasse,
   Procedimento,
   ProcedimentoPublico,
   ProfissionalPublico,
   RelatorioComissaoProfissional,
   RelatorioFaltas,
+  RepasseItemSnapshot,
+  RepasseModelo,
+  RepasseRegra,
   RiscoFalta,
   SlotOcupado,
   StatusJornada,
@@ -206,6 +211,39 @@ function mapFechamentoComissao(row: any): FechamentoComissao {
     fechadoEm: row.fechado_em,
     fechadoPor: row.fechado_por ?? '',
     observacoes: row.observacoes ?? undefined,
+  };
+}
+
+function mapRepasseRegra(row: any): RepasseRegra {
+  return {
+    id: row.id,
+    profissionalId: row.profissional_id,
+    profissionalNome: row.profissional_nome ?? '',
+    modelo: row.modelo as RepasseModelo,
+    valor: Number(row.valor),
+    dataInicio: row.data_inicio,
+    dataFim: row.data_fim ?? null,
+    ativo: Boolean(row.ativo),
+  };
+}
+
+function mapFechamentoRepasse(row: any): FechamentoRepasse {
+  return {
+    id: row.id,
+    profissionalId: row.profissional_id,
+    profissionalNome: row.profissional_nome ?? '',
+    modelo: row.modelo as RepasseModelo,
+    dataInicio: row.data_inicio,
+    dataFim: row.data_fim,
+    totalAtendimentos: Number(row.total_atendimentos ?? 0),
+    faturamentoBruto: Number(row.faturamento_bruto ?? 0),
+    valorRepasseProfissional: Number(row.valor_repasse_profissional ?? 0),
+    valorRetencaoClinica: Number(row.valor_retencao_clinica ?? 0),
+    itensSnapshot: Array.isArray(row.itens_snapshot) ? row.itens_snapshot : [],
+    fechadoEm: row.fechado_em,
+    fechadoPor: row.fechado_por ?? '',
+    observacoes: row.observacoes ?? undefined,
+    notificacaoEnviada: Boolean(row.notificacao_enviada),
   };
 }
 
@@ -2375,6 +2413,278 @@ export const api = {
     });
     if (error) return { success: false, error: error.message };
     return data as { success: boolean; error?: string };
+  },
+
+  // ============================================================
+  // REPASSE DE PROFISSIONAIS AUTÔNOMOS (US-036)
+  // ============================================================
+
+  async getRepasseRegras(userId?: string): Promise<RepasseRegra[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('repasse_regras')
+        .select('*')
+        .eq('user_id', uid)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map(mapRepasseRegra);
+    });
+  },
+
+  async createRepasseRegra(
+    regra: Omit<RepasseRegra, 'id'>,
+    userId?: string
+  ): Promise<RepasseRegra> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('repasse_regras')
+        .insert({
+          user_id: uid,
+          profissional_id: regra.profissionalId,
+          profissional_nome: regra.profissionalNome,
+          modelo: regra.modelo,
+          valor: regra.valor,
+          data_inicio: regra.dataInicio,
+          data_fim: regra.dataFim ?? null,
+          ativo: regra.ativo,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return mapRepasseRegra(data);
+    });
+  },
+
+  async updateRepasseRegra(
+    id: string,
+    updates: Partial<Pick<RepasseRegra, 'modelo' | 'valor' | 'dataInicio' | 'dataFim' | 'ativo'>>,
+    userId?: string
+  ): Promise<RepasseRegra> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const patch: Record<string, unknown> = {};
+      if (updates.modelo !== undefined) patch.modelo = updates.modelo;
+      if (updates.valor !== undefined) patch.valor = updates.valor;
+      if (updates.dataInicio !== undefined) patch.data_inicio = updates.dataInicio;
+      if (updates.dataFim !== undefined) patch.data_fim = updates.dataFim ?? null;
+      if (updates.ativo !== undefined) patch.ativo = updates.ativo;
+      const { data, error } = await supabase
+        .from('repasse_regras')
+        .update(patch)
+        .eq('id', id)
+        .eq('user_id', uid)
+        .select()
+        .single();
+      if (error) throw error;
+      return mapRepasseRegra(data);
+    });
+  },
+
+  async calcularPreviewRepasse(
+    userId: string | undefined,
+    params: { profissionalId: string; dataInicio: string; dataFim: string }
+  ): Promise<PreviewRepasse> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+
+      // Busca regra ativa para o profissional que cobre o período
+      const { data: regrasData, error: regrasErr } = await supabase
+        .from('repasse_regras')
+        .select('*')
+        .eq('user_id', uid)
+        .eq('profissional_id', params.profissionalId)
+        .eq('ativo', true)
+        .lte('data_inicio', params.dataFim)
+        .order('data_inicio', { ascending: false });
+      if (regrasErr) throw regrasErr;
+
+      const regraAtiva = (regrasData ?? []).find((r: any) =>
+        !r.data_fim || r.data_fim >= params.dataInicio
+      ) ?? null;
+
+      // Resolve nome do profissional para matching com agendamentos
+      const { data: equipeRow } = await supabase
+        .from('equipe')
+        .select('nome')
+        .eq('id', params.profissionalId)
+        .eq('user_id', uid)
+        .single();
+
+      const profNome = equipeRow?.nome ?? '';
+
+      if (!profNome) {
+        return {
+          regra: regraAtiva ? mapRepasseRegra(regraAtiva) : null,
+          totalAtendimentos: 0,
+          faturamentoBruto: 0,
+          valorRepasseProfissional: 0,
+          valorRetencaoClinica: 0,
+          itens: [],
+        };
+      }
+
+      // Atendimentos finalizados do profissional no período (valor líquido pós-estorno)
+      const { data: agData, error: agErr } = await supabase
+        .from('v_faturamento_consolidado')
+        .select('agendamento_id, data, procedimento, profissional, valor_liquido')
+        .eq('user_id', uid)
+        .gte('data', params.dataInicio)
+        .lte('data', params.dataFim)
+        .order('data', { ascending: true });
+      if (agErr) throw agErr;
+
+      // Filtra por profissional (case-insensitive, js-side para segurança)
+      const profNomeLower = profNome.toLowerCase();
+      const atendimentos = (agData ?? []).filter(
+        (a: any) => (a.profissional ?? '').toLowerCase() === profNomeLower
+      );
+
+      const totalAtendimentos = atendimentos.length;
+      const faturamentoBruto = Math.round(
+        atendimentos.reduce((s: number, a: any) => s + Number(a.valor_liquido ?? 0), 0) * 100
+      ) / 100;
+
+      let valorRepasseProfissional = 0;
+      let valorRetencaoClinica = 0;
+      let itens: RepasseItemSnapshot[];
+
+      if (!regraAtiva) {
+        itens = atendimentos.map((a: any) => ({
+          agendamentoId: a.agendamento_id,
+          data: a.data,
+          procedimento: a.procedimento ?? '',
+          valorLiquido: Number(a.valor_liquido ?? 0),
+          valorRepasse: 0,
+        }));
+      } else {
+        const modelo = regraAtiva.modelo as RepasseModelo;
+        const valor = Number(regraAtiva.valor);
+
+        if (modelo === 'percentual') {
+          itens = atendimentos.map((a: any) => {
+            const vl = Number(a.valor_liquido ?? 0);
+            const vr = Math.round(vl * (valor / 100) * 100) / 100;
+            return {
+              agendamentoId: a.agendamento_id,
+              data: a.data,
+              procedimento: a.procedimento ?? '',
+              valorLiquido: vl,
+              valorRepasse: vr,
+            };
+          });
+          valorRepasseProfissional = Math.round(
+            itens.reduce((s, i) => s + i.valorRepasse, 0) * 100
+          ) / 100;
+          valorRetencaoClinica = Math.round(
+            (faturamentoBruto - valorRepasseProfissional) * 100
+          ) / 100;
+        } else if (modelo === 'fixo_sessao') {
+          itens = atendimentos.map((a: any) => ({
+            agendamentoId: a.agendamento_id,
+            data: a.data,
+            procedimento: a.procedimento ?? '',
+            valorLiquido: Number(a.valor_liquido ?? 0),
+            valorRepasse: valor,
+          }));
+          valorRepasseProfissional = 0;
+          valorRetencaoClinica = Math.round(totalAtendimentos * valor * 100) / 100;
+        } else {
+          // fixo_periodo: lista atendimentos como referência, valor é fixo mensal
+          itens = atendimentos.map((a: any) => ({
+            agendamentoId: a.agendamento_id,
+            data: a.data,
+            procedimento: a.procedimento ?? '',
+            valorLiquido: Number(a.valor_liquido ?? 0),
+            valorRepasse: 0,
+          }));
+          valorRepasseProfissional = 0;
+          valorRetencaoClinica = valor;
+        }
+      }
+
+      return {
+        regra: regraAtiva ? mapRepasseRegra(regraAtiva) : null,
+        totalAtendimentos,
+        faturamentoBruto,
+        valorRepasseProfissional,
+        valorRetencaoClinica,
+        itens,
+      };
+    });
+  },
+
+  async fecharPeriodoRepasse(
+    userId: string | undefined,
+    params: {
+      profissionalId: string;
+      profissionalNome: string;
+      dataInicio: string;
+      dataFim: string;
+      fechadoPor: string;
+      observacoes?: string;
+    }
+  ): Promise<FechamentoRepasse> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+
+      // Calcula preview para obter todos os valores
+      const preview = await api.calcularPreviewRepasse(uid, {
+        profissionalId: params.profissionalId,
+        dataInicio: params.dataInicio,
+        dataFim: params.dataFim,
+      });
+
+      const modelo = preview.regra?.modelo ?? 'percentual';
+
+      const { data, error } = await supabase
+        .from('fechamentos_repasse')
+        .insert({
+          user_id: uid,
+          profissional_id: params.profissionalId,
+          profissional_nome: params.profissionalNome,
+          modelo,
+          data_inicio: params.dataInicio,
+          data_fim: params.dataFim,
+          total_atendimentos: preview.totalAtendimentos,
+          faturamento_bruto: preview.faturamentoBruto,
+          valor_repasse_profissional: preview.valorRepasseProfissional,
+          valor_retencao_clinica: preview.valorRetencaoClinica,
+          itens_snapshot: preview.itens,
+          fechado_por: params.fechadoPor,
+          observacoes: params.observacoes ?? null,
+          notificacao_enviada: false,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return mapFechamentoRepasse(data);
+    });
+  },
+
+  async getFechamentosRepasse(userId?: string): Promise<FechamentoRepasse[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('fechamentos_repasse')
+        .select('*')
+        .eq('user_id', uid)
+        .order('fechado_em', { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map(mapFechamentoRepasse);
+    });
+  },
+
+  async marcarNotificacaoRepasse(id: string, userId?: string): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      // Nota: a tabela tem REVOKE UPDATE — apenas notificacao_enviada pode ser
+      // atualizada via service_role ou política específica. Em produção, usar
+      // uma edge function ou service_role key para essa atualização.
+      // Por ora, este método existe para futura integração com WhatsApp (US-007b).
+      console.log('[repasse] Notificação marcada para fechamento', id, 'user', uid);
+    });
   },
 };
 

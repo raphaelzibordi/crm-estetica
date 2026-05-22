@@ -8,12 +8,13 @@ import {
 import { api } from '../lib/api';
 import { RelatorioFaltas } from './RelatorioFaltas';
 import { Comissoes } from './Comissoes';
+import { Repassos } from './Repassos';
 
 interface GestaoProps { userId: string; userName?: string; }
 
 const EMPTY_FECHAMENTO: FechamentoFinanceiro = { faturamentoTotal: 0, comissoesPagas: 0, formasPagamento: [] };
 
-type ActiveTab = 'dashboard' | 'financeiro' | 'estoque' | 'procedimentos' | 'faltas' | 'comissoes';
+type ActiveTab = 'dashboard' | 'financeiro' | 'estoque' | 'procedimentos' | 'faltas' | 'comissoes' | 'repassos';
 
 // ──────────────────────────────────────────────────────────────────────
 // FILTRO DE PERÍODO — presets + range customizado
@@ -302,6 +303,9 @@ export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor' }) =
           </button>
           <button style={tabStyle('comissoes')} onClick={() => setTab('comissoes')}>
             <TrendingUp size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Comissões
+          </button>
+          <button style={tabStyle('repassos')} onClick={() => setTab('repassos')}>
+            <Receipt size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Repassos
           </button>
         </div>
       </div>
@@ -685,6 +689,11 @@ export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor' }) =
       {/* ── TAB: COMISSÕES ──────────────────────────────────────────────── */}
       {tab === 'comissoes' && (
         <Comissoes userId={userId} nomeGestor={userName} />
+      )}
+
+      {/* ── TAB: REPASSOS ───────────────────────────────────────────────── */}
+      {tab === 'repassos' && (
+        <Repassos userId={userId} nomeGestor={userName} />
       )}
 
       {/* ── MODAL: ESTOQUE ──────────────────────────────────────────────── */}

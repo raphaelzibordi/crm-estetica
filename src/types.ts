@@ -402,4 +402,54 @@ export interface DocumentoSignatureLink {
   usadoEm: string | null;
 }
 
+// ── Repasse de Profissionais Autônomos (US-036) ───────────────────────
+
+export type RepasseModelo = 'percentual' | 'fixo_periodo' | 'fixo_sessao';
+
+export interface RepasseRegra {
+  id: string;
+  profissionalId: string;
+  profissionalNome: string;
+  modelo: RepasseModelo;
+  valor: number;        // % (percentual) ou R$ (fixo_periodo / fixo_sessao)
+  dataInicio: string;
+  dataFim: string | null;
+  ativo: boolean;
+}
+
+export interface RepasseItemSnapshot {
+  agendamentoId: string;
+  data: string;
+  procedimento: string;
+  valorLiquido: number;
+  valorRepasse: number; // o que a clínica repassa ao profissional (percentual) ou cobra dele (fixo_sessao)
+}
+
+export interface FechamentoRepasse {
+  id: string;
+  profissionalId: string;
+  profissionalNome: string;
+  modelo: RepasseModelo;
+  dataInicio: string;
+  dataFim: string;
+  totalAtendimentos: number;
+  faturamentoBruto: number;
+  valorRepasseProfissional: number; // saída da clínica (percentual) ou 0 (modelos fixos)
+  valorRetencaoClinica: number;     // o que a clínica fica (percentual) ou recebe (fixos)
+  itensSnapshot: RepasseItemSnapshot[];
+  fechadoEm: string;
+  fechadoPor: string;
+  observacoes?: string;
+  notificacaoEnviada: boolean;
+}
+
+export interface PreviewRepasse {
+  regra: RepasseRegra | null;
+  totalAtendimentos: number;
+  faturamentoBruto: number;
+  valorRepasseProfissional: number;
+  valorRetencaoClinica: number;
+  itens: RepasseItemSnapshot[];
+}
+
 export const IS_TYPED = true;
