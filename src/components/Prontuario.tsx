@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { Agendamento, Cliente, EvolucaoClinica, GaleriaItem, Procedimento, Profissional } from '../types';
-import { FileText, Camera, Plus, Trash2, Edit2, User, CalendarPlus, UserPlus, AlertTriangle, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import type { Agendamento, Cliente, EvolucaoClinica, GaleriaItem, Procedimento, Profissional, PrescricaoTemplate } from '../types';
+import { FileText, Camera, Plus, Trash2, Edit2, User, CalendarPlus, UserPlus, AlertTriangle, Calendar, ChevronLeft, ChevronRight, LayoutTemplate, Search } from 'lucide-react';
 import { api } from '../lib/api';
 import { HistoricoPresenca } from './HistoricoPresenca';
 import { AnamneseDigital } from './AnamneseDigital';
 import { AssinaturaDigital } from './AssinaturaDigital';
 import { PlanoTratamento } from './PlanoTratamento';
+import { TemplatesPrescricoes } from './TemplatesPrescricoes';
 
 const OWNER_ID = '__owner__';
 
@@ -64,6 +65,13 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
   const [acolherHora, setAcolherHora] = useState('14:30');
   const [acolherProfissionalId, setAcolherProfissionalId] = useState<string>(OWNER_ID);
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
+
+  // States for template picker (US-027)
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [templatePickerList, setTemplatePickerList] = useState<PrescricaoTemplate[]>([]);
+  const [templatePickerSearch, setTemplatePickerSearch] = useState('');
+  const [templatePickerCat, setTemplatePickerCat] = useState('');
+  const [loadingTemplatePicker, setLoadingTemplatePicker] = useState(false);
 
   // Ref for consultation carousel scroll navigation
   const carouselRef = React.useRef<HTMLDivElement>(null);
@@ -544,6 +552,42 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
   };
 
   const currentProntuario: { clienteId: string | null; evolucoes: EvolucaoClinica[]; galeria: GaleriaItem[] } = { clienteId: activeClienteId, evolucoes, galeria: [] };
+
+  const handleOpenTemplatePicker = async () => {
+    setTemplatePickerSearch('');
+    setTemplatePickerCat('');
+    setShowTemplatePicker(true);
+    setLoadingTemplatePicker(true);
+    try {
+      const data = await api.getPrescricaoTemplates(userId);
+      setTemplatePickerList(data);
+    } catch {
+      setTemplatePickerList([]);
+    } finally {
+      setLoadingTemplatePicker(false);
+    }
+  };
+
+  const handleApplyTemplate = (template: PrescricaoTemplate) => {
+    const proximaConsulta = futureConsultas[0]?.data
+      ? new Date(futureConsultas[0].data + 'T12:00:00').toLocaleDateString('pt-BR')
+      : '[Próxima Consulta]';
+    const texto = template.conteudo
+      .replace(/\{\{nome_paciente\}\}/g, currentCliente?.nome || '[Nome do Paciente]')
+      .replace(/\{\{data\}\}/g, new Date().toLocaleDateString('pt-BR'))
+      .replace(/\{\{procedimento\}\}/g, newEvolucaoProc || '[Procedimento]')
+      .replace(/\{\{profissional\}\}/g, userName || '[Profissional]')
+      .replace(/\{\{proxima_consulta\}\}/g, proximaConsulta);
+    setNewEvolucaoText(texto);
+    setShowTemplatePicker(false);
+    api.registrarUsoPrescricaoTemplate(template.id, activeClienteId || null, newEvolucaoProc || null, userId).catch(() => {});
+  };
+
+  const filteredTemplatesPicker = templatePickerList.filter(t => {
+    const matchS = !templatePickerSearch || t.nome.toLowerCase().includes(templatePickerSearch.toLowerCase());
+    const matchC = !templatePickerCat || t.categoria === templatePickerCat;
+    return matchS && matchC;
+  });
 
   const handleAddEvolucao = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1037,6 +1081,16 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
             />
           )}
 
+          {/* Templates de Prescrições (US-027) */}
+          {currentCliente && (
+            <TemplatesPrescricoes
+              clienteId={activeClienteId}
+              clienteNome={currentCliente.nome}
+              userId={userId}
+              userName={userName}
+            />
+          )}
+
           {/* Galeria de Evolução por Imagem */}
           <div className="card" style={{ padding: '32px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
@@ -1352,8 +1406,17 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Relato da Paciente (Texto Natural e Acolhedor)</label>
-                  <textarea 
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <label className="form-label" style={{ marginBottom: 0 }}>Relato da Paciente (Texto Natural e Acolhedor)</label>
+                    <button
+                      type="button"
+                      onClick={handleOpenTemplatePicker}
+                      style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px', background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '6px', padding: '4px 10px', cursor: 'pointer', color: '#0284c7', fontWeight: 500 }}
+                    >
+                      <LayoutTemplate size={13} /> Usar Template
+                    </button>
+                  </div>
+                  <textarea
                     rows={4}
                     className="form-textarea"
                     placeholder="Ex: Cliente adorou o resultado inicial. Apresentou leve rubor na bochecha, pele iluminada de imediato."
@@ -1390,6 +1453,107 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
         </div>
 
       </div>
+
+      {/* Template Picker Modal (US-027) */}
+      {showTemplatePicker && (
+        <div
+          style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2100, animation: 'fadeIn 0.2s ease-out' }}
+          onClick={() => setShowTemplatePicker(false)}
+        >
+          <div
+            className="card"
+            style={{ maxWidth: '520px', width: '94%', padding: '28px', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <LayoutTemplate size={18} style={{ color: 'var(--color-primary)' }} />
+                <h3 style={{ fontSize: '17px', fontWeight: 600 }}>Selecionar Template</h3>
+              </div>
+              <button onClick={() => setShowTemplatePicker(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)' }}>
+                ✕
+              </button>
+            </div>
+
+            {/* Filters */}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', flexWrap: 'wrap' }}>
+              <div style={{ position: 'relative', flex: 1, minWidth: '140px' }}>
+                <Search size={13} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }} />
+                <input
+                  className="form-input"
+                  style={{ paddingLeft: '30px', fontSize: '13px' }}
+                  placeholder="Buscar..."
+                  value={templatePickerSearch}
+                  onChange={e => setTemplatePickerSearch(e.target.value)}
+                  autoFocus
+                />
+              </div>
+              <select
+                className="form-input"
+                style={{ fontSize: '13px', minWidth: '160px' }}
+                value={templatePickerCat}
+                onChange={e => setTemplatePickerCat(e.target.value)}
+              >
+                <option value="">Todas</option>
+                <option value="prescricao">Prescrição</option>
+                <option value="orientacao_pos_procedimento">Orientação Pós-Procedimento</option>
+                <option value="recomendacao_dermatologica">Recomendação Dermatológica</option>
+                <option value="recomendacao_estetica">Recomendação Estética</option>
+                <option value="outro">Outro</option>
+              </select>
+            </div>
+
+            {/* Template list */}
+            <div style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
+              {loadingTemplatePicker && (
+                <p style={{ textAlign: 'center', padding: '24px', color: 'var(--color-text-muted)', fontSize: '14px' }}>
+                  Carregando templates...
+                </p>
+              )}
+              {!loadingTemplatePicker && filteredTemplatesPicker.length === 0 && (
+                <p style={{ textAlign: 'center', padding: '24px', color: 'var(--color-text-muted)', fontSize: '14px' }}>
+                  {templatePickerSearch || templatePickerCat ? 'Nenhum template encontrado.' : 'Nenhum template disponível. Crie um na seção abaixo.'}
+                </p>
+              )}
+              {!loadingTemplatePicker && filteredTemplatesPicker.map(t => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => handleApplyTemplate(t)}
+                  style={{ width: '100%', textAlign: 'left', background: '#fff', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '12px 14px', marginBottom: '8px', cursor: 'pointer', transition: 'background 0.1s' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#f8fafc')}
+                  onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 500, color: '#6b7280', background: '#f3f4f6', padding: '2px 7px', borderRadius: '20px' }}>
+                      {{
+                        prescricao: 'Prescrição',
+                        orientacao_pos_procedimento: 'Orientação Pós-Proc.',
+                        recomendacao_dermatologica: 'Rec. Dermatológica',
+                        recomendacao_estetica: 'Rec. Estética',
+                        outro: 'Outro',
+                      }[t.categoria]}
+                    </span>
+                    {t.compartilhado && (
+                      <span style={{ fontSize: '11px', color: '#9ca3af' }}>Compartilhado</span>
+                    )}
+                    <span style={{ fontSize: '11px', color: '#9ca3af', marginLeft: 'auto' }}>
+                      {t.usoCount}× usado
+                    </span>
+                  </div>
+                  <p style={{ fontWeight: 600, fontSize: '13px', color: 'var(--color-text-primary)', marginBottom: '3px' }}>
+                    {t.nome}
+                  </p>
+                  <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                    {t.conteudo}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Global Acolher modal — fresh patient, no pre-fill */}
       {showAcolherModal && (

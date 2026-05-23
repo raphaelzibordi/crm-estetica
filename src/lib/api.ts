@@ -63,6 +63,11 @@ import type {
   PlanoAlertaContinuidade,
   PlanoStatus,
   PlanoTratamento,
+  PrescricaoTemplate,
+  PrescricaoTemplateVersao,
+  PrescricaoTemplateUso,
+  TemplateCategoria,
+  TemplatePermissaoEdicao,
   RepasseItemSnapshot,
   RepasseModelo,
   RepasseRegra,
@@ -4204,6 +4209,176 @@ export const api = {
       createdAt:   row.created_at,
     }));
   },
+
+  // ── US-027: Templates de Prescrições ─────────────────────────────────
+
+  async getPrescricaoTemplates(
+    userId: string,
+    options?: { categoria?: TemplateCategoria; somenteProprios?: boolean }
+  ): Promise<PrescricaoTemplate[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      let q = supabase
+        .from('prescricao_templates')
+        .select('*')
+        .eq('ativo', true)
+        .order('nome');
+      if (options?.categoria) q = (q as any).eq('categoria', options.categoria);
+      const { data, error } = await q;
+      if (error) throw error;
+      const all = (data ?? []).map(mapPrescricaoTemplate);
+      if (options?.somenteProprios) {
+        return all.filter(t => t.criadoPorUserId === uid);
+      }
+      return all.filter(t => t.compartilhado || t.criadoPorUserId === uid);
+    });
+  },
+
+  async createPrescricaoTemplate(
+    dados: Pick<PrescricaoTemplate, 'nome' | 'categoria' | 'conteudo' | 'variaveis' | 'compartilhado' | 'permissaoEdicao'> & { criadoPorNome: string },
+    userId: string
+  ): Promise<PrescricaoTemplate> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('prescricao_templates')
+        .insert({
+          user_id:            uid,
+          criado_por_user_id: uid,
+          criado_por_nome:    dados.criadoPorNome,
+          nome:               dados.nome,
+          categoria:          dados.categoria,
+          conteudo:           dados.conteudo,
+          variaveis:          dados.variaveis,
+          compartilhado:      dados.compartilhado,
+          permissao_edicao:   dados.permissaoEdicao,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return mapPrescricaoTemplate(data);
+    });
+  },
+
+  async updatePrescricaoTemplate(
+    id: string,
+    dados: Partial<Pick<PrescricaoTemplate, 'nome' | 'categoria' | 'conteudo' | 'variaveis' | 'compartilhado' | 'permissaoEdicao' | 'ativo'>>,
+    editadoPorNome: string,
+    userId: string
+  ): Promise<PrescricaoTemplate> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      // Salva versão anterior antes de editar (se conteúdo mudou)
+      if (dados.conteudo !== undefined) {
+        const { data: atual } = await supabase
+          .from('prescricao_templates')
+          .select('conteudo')
+          .eq('id', id)
+          .single();
+        if (atual?.conteudo && atual.conteudo !== dados.conteudo) {
+          const { data: maxRow } = await supabase
+            .from('prescricao_template_versoes')
+            .select('versao')
+            .eq('template_id', id)
+            .order('versao', { ascending: false })
+            .limit(1)
+            .single();
+          const proximaVersao = (maxRow?.versao ?? 0) + 1;
+          await supabase.from('prescricao_template_versoes').insert({
+            template_id:       id,
+            versao:            proximaVersao,
+            conteudo_anterior: atual.conteudo,
+            editado_por_nome:  editadoPorNome,
+          });
+        }
+      }
+      const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      if (dados.nome        !== undefined) patch.nome             = dados.nome;
+      if (dados.categoria   !== undefined) patch.categoria        = dados.categoria;
+      if (dados.conteudo    !== undefined) patch.conteudo         = dados.conteudo;
+      if (dados.variaveis   !== undefined) patch.variaveis        = dados.variaveis;
+      if (dados.compartilhado !== undefined) patch.compartilhado  = dados.compartilhado;
+      if (dados.permissaoEdicao !== undefined) patch.permissao_edicao = dados.permissaoEdicao;
+      if (dados.ativo       !== undefined) patch.ativo            = dados.ativo;
+      const { data, error } = await supabase
+        .from('prescricao_templates')
+        .update(patch)
+        .eq('id', id)
+        .eq('user_id', uid)
+        .select()
+        .single();
+      if (error) throw error;
+      return mapPrescricaoTemplate(data);
+    });
+  },
+
+  async deletePrescricaoTemplate(id: string, userId: string): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { error } = await supabase
+        .from('prescricao_templates')
+        .update({ ativo: false, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('user_id', uid);
+      if (error) throw error;
+    });
+  },
+
+  async registrarUsoPrescricaoTemplate(
+    templateId: string,
+    clienteId: string | null,
+    procedimento: string | null,
+    userId: string
+  ): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      await supabase.from('prescricao_template_usos').insert({
+        template_id:  templateId,
+        user_id:      uid,
+        cliente_id:   clienteId,
+        procedimento: procedimento,
+      });
+      const { data: curr } = await supabase
+        .from('prescricao_templates')
+        .select('uso_count')
+        .eq('id', templateId)
+        .single();
+      await supabase
+        .from('prescricao_templates')
+        .update({
+          uso_count:    (curr?.uso_count ?? 0) + 1,
+          ultimo_uso_em: new Date().toISOString(),
+        })
+        .eq('id', templateId);
+    });
+  },
+
+  async getPrescricaoTemplateVersoes(templateId: string, userId: string): Promise<PrescricaoTemplateVersao[]> {
+    return run(async () => {
+      await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('prescricao_template_versoes')
+        .select('*')
+        .eq('template_id', templateId)
+        .order('versao', { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map(mapPrescricaoTemplateVersao);
+    });
+  },
+
+  async getPrescricaoTemplateUsos(templateId: string, userId: string): Promise<PrescricaoTemplateUso[]> {
+    return run(async () => {
+      await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('prescricao_template_usos')
+        .select('*')
+        .eq('template_id', templateId)
+        .order('usado_em', { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return (data ?? []).map(mapPrescricaoTemplateUso);
+    });
+  },
 };
 
 // ── Mappers internos (US-012) ─────────────────────────────────────────
@@ -4300,6 +4475,50 @@ function mapSessaoTratamento(row: any): SessaoTratamento {
     nivelResposta:        row.nivel_resposta ?? null,
     realizada:            row.realizada ?? false,
     createdAt:            row.created_at ?? '',
+  };
+}
+
+// ── US-027: Templates de Prescrições ────────────────────────────────
+
+function mapPrescricaoTemplate(row: any): PrescricaoTemplate {
+  return {
+    id:                row.id,
+    userId:            row.user_id,
+    criadoPorUserId:   row.criado_por_user_id,
+    criadoPorNome:     row.criado_por_nome ?? '',
+    nome:              row.nome ?? '',
+    categoria:         (row.categoria as TemplateCategoria) ?? 'outro',
+    conteudo:          row.conteudo ?? '',
+    variaveis:         row.variaveis ?? [],
+    compartilhado:     row.compartilhado ?? false,
+    permissaoEdicao:   (row.permissao_edicao as TemplatePermissaoEdicao) ?? 'somente_criador',
+    ativo:             row.ativo ?? true,
+    usoCount:          row.uso_count ?? 0,
+    ultimoUsoEm:       row.ultimo_uso_em ?? null,
+    createdAt:         row.created_at ?? '',
+    updatedAt:         row.updated_at ?? '',
+  };
+}
+
+function mapPrescricaoTemplateVersao(row: any): PrescricaoTemplateVersao {
+  return {
+    id:               row.id,
+    templateId:       row.template_id,
+    versao:           row.versao,
+    conteudoAnterior: row.conteudo_anterior ?? '',
+    editadoPorNome:   row.editado_por_nome ?? '',
+    editadoEm:        row.editado_em ?? '',
+  };
+}
+
+function mapPrescricaoTemplateUso(row: any): PrescricaoTemplateUso {
+  return {
+    id:          row.id,
+    templateId:  row.template_id,
+    userId:      row.user_id,
+    clienteId:   row.cliente_id ?? null,
+    procedimento: row.procedimento ?? null,
+    usadoEm:     row.usado_em ?? '',
   };
 }
 

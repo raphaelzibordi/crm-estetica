@@ -736,4 +736,51 @@ export interface PlanoAlertaContinuidade {
   frequenciaDias: number;
 }
 
+// ── Templates de Prescrições (US-027) ────────────────────────────────
+
+export type TemplateCategoria =
+  | 'prescricao'
+  | 'orientacao_pos_procedimento'
+  | 'recomendacao_dermatologica'
+  | 'recomendacao_estetica'
+  | 'outro';
+
+export type TemplatePermissaoEdicao = 'somente_criador' | 'qualquer_profissional';
+
+export interface PrescricaoTemplate {
+  id: string;
+  userId: string;
+  criadoPorUserId: string;
+  criadoPorNome: string;
+  nome: string;
+  categoria: TemplateCategoria;
+  conteudo: string;
+  variaveis: string[];
+  compartilhado: boolean;
+  permissaoEdicao: TemplatePermissaoEdicao;
+  ativo: boolean;
+  usoCount: number;
+  ultimoUsoEm: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PrescricaoTemplateVersao {
+  id: string;
+  templateId: string;
+  versao: number;
+  conteudoAnterior: string;
+  editadoPorNome: string;
+  editadoEm: string;
+}
+
+export interface PrescricaoTemplateUso {
+  id: string;
+  templateId: string;
+  userId: string;
+  clienteId: string | null;
+  procedimento: string | null;
+  usadoEm: string;
+}
+
 export const IS_TYPED = true;
