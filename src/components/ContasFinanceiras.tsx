@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   AlertTriangle, Plus, Trash2, X, Check, DollarSign,
-  TrendingUp, TrendingDown, CreditCard, Calendar, ChevronDown,
-  Upload, FileText, Eye, BarChart3, Tag, Bell,
+  TrendingUp, TrendingDown, Upload, FileText, BarChart3, Tag, Bell,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import type {
@@ -51,14 +50,6 @@ const FORMAS_RECEBIMENTO = [
   { value: 'debito',  label: 'Cartão de Débito' },
   { value: 'dinheiro',label: 'Dinheiro' },
   { value: 'outro',   label: 'Outro' },
-];
-
-const CATEGORIAS_SISTEMA = [
-  { nome: 'Pessoal',        cor: '#6366f1' },
-  { nome: 'Infraestrutura', cor: '#0ea5e9' },
-  { nome: 'Insumos',        cor: '#10b981' },
-  { nome: 'Marketing',      cor: '#f59e0b' },
-  { nome: 'Impostos',       cor: '#ef4444' },
 ];
 
 // ─── Barra de abas interna ───────────────────────────────────────────────────

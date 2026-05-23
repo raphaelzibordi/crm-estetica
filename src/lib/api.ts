@@ -4895,7 +4895,7 @@ export const api = {
       .select('*, clientes(nome, telefone)')
       .eq('user_id', uid)
       .order('data_vencimento', { ascending: true });
-    if (error) throw new ApiError(humanizeError(error), 500);
+    if (error) throw humanizeError(error);
     const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
     return (data ?? []).map((row: any) => {
       const venc = new Date(row.data_vencimento + 'T00:00:00');
@@ -4926,7 +4926,7 @@ export const api = {
       .eq('user_id', uid)
       .order('sistema', { ascending: false })
       .order('nome');
-    if (error) throw new ApiError(humanizeError(error), 500);
+    if (error) throw humanizeError(error);
     return (data ?? []).map(mapCategoriaDespesa);
   },
 
@@ -4937,7 +4937,7 @@ export const api = {
       .insert({ user_id: uid, nome: nome.trim(), cor, sistema: false })
       .select()
       .single();
-    if (error) throw new ApiError(humanizeError(error), 500);
+    if (error) throw humanizeError(error);
     return mapCategoriaDespesa(data);
   },
 
@@ -4949,7 +4949,7 @@ export const api = {
       .eq('id', id)
       .eq('user_id', uid)
       .eq('sistema', false);
-    if (error) throw new ApiError(humanizeError(error), 500);
+    if (error) throw humanizeError(error);
   },
 
   async deleteCategoriaDespesa(userId: string, id: string): Promise<void> {
@@ -4960,7 +4960,7 @@ export const api = {
       .eq('id', id)
       .eq('user_id', uid)
       .eq('sistema', false);
-    if (error) throw new ApiError(humanizeError(error), 500);
+    if (error) throw humanizeError(error);
   },
 
   async getContasPagar(userId: string, status?: ContaPagarStatus): Promise<ContaPagar[]> {
@@ -4972,7 +4972,7 @@ export const api = {
       .order('data_vencimento');
     if (status) q = q.eq('status', status);
     const { data, error } = await q;
-    if (error) throw new ApiError(humanizeError(error), 500);
+    if (error) throw humanizeError(error);
     return (data ?? []).map(mapContaPagar);
   },
 
@@ -5004,7 +5004,7 @@ export const api = {
       })
       .select('*, categorias_despesa(nome, cor)')
       .single();
-    if (error) throw new ApiError(humanizeError(error), 500);
+    if (error) throw humanizeError(error);
     return mapContaPagar(data);
   },
 
@@ -5031,7 +5031,7 @@ export const api = {
       .update(update)
       .eq('id', id)
       .eq('user_id', uid);
-    if (error) throw new ApiError(humanizeError(error), 500);
+    if (error) throw humanizeError(error);
   },
 
   async pagarConta(
@@ -5050,7 +5050,7 @@ export const api = {
       })
       .eq('id', id)
       .eq('user_id', uid);
-    if (error) throw new ApiError(humanizeError(error), 500);
+    if (error) throw humanizeError(error);
   },
 
   async deleteContaPagar(userId: string, id: string): Promise<void> {
@@ -5060,7 +5060,7 @@ export const api = {
       .delete()
       .eq('id', id)
       .eq('user_id', uid);
-    if (error) throw new ApiError(humanizeError(error), 500);
+    if (error) throw humanizeError(error);
   },
 
   async receberContaReceber(userId: string, id: string, dataPagamento: string, formaRecebimento?: string): Promise<void> {
@@ -5074,7 +5074,7 @@ export const api = {
       })
       .eq('id', id)
       .eq('user_id', uid);
-    if (error) throw new ApiError(humanizeError(error), 500);
+    if (error) throw humanizeError(error);
   },
 
   async getFluxoCaixa(userId: string, horizonte: 30 | 60 | 90): Promise<FluxoCaixaItem[]> {
@@ -5099,8 +5099,8 @@ export const api = {
         .lte('data_vencimento', fmtD(dataFim)),
     ]);
 
-    if (receber.error) throw new ApiError(humanizeError(receber.error), 500);
-    if (pagar.error) throw new ApiError(humanizeError(pagar.error), 500);
+    if (receber.error) throw humanizeError(receber.error);
+    if (pagar.error) throw humanizeError(pagar.error);
 
     const dias: Map<string, { entradas: number; saidas: number }> = new Map();
     for (let i = 0; i < horizonte; i++) {
@@ -5146,8 +5146,8 @@ export const api = {
         .in('status', ['pendente', 'vencido']),
     ]);
 
-    if (receber.error) throw new ApiError(humanizeError(receber.error), 500);
-    if (pagar.error) throw new ApiError(humanizeError(pagar.error), 500);
+    if (receber.error) throw humanizeError(receber.error);
+    if (pagar.error) throw humanizeError(pagar.error);
 
     const totalAReceber = (receber.data ?? []).reduce((s, r) => s + Number(r.valor), 0);
     const totalAPagar   = (pagar.data ?? []).reduce((s, p) => s + Number(p.valor), 0);
@@ -5173,7 +5173,7 @@ export const api = {
     const { error: upErr } = await supabase.storage
       .from('financeiro')
       .upload(path, file, { upsert: true });
-    if (upErr) throw new ApiError(humanizeError(upErr), 500);
+    if (upErr) throw humanizeError(upErr);
     const { data } = supabase.storage.from('financeiro').getPublicUrl(path);
     return data.publicUrl;
   },
