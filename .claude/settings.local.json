@@ -33,7 +33,9 @@
       "Bash(sed 's/CREATE TABLE.*public\\\\.//')",
       "Bash(sed 's/ .*//')",
       "Bash(sed 's/create table.*public\\\\.//')",
-      "mcp__claude_ai_Supabase__deploy_edge_function"
+      "mcp__claude_ai_Supabase__deploy_edge_function",
+      "Bash(dir -Recurse src -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)"
     ]
   }
 }
