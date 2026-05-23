@@ -870,4 +870,51 @@ export interface LGPDStats {
   solicitacoesEmProcessamento: number;
 }
 
+// ── Gestão Financeira Prospectiva (US-033) ───────────────────────────
+
+export type ContaPagarStatus = 'pendente' | 'pago' | 'vencido';
+export type ContaPagarRecorrencia = 'unica' | 'mensal' | 'anual';
+export type FormaRecebimento = 'pix' | 'credito' | 'debito' | 'dinheiro' | 'outro';
+
+export interface CategoriaDespesa {
+  id: string;
+  nome: string;
+  cor: string;
+  sistema: boolean;
+  createdAt: string;
+}
+
+export interface ContaPagar {
+  id: string;
+  categoriaId: string | null;
+  categoriaNome: string | null;
+  categoriaCor: string | null;
+  fornecedor: string;
+  descricao: string | null;
+  valor: number;
+  dataVencimento: string;
+  dataPagamento: string | null;
+  status: ContaPagarStatus;
+  recorrencia: ContaPagarRecorrencia;
+  comprovanteUrl: string | null;
+  observacoes: string | null;
+  createdAt: string;
+}
+
+export interface FluxoCaixaItem {
+  data: string;
+  entradasPrevistas: number;
+  saidasPrevistas: number;
+  saldoDia: number;
+  saldoAcumulado: number;
+}
+
+export interface ResumoFinanceiro {
+  totalAReceber: number;
+  totalAPagar: number;
+  saldoProjetado: number;
+  vencendoEm3Dias: number;
+  vencidos: number;
+}
+
 export const IS_TYPED = true;

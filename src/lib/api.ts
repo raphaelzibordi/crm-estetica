@@ -81,6 +81,12 @@ import type {
   LGPDSolicitacaoStatus,
   LGPDSolicitacaoTipo,
   LGPDStats,
+  CategoriaDespesa,
+  ContaPagar,
+  ContaPagarStatus,
+  ContaPagarRecorrencia,
+  FluxoCaixaItem,
+  ResumoFinanceiro,
   SessaoTratamento,
   SlotOcupado,
   StatusJornada,
@@ -4878,6 +4884,299 @@ export const api = {
       };
     });
   },
+
+  // ── US-033: Gestão Financeira Prospectiva ────────────────────────
+
+  async getContasReceber(userId: string): Promise<ContaReceber[]> {
+    const uid = await requireUserId(userId);
+    try { await supabase.rpc('atualizar_status_contas_vencidas'); } catch (_) {}
+    const { data, error } = await supabase
+      .from('contas_receber')
+      .select('*, clientes(nome, telefone)')
+      .eq('user_id', uid)
+      .order('data_vencimento', { ascending: true });
+    if (error) throw new ApiError(humanizeError(error), 500);
+    const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+    return (data ?? []).map((row: any) => {
+      const venc = new Date(row.data_vencimento + 'T00:00:00');
+      const diasAtraso = Math.max(0, Math.floor((hoje.getTime() - venc.getTime()) / (1000 * 60 * 60 * 24)));
+      return {
+        id:             row.id,
+        clienteId:      row.cliente_id,
+        clienteNome:    row.clientes?.nome ?? 'Desconhecido',
+        telefone:       row.clientes?.telefone ?? '',
+        descricao:      row.descricao,
+        valor:          Number(row.valor),
+        dataVencimento: row.data_vencimento,
+        dataPagamento:  row.data_pagamento ?? null,
+        status:         row.status as ContaReceberStatus,
+        agendamentoId:  row.agendamento_id ?? null,
+        observacoes:    row.observacoes ?? null,
+        diasAtraso,
+        createdAt:      row.created_at ?? '',
+      };
+    });
+  },
+
+  async getCategoriasDespesa(userId: string): Promise<CategoriaDespesa[]> {
+    const uid = await requireUserId(userId);
+    const { data, error } = await supabase
+      .from('categorias_despesa')
+      .select('*')
+      .eq('user_id', uid)
+      .order('sistema', { ascending: false })
+      .order('nome');
+    if (error) throw new ApiError(humanizeError(error), 500);
+    return (data ?? []).map(mapCategoriaDespesa);
+  },
+
+  async createCategoriaDespesa(userId: string, nome: string, cor: string): Promise<CategoriaDespesa> {
+    const uid = await requireUserId(userId);
+    const { data, error } = await supabase
+      .from('categorias_despesa')
+      .insert({ user_id: uid, nome: nome.trim(), cor, sistema: false })
+      .select()
+      .single();
+    if (error) throw new ApiError(humanizeError(error), 500);
+    return mapCategoriaDespesa(data);
+  },
+
+  async updateCategoriaDespesa(userId: string, id: string, nome: string, cor: string): Promise<void> {
+    const uid = await requireUserId(userId);
+    const { error } = await supabase
+      .from('categorias_despesa')
+      .update({ nome: nome.trim(), cor })
+      .eq('id', id)
+      .eq('user_id', uid)
+      .eq('sistema', false);
+    if (error) throw new ApiError(humanizeError(error), 500);
+  },
+
+  async deleteCategoriaDespesa(userId: string, id: string): Promise<void> {
+    const uid = await requireUserId(userId);
+    const { error } = await supabase
+      .from('categorias_despesa')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', uid)
+      .eq('sistema', false);
+    if (error) throw new ApiError(humanizeError(error), 500);
+  },
+
+  async getContasPagar(userId: string, status?: ContaPagarStatus): Promise<ContaPagar[]> {
+    const uid = await requireUserId(userId);
+    let q = supabase
+      .from('contas_pagar')
+      .select('*, categorias_despesa(nome, cor)')
+      .eq('user_id', uid)
+      .order('data_vencimento');
+    if (status) q = q.eq('status', status);
+    const { data, error } = await q;
+    if (error) throw new ApiError(humanizeError(error), 500);
+    return (data ?? []).map(mapContaPagar);
+  },
+
+  async createContaPagar(
+    userId: string,
+    payload: {
+      categoriaId?: string | null;
+      fornecedor: string;
+      descricao?: string;
+      valor: number;
+      dataVencimento: string;
+      recorrencia: ContaPagarRecorrencia;
+      observacoes?: string;
+    }
+  ): Promise<ContaPagar> {
+    const uid = await requireUserId(userId);
+    const { data, error } = await supabase
+      .from('contas_pagar')
+      .insert({
+        user_id:         uid,
+        categoria_id:    payload.categoriaId ?? null,
+        fornecedor:      payload.fornecedor.trim(),
+        descricao:       payload.descricao?.trim() ?? null,
+        valor:           payload.valor,
+        data_vencimento: payload.dataVencimento,
+        recorrencia:     payload.recorrencia,
+        observacoes:     payload.observacoes?.trim() ?? null,
+        status:          'pendente',
+      })
+      .select('*, categorias_despesa(nome, cor)')
+      .single();
+    if (error) throw new ApiError(humanizeError(error), 500);
+    return mapContaPagar(data);
+  },
+
+  async updateContaPagar(userId: string, id: string, patch: Partial<{
+    categoriaId: string | null;
+    fornecedor: string;
+    descricao: string;
+    valor: number;
+    dataVencimento: string;
+    recorrencia: ContaPagarRecorrencia;
+    observacoes: string;
+  }>): Promise<void> {
+    const uid = await requireUserId(userId);
+    const update: Record<string, unknown> = {};
+    if (patch.categoriaId !== undefined) update.categoria_id = patch.categoriaId;
+    if (patch.fornecedor !== undefined) update.fornecedor = patch.fornecedor.trim();
+    if (patch.descricao !== undefined) update.descricao = patch.descricao.trim();
+    if (patch.valor !== undefined) update.valor = patch.valor;
+    if (patch.dataVencimento !== undefined) update.data_vencimento = patch.dataVencimento;
+    if (patch.recorrencia !== undefined) update.recorrencia = patch.recorrencia;
+    if (patch.observacoes !== undefined) update.observacoes = patch.observacoes.trim();
+    const { error } = await supabase
+      .from('contas_pagar')
+      .update(update)
+      .eq('id', id)
+      .eq('user_id', uid);
+    if (error) throw new ApiError(humanizeError(error), 500);
+  },
+
+  async pagarConta(
+    userId: string,
+    id: string,
+    dataPagamento: string,
+    comprovanteUrl?: string
+  ): Promise<void> {
+    const uid = await requireUserId(userId);
+    const { error } = await supabase
+      .from('contas_pagar')
+      .update({
+        status:           'pago',
+        data_pagamento:   dataPagamento,
+        comprovante_url:  comprovanteUrl ?? null,
+      })
+      .eq('id', id)
+      .eq('user_id', uid);
+    if (error) throw new ApiError(humanizeError(error), 500);
+  },
+
+  async deleteContaPagar(userId: string, id: string): Promise<void> {
+    const uid = await requireUserId(userId);
+    const { error } = await supabase
+      .from('contas_pagar')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', uid);
+    if (error) throw new ApiError(humanizeError(error), 500);
+  },
+
+  async receberContaReceber(userId: string, id: string, dataPagamento: string, formaRecebimento?: string): Promise<void> {
+    const uid = await requireUserId(userId);
+    const { error } = await supabase
+      .from('contas_receber')
+      .update({
+        status:            'pago',
+        data_pagamento:    dataPagamento,
+        forma_recebimento: formaRecebimento ?? null,
+      })
+      .eq('id', id)
+      .eq('user_id', uid);
+    if (error) throw new ApiError(humanizeError(error), 500);
+  },
+
+  async getFluxoCaixa(userId: string, horizonte: 30 | 60 | 90): Promise<FluxoCaixaItem[]> {
+    const uid = await requireUserId(userId);
+    const hoje = new Date();
+    const fmtD = (d: Date) => d.toISOString().split('T')[0];
+    const dataFim = new Date(hoje);
+    dataFim.setDate(dataFim.getDate() + horizonte - 1);
+
+    const [receber, pagar] = await Promise.all([
+      supabase
+        .from('contas_receber')
+        .select('data_vencimento, valor, status')
+        .eq('user_id', uid)
+        .in('status', ['pendente', 'vencido'])
+        .lte('data_vencimento', fmtD(dataFim)),
+      supabase
+        .from('contas_pagar')
+        .select('data_vencimento, valor, status')
+        .eq('user_id', uid)
+        .in('status', ['pendente', 'vencido'])
+        .lte('data_vencimento', fmtD(dataFim)),
+    ]);
+
+    if (receber.error) throw new ApiError(humanizeError(receber.error), 500);
+    if (pagar.error) throw new ApiError(humanizeError(pagar.error), 500);
+
+    const dias: Map<string, { entradas: number; saidas: number }> = new Map();
+    for (let i = 0; i < horizonte; i++) {
+      const d = new Date(hoje);
+      d.setDate(d.getDate() + i);
+      dias.set(fmtD(d), { entradas: 0, saidas: 0 });
+    }
+
+    for (const r of receber.data ?? []) {
+      const key = r.data_vencimento;
+      if (dias.has(key)) dias.get(key)!.entradas += Number(r.valor);
+    }
+    for (const p of pagar.data ?? []) {
+      const key = p.data_vencimento;
+      if (dias.has(key)) dias.get(key)!.saidas += Number(p.valor);
+    }
+
+    let acumulado = 0;
+    return Array.from(dias.entries()).map(([data, { entradas, saidas }]) => {
+      const saldoDia = entradas - saidas;
+      acumulado += saldoDia;
+      return { data, entradasPrevistas: entradas, saidasPrevistas: saidas, saldoDia, saldoAcumulado: acumulado };
+    });
+  },
+
+  async getResumoFinanceiro(userId: string): Promise<ResumoFinanceiro> {
+    const uid = await requireUserId(userId);
+    const hoje = new Date().toISOString().split('T')[0];
+    const em3Dias = new Date();
+    em3Dias.setDate(em3Dias.getDate() + 3);
+    const em3DiasStr = em3Dias.toISOString().split('T')[0];
+
+    const [receber, pagar] = await Promise.all([
+      supabase
+        .from('contas_receber')
+        .select('valor, status, data_vencimento')
+        .eq('user_id', uid)
+        .in('status', ['pendente', 'vencido']),
+      supabase
+        .from('contas_pagar')
+        .select('valor, status, data_vencimento')
+        .eq('user_id', uid)
+        .in('status', ['pendente', 'vencido']),
+    ]);
+
+    if (receber.error) throw new ApiError(humanizeError(receber.error), 500);
+    if (pagar.error) throw new ApiError(humanizeError(pagar.error), 500);
+
+    const totalAReceber = (receber.data ?? []).reduce((s, r) => s + Number(r.valor), 0);
+    const totalAPagar   = (pagar.data ?? []).reduce((s, p) => s + Number(p.valor), 0);
+    const vencidos      = (pagar.data ?? []).filter(p => p.status === 'vencido').length
+                        + (receber.data ?? []).filter(r => r.status === 'vencido').length;
+    const vencendoEm3Dias = (pagar.data ?? []).filter(
+      p => p.status === 'pendente' && p.data_vencimento >= hoje && p.data_vencimento <= em3DiasStr
+    ).length;
+
+    return {
+      totalAReceber,
+      totalAPagar,
+      saldoProjetado: totalAReceber - totalAPagar,
+      vencendoEm3Dias,
+      vencidos,
+    };
+  },
+
+  async uploadComprovante(userId: string, contaId: string, file: File): Promise<string> {
+    const uid = await requireUserId(userId);
+    const ext = file.name.split('.').pop() ?? 'pdf';
+    const path = `comprovantes/${uid}/${contaId}.${ext}`;
+    const { error: upErr } = await supabase.storage
+      .from('financeiro')
+      .upload(path, file, { upsert: true });
+    if (upErr) throw new ApiError(humanizeError(upErr), 500);
+    const { data } = supabase.storage.from('financeiro').getPublicUrl(path);
+    return data.publicUrl;
+  },
 };
 
 // ── Mappers internos (US-012) ─────────────────────────────────────────
@@ -5053,6 +5352,35 @@ function mapLGPDSolicitacao(row: any): LGPDSolicitacao {
     prazoLegal:      row.prazo_legal ?? undefined,
     dadosExportados: row.dados_exportados ?? undefined,
     createdAt:       row.created_at ?? '',
+  };
+}
+
+function mapCategoriaDespesa(row: any): CategoriaDespesa {
+  return {
+    id:        row.id,
+    nome:      row.nome ?? '',
+    cor:       row.cor ?? '#6366f1',
+    sistema:   row.sistema ?? false,
+    createdAt: row.created_at ?? '',
+  };
+}
+
+function mapContaPagar(row: any): ContaPagar {
+  return {
+    id:             row.id,
+    categoriaId:    row.categoria_id ?? null,
+    categoriaNome:  row.categorias_despesa?.nome ?? null,
+    categoriaCor:   row.categorias_despesa?.cor ?? null,
+    fornecedor:     row.fornecedor ?? '',
+    descricao:      row.descricao ?? null,
+    valor:          Number(row.valor ?? 0),
+    dataVencimento: row.data_vencimento ?? '',
+    dataPagamento:  row.data_pagamento ?? null,
+    status:         (row.status as ContaPagarStatus) ?? 'pendente',
+    recorrencia:    (row.recorrencia as ContaPagarRecorrencia) ?? 'unica',
+    comprovanteUrl: row.comprovante_url ?? null,
+    observacoes:    row.observacoes ?? null,
+    createdAt:      row.created_at ?? '',
   };
 }
 

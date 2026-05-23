@@ -11,12 +11,13 @@ import { Comissoes } from './Comissoes';
 import { Repassos } from './Repassos';
 import { RelatorioOcupacao } from './RelatorioOcupacao';
 import { EstoqueAvancado } from './EstoqueAvancado';
+import { ContasFinanceiras } from './ContasFinanceiras';
 
 interface GestaoProps { userId: string; userName?: string; }
 
 const EMPTY_FECHAMENTO: FechamentoFinanceiro = { faturamentoTotal: 0, comissoesPagas: 0, formasPagamento: [] };
 
-type ActiveTab = 'dashboard' | 'financeiro' | 'estoque' | 'procedimentos' | 'faltas' | 'comissoes' | 'repassos' | 'ocupacao';
+type ActiveTab = 'dashboard' | 'financeiro' | 'contas' | 'estoque' | 'procedimentos' | 'faltas' | 'comissoes' | 'repassos' | 'ocupacao';
 
 // ──────────────────────────────────────────────────────────────────────
 // FILTRO DE PERÍODO — presets + range customizado
@@ -229,6 +230,9 @@ export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor' }) =
           </button>
           <button style={tabStyle('financeiro')} onClick={() => setTab('financeiro')}>
             <DollarSign size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Financeiro
+          </button>
+          <button style={tabStyle('contas')} onClick={() => setTab('contas')}>
+            <Wallet size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Contas
           </button>
           <button style={tabStyle('estoque')} onClick={() => setTab('estoque')}>
             <Package size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Estoque
@@ -568,6 +572,20 @@ export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor' }) =
             )}
           </div>
         </>
+      )}
+
+      {/* ── TAB: CONTAS (US-033) ────────────────────────────────────────── */}
+      {tab === 'contas' && (
+        <div className="card" style={{ padding: '28px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+            <Wallet size={20} style={{ color: 'var(--color-primary)' }} />
+            <div>
+              <h3 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>Gestão Financeira Prospectiva</h3>
+              <p style={{ fontSize: 13, color: 'var(--color-text-muted)', margin: 0 }}>Contas a pagar e a receber · Fluxo de caixa 30/60/90 dias</p>
+            </div>
+          </div>
+          <ContasFinanceiras userId={userId} />
+        </div>
       )}
 
       {/* ── TAB: ESTOQUE ────────────────────────────────────────────────── */}
