@@ -263,6 +263,17 @@ function AppMain() {
         updates.metodoPagamento = extras.metodoPagamento;
       }
       await api.updateAgendamentoStatus(id, updates, tenantId || session?.user.id);
+      if (newStatus === 'finalizada') {
+        const ag = agendamentos.find(a => a.id === id);
+        if (ag?.procedimento) {
+          api.baixarEstoqueCheckout(
+            id,
+            ag.procedimento,
+            ag.profissional || '',
+            tenantId || session?.user.id || '',
+          ).catch(err => console.warn('[estoque] Baixa automática falhou:', err));
+        }
+      }
     } catch (err) {
       console.error('Erro ao atualizar status:', err);
       const msg = err instanceof ApiError ? err.message : 'Falha ao atualizar o status.';

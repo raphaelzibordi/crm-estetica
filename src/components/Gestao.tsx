@@ -2,14 +2,15 @@ import React, { useState, useEffect, useMemo } from 'react';
 import type { Agendamento, FechamentoFinanceiro, ItemEstoque, Procedimento } from '../types';
 import {
   AlertTriangle, DollarSign, Wallet, LayoutDashboard,
-  FileSpreadsheet, Plus, Edit2, Trash2, X, Check, Package, Stethoscope,
-  User, Users, Receipt, Calendar, Activity, BarChart3, TrendingUp,
+  FileSpreadsheet, Edit2, Trash2, X, Check, Package, Stethoscope,
+  User, Users, Receipt, Calendar, Activity, BarChart3, TrendingUp, Plus,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { RelatorioFaltas } from './RelatorioFaltas';
 import { Comissoes } from './Comissoes';
 import { Repassos } from './Repassos';
 import { RelatorioOcupacao } from './RelatorioOcupacao';
+import { EstoqueAvancado } from './EstoqueAvancado';
 
 interface GestaoProps { userId: string; userName?: string; }
 
@@ -97,14 +98,6 @@ export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor' }) =
     [periodoPreset, customStart, customEnd]
   );
 
-  // ── Estoque form state ──
-  const [showEstoqueModal, setShowEstoqueModal] = useState(false);
-  const [editingEstoqueId, setEditingEstoqueId] = useState<string | null>(null);
-  const [eProduto, setEProduto] = useState('');
-  const [eQtd, setEQtd] = useState('');
-  const [eQtdMin, setEQtdMin] = useState('');
-  const [eUnidade, setEUnidade] = useState('un');
-
   // ── Procedimento form state ──
   const [showProcModal, setShowProcModal] = useState(false);
   const [editingProcId, setEditingProcId] = useState<string | null>(null);
@@ -113,14 +106,11 @@ export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor' }) =
   const [pPreco, setPPreco] = useState('');
   const [pDuracao, setPDuracao] = useState('60');
 
-  useEffect(() => { loadEstoque(); loadProcedimentos(); }, [userId]);
+  useEffect(() => { loadProcedimentos(); }, [userId]);
 
   // Recarrega financeiro sempre que o range mudar (filtro temporal global)
   useEffect(() => { loadFinanceiro(rangeStart, rangeEnd); }, [userId, rangeStart, rangeEnd]);
 
-  const loadEstoque = async () => {
-    try { setEstoque(await api.getEstoque(userId)); } catch (e) { console.error(e); }
-  };
   const loadFinanceiro = async (inicio: string, fim: string) => {
     try {
       const [fechamento, ags] = await Promise.all([
@@ -159,58 +149,6 @@ export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor' }) =
     try {
       setProcedimentos(await api.getProcedimentos(userId));
     } catch (e) { console.error('Erro ao carregar procedimentos', e); }
-  };
-
-  // ─── ESTOQUE HANDLERS ────────────────────────────────────────────────────
-  const openEstoqueModal = (item?: ItemEstoque) => {
-    if (item) {
-      setEditingEstoqueId(item.id);
-      setEProduto(item.produto); setEQtd(String(item.quantidade));
-      setEQtdMin(String(item.quantidadeMinima)); setEUnidade(item.unidade);
-    } else {
-      setEditingEstoqueId(null);
-      setEProduto(''); setEQtd(''); setEQtdMin('5'); setEUnidade('un');
-    }
-    setShowEstoqueModal(true);
-  };
-
-  const handleSaveEstoque = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const qty = parseInt(eQtd, 10) || 0;
-    const min = parseInt(eQtdMin, 10) || 0;
-    const status: 'normal' | 'critico' = qty <= min ? 'critico' : 'normal';
-    try {
-      if (editingEstoqueId) {
-        await api.updateEstoque(editingEstoqueId, qty, status, new Date().toISOString().split('T')[0], userId);
-        setEstoque(prev => prev.map(i => i.id === editingEstoqueId
-          ? { ...i, produto: eProduto, quantidade: qty, quantidadeMinima: min, unidade: eUnidade, status }
-          : i));
-      } else {
-        const created = await api.createItemEstoque({
-          produto: eProduto, quantidade: qty, quantidadeMinima: min,
-          unidade: eUnidade, status, ultimaReposicao: new Date().toISOString().split('T')[0],
-        }, userId);
-        setEstoque(prev => [...prev, created]);
-      }
-    } catch (err) { console.error(err); alert('Erro ao salvar insumo.'); await loadEstoque(); }
-    setShowEstoqueModal(false);
-  };
-
-  const handleDeleteEstoque = async (id: string) => {
-    if (!window.confirm('Remover este insumo do estoque?')) return;
-    setEstoque(prev => prev.filter(i => i.id !== id));
-    try { await api.deleteItemEstoque(id, userId); } catch { await loadEstoque(); }
-  };
-
-  const handleAdjustQty = async (id: string, delta: number) => {
-    const item = estoque.find(i => i.id === id);
-    if (!item) return;
-    const newQty = Math.max(0, item.quantidade + delta);
-    const status: 'normal' | 'critico' = newQty <= item.quantidadeMinima ? 'critico' : 'normal';
-    setEstoque(prev => prev.map(i => i.id === id ? { ...i, quantidade: newQty, status } : i));
-    try {
-      await api.updateEstoque(id, newQty, status, delta > 0 ? new Date().toISOString().split('T')[0] : undefined, userId);
-    } catch { await loadEstoque(); }
   };
 
   // ─── PROCEDIMENTO HANDLERS ───────────────────────────────────────────────
@@ -593,52 +531,7 @@ export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor' }) =
 
       {/* ── TAB: ESTOQUE ────────────────────────────────────────────────── */}
       {tab === 'estoque' && (
-        <div className="card" style={{ padding: '32px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <FileSpreadsheet size={18} style={{ color: 'var(--color-primary)' }} />
-              <h3 style={{ fontSize: '18px', fontWeight: 600 }}>Controle de Estoque e Consumíveis</h3>
-              {criticos > 0 && <span className="badge badge-terracotta" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><AlertTriangle size={12} />{criticos} críticos</span>}
-            </div>
-            <button className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => openEstoqueModal()}>
-              <Plus size={14} />Novo Insumo
-            </button>
-          </div>
-          <div className="estoque-table-wrapper">
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-muted)' }}>
-                {['Insumo', 'Qtd Atual', 'Qtd Mín', 'Unidade', 'Status', 'Última Compra', 'Ações'].map(h => (
-                  <th key={h} style={{ padding: '10px 8px', fontWeight: 500, textAlign: h === 'Ações' ? 'right' : 'left' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {estoque.length === 0 && (
-                <tr><td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: 'var(--color-text-muted)' }}>Nenhum insumo cadastrado. Clique em "Novo Insumo" para começar.</td></tr>
-              )}
-              {estoque.map(item => (
-                <tr key={item.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                  <td style={{ padding: '14px 8px', fontWeight: 600 }}>{item.produto}</td>
-                  <td style={{ padding: '14px 8px', fontWeight: 700, color: item.status === 'critico' ? '#ef4444' : 'var(--color-text-main)' }}>{item.quantidade}</td>
-                  <td style={{ padding: '14px 8px', color: 'var(--color-text-muted)' }}>{item.quantidadeMinima}</td>
-                  <td style={{ padding: '14px 8px', color: 'var(--color-text-muted)' }}>{item.unidade}</td>
-                  <td style={{ padding: '14px 8px' }}><span className={`badge ${item.status === 'critico' ? 'badge-terracotta' : 'badge-success'}`}>{item.status}</span></td>
-                  <td style={{ padding: '14px 8px', color: 'var(--color-text-muted)' }}>{item.ultimaReposicao ? new Date(item.ultimaReposicao).toLocaleDateString('pt-BR') : '—'}</td>
-                  <td style={{ padding: '14px 8px', textAlign: 'right' }}>
-                    <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
-                      <button onClick={() => handleAdjustQty(item.id, -1)} className="btn btn-outline" style={{ padding: '4px 8px', fontSize: '11px' }} title="Consumir 1">-1</button>
-                      <button onClick={() => handleAdjustQty(item.id, 10)} className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '11px' }} title="Repor +10">+10</button>
-                      <button onClick={() => openEstoqueModal(item)} className="btn btn-outline" style={{ padding: '4px 8px', fontSize: '11px' }} title="Editar"><Edit2 size={12} /></button>
-                      <button onClick={() => handleDeleteEstoque(item.id)} className="btn btn-outline" style={{ padding: '4px 8px', fontSize: '11px', borderColor: '#fca5a5', color: '#ef4444' }} title="Remover"><Trash2 size={12} /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          </div>
-        </div>
+        <EstoqueAvancado userId={userId} onDataChange={setEstoque} />
       )}
 
       {/* ── TAB: PROCEDIMENTOS ──────────────────────────────────────────── */}
@@ -703,44 +596,6 @@ export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor' }) =
       {/* ── TAB: OCUPAÇÃO ─────────────────────────────────────────────── */}
       {tab === 'ocupacao' && (
         <RelatorioOcupacao userId={userId} />
-      )}
-
-      {/* ── MODAL: ESTOQUE ──────────────────────────────────────────────── */}
-      {showEstoqueModal && (
-        <div className="modal-overlay" onClick={() => setShowEstoqueModal(false)} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
-          <div onClick={e => e.stopPropagation()} className="card" style={{ maxWidth: '420px', width: '92%', padding: '32px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: 600 }}>{editingEstoqueId ? 'Editar Insumo' : 'Novo Insumo'}</h3>
-              <button onClick={() => setShowEstoqueModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)' }}><X size={18} /></button>
-            </div>
-            <form onSubmit={handleSaveEstoque} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div className="form-group">
-                <label className="form-label">Nome do Insumo</label>
-                <input className="form-input" value={eProduto} onChange={e => setEProduto(e.target.value)} placeholder="Ex: Toxina Botulínica 50U" required />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-                <div className="form-group">
-                  <label className="form-label">Qtd Atual</label>
-                  <input className="form-input" type="number" min="0" value={eQtd} onChange={e => setEQtd(e.target.value)} required />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Qtd Mínima</label>
-                  <input className="form-input" type="number" min="0" value={eQtdMin} onChange={e => setEQtdMin(e.target.value)} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Unidade</label>
-                  <select className="form-select" value={eUnidade} onChange={e => setEUnidade(e.target.value)}>
-                    {['un', 'ml', 'g', 'cx', 'fr', 'amp'].map(u => <option key={u} value={u}>{u}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '8px' }}>
-                <button type="button" onClick={() => setShowEstoqueModal(false)} className="btn btn-outline">Cancelar</button>
-                <button type="submit" className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Check size={14} />Salvar</button>
-              </div>
-            </form>
-          </div>
-        </div>
       )}
 
       {/* ── MODAL: FILTRO PERSONALIZADO (bottom-sheet no mobile) ───────── */}

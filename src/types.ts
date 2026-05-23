@@ -126,6 +126,43 @@ export interface ItemEstoque {
   unidade: string;
   status: 'normal' | 'critico';
   ultimaReposicao: string;
+  // US-0444: campos estendidos
+  custoUnitario: number;
+  custoMedio: number;
+  fornecedor: string;
+  validade: string | null;
+  observacoes: string;
+}
+
+// ── Estoque Fracionado (US-0444) ──────────────────────────────────────
+
+export type EstoqueMovimentoTipo = 'entrada' | 'saida' | 'ajuste' | 'devolucao' | 'vencimento';
+
+export interface EstoqueVinculo {
+  id: string;
+  userId: string;
+  produtoId: string;
+  produtoNome?: string;
+  procedimentoNome: string;
+  quantidade: number;
+  ativo: boolean;
+  createdAt: string;
+}
+
+export interface EstoqueMovimento {
+  id: string;
+  userId: string;
+  produtoId: string;
+  produtoNome?: string;
+  tipo: EstoqueMovimentoTipo;
+  quantidade: number;
+  custoUnitario: number;
+  referencia: string | null;
+  agendamentoId: string | null;
+  profissional: string | null;
+  justificativa: string | null;
+  criadoPor: string;
+  createdAt: string;
 }
 
 export interface ClienteRetorno {

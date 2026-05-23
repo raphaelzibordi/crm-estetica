@@ -41,6 +41,9 @@ import type {
   GaleriaItem,
   HistoricoPresenca,
   ItemEstoque,
+  EstoqueMovimentoTipo,
+  EstoqueVinculo,
+  EstoqueMovimento,
   Lead,
   LeadAutomacao,
   LeadHistorico,
@@ -190,14 +193,21 @@ function mapMembroEquipe(row: any): MembroEquipe {
 }
 
 function mapEstoque(row: any): ItemEstoque {
+  const qtd = Number(row.quantidade ?? 0);
+  const qtdMin = Number(row.quantidade_minima ?? 0);
   return {
     id: row.id,
     produto: row.produto,
-    quantidade: Number(row.quantidade ?? 0),
-    quantidadeMinima: Number(row.quantidade_minima ?? 0),
+    quantidade: qtd,
+    quantidadeMinima: qtdMin,
     unidade: row.unidade ?? 'un',
-    status: (row.status as ItemEstoque['status']) ?? 'normal',
+    status: qtd <= qtdMin ? 'critico' : 'normal',
     ultimaReposicao: row.ultima_reposicao ?? '',
+    custoUnitario: Number(row.custo_unitario ?? 0),
+    custoMedio: Number(row.custo_medio ?? 0),
+    fornecedor: row.fornecedor ?? '',
+    validade: row.validade ?? null,
+    observacoes: row.observacoes ?? '',
   };
 }
 
@@ -890,17 +900,20 @@ export const api = {
       const uid = await requireUserId(userId);
       const { data, error } = await supabase
         .from('estoque')
-        .insert([
-          {
-            user_id: uid,
-            produto: item.produto,
-            quantidade: item.quantidade,
-            quantidade_minima: item.quantidadeMinima,
-            unidade: item.unidade,
-            status: item.status,
-            ultima_reposicao: item.ultimaReposicao || null,
-          },
-        ])
+        .insert([{
+          user_id:           uid,
+          produto:           item.produto,
+          quantidade:        item.quantidade,
+          quantidade_minima: item.quantidadeMinima,
+          unidade:           item.unidade,
+          status:            item.quantidade <= item.quantidadeMinima ? 'critico' : 'normal',
+          ultima_reposicao:  item.ultimaReposicao || null,
+          custo_unitario:    item.custoUnitario ?? 0,
+          custo_medio:       item.custoMedio ?? item.custoUnitario ?? 0,
+          fornecedor:        item.fornecedor ?? '',
+          validade:          item.validade ?? null,
+          observacoes:       item.observacoes ?? '',
+        }])
         .select()
         .single();
       if (error) throw error;
@@ -913,13 +926,21 @@ export const api = {
     quantidade: number,
     status: string,
     ultimaReposicao?: string,
-    userId?: string
+    userId?: string,
+    extras?: { custoUnitario?: number; custoMedio?: number; fornecedor?: string; validade?: string | null; observacoes?: string; produto?: string; quantidadeMinima?: number; unidade?: string }
   ): Promise<ItemEstoque> {
     return run(async () => {
       const uid = await requireUserId(userId);
       const updates: Record<string, unknown> = { quantidade, status };
       if (ultimaReposicao) updates.ultima_reposicao = ultimaReposicao;
-
+      if (extras?.custoUnitario  !== undefined) updates.custo_unitario  = extras.custoUnitario;
+      if (extras?.custoMedio     !== undefined) updates.custo_medio     = extras.custoMedio;
+      if (extras?.fornecedor     !== undefined) updates.fornecedor      = extras.fornecedor;
+      if (extras?.validade       !== undefined) updates.validade        = extras.validade;
+      if (extras?.observacoes    !== undefined) updates.observacoes     = extras.observacoes;
+      if (extras?.produto        !== undefined) updates.produto         = extras.produto;
+      if (extras?.quantidadeMinima !== undefined) updates.quantidade_minima = extras.quantidadeMinima;
+      if (extras?.unidade        !== undefined) updates.unidade         = extras.unidade;
       const { data, error } = await supabase
         .from('estoque')
         .update(updates)
@@ -941,6 +962,246 @@ export const api = {
         .eq('id', id)
         .eq('user_id', uid);
       if (error) throw error;
+    });
+  },
+
+  // ── US-0444: Estoque Fracionado ──────────────────────────────────────
+
+  async getEstoqueVinculos(userId: string, produtoId?: string): Promise<EstoqueVinculo[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      let q = supabase
+        .from('estoque_vinculos_procedimentos')
+        .select('*, estoque(produto)')
+        .eq('user_id', uid)
+        .eq('ativo', true)
+        .order('procedimento_nome');
+      if (produtoId) q = (q as any).eq('produto_id', produtoId);
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []).map((row: any) => ({
+        id:               row.id,
+        userId:           row.user_id,
+        produtoId:        row.produto_id,
+        produtoNome:      row.estoque?.produto ?? '',
+        procedimentoNome: row.procedimento_nome ?? '',
+        quantidade:       Number(row.quantidade ?? 0),
+        ativo:            row.ativo ?? true,
+        createdAt:        row.created_at ?? '',
+      }));
+    });
+  },
+
+  async upsertEstoqueVinculo(
+    dados: Pick<EstoqueVinculo, 'produtoId' | 'procedimentoNome' | 'quantidade'>,
+    userId: string
+  ): Promise<EstoqueVinculo> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('estoque_vinculos_procedimentos')
+        .upsert({
+          user_id:           uid,
+          produto_id:        dados.produtoId,
+          procedimento_nome: dados.procedimentoNome,
+          quantidade:        dados.quantidade,
+          ativo:             true,
+        }, { onConflict: 'user_id,produto_id,procedimento_nome' })
+        .select('*, estoque(produto)')
+        .single();
+      if (error) throw error;
+      return {
+        id:               data.id,
+        userId:           data.user_id,
+        produtoId:        data.produto_id,
+        produtoNome:      (data as any).estoque?.produto ?? '',
+        procedimentoNome: data.procedimento_nome,
+        quantidade:       Number(data.quantidade),
+        ativo:            data.ativo,
+        createdAt:        data.created_at,
+      };
+    });
+  },
+
+  async deleteEstoqueVinculo(id: string, userId: string): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { error } = await supabase
+        .from('estoque_vinculos_procedimentos')
+        .update({ ativo: false })
+        .eq('id', id)
+        .eq('user_id', uid);
+      if (error) throw error;
+    });
+  },
+
+  async getEstoqueMovimentos(userId: string, produtoId?: string, limit = 100): Promise<EstoqueMovimento[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      let q = supabase
+        .from('estoque_movimentos')
+        .select('*, estoque(produto)')
+        .eq('user_id', uid)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+      if (produtoId) q = (q as any).eq('produto_id', produtoId);
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []).map((row: any) => ({
+        id:            row.id,
+        userId:        row.user_id,
+        produtoId:     row.produto_id,
+        produtoNome:   row.estoque?.produto ?? '',
+        tipo:          row.tipo as EstoqueMovimentoTipo,
+        quantidade:    Number(row.quantidade),
+        custoUnitario: Number(row.custo_unitario ?? 0),
+        referencia:    row.referencia ?? null,
+        agendamentoId: row.agendamento_id ?? null,
+        profissional:  row.profissional ?? null,
+        justificativa: row.justificativa ?? null,
+        criadoPor:     row.criado_por ?? '',
+        createdAt:     row.created_at ?? '',
+      }));
+    });
+  },
+
+  async registrarEntradaEstoque(
+    produtoId: string,
+    dados: { quantidade: number; custoUnitario: number; fornecedor?: string; validade?: string; criadoPor: string },
+    userId: string
+  ): Promise<ItemEstoque> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      // Fetch current state for weighted avg calculation
+      const { data: curr, error: e1 } = await supabase
+        .from('estoque')
+        .select('quantidade, custo_medio')
+        .eq('id', produtoId)
+        .single();
+      if (e1) throw e1;
+      const qtdAtual = Number(curr.quantidade ?? 0);
+      const custoAtual = Number(curr.custo_medio ?? 0);
+      const novoTotal = qtdAtual + dados.quantidade;
+      const novoCustoMedio = novoTotal > 0
+        ? (qtdAtual * custoAtual + dados.quantidade * dados.custoUnitario) / novoTotal
+        : dados.custoUnitario;
+      // Update product
+      const patch: Record<string, unknown> = {
+        quantidade:        novoTotal,
+        custo_medio:       novoCustoMedio,
+        custo_unitario:    dados.custoUnitario,
+        ultima_reposicao:  new Date().toISOString().split('T')[0],
+        status:            'normal',
+      };
+      if (dados.fornecedor !== undefined) patch.fornecedor = dados.fornecedor;
+      if (dados.validade   !== undefined) patch.validade   = dados.validade;
+      const { data: updated, error: e2 } = await supabase
+        .from('estoque')
+        .update(patch)
+        .eq('id', produtoId)
+        .eq('user_id', uid)
+        .select()
+        .single();
+      if (e2) throw e2;
+      // Record movement
+      await supabase.from('estoque_movimentos').insert({
+        user_id:        uid,
+        produto_id:     produtoId,
+        tipo:           'entrada',
+        quantidade:     dados.quantidade,
+        custo_unitario: dados.custoUnitario,
+        referencia:     dados.fornecedor ?? '',
+        criado_por:     dados.criadoPor,
+      });
+      return mapEstoque(updated);
+    });
+  },
+
+  async registrarAjusteEstoque(
+    produtoId: string,
+    dados: { quantidade: number; tipo: 'ajuste' | 'devolucao' | 'vencimento'; justificativa: string; criadoPor: string; agendamentoId?: string; profissional?: string; referencia?: string },
+    userId: string
+  ): Promise<ItemEstoque> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data: curr, error: e1 } = await supabase
+        .from('estoque')
+        .select('quantidade, quantidade_minima, custo_medio')
+        .eq('id', produtoId)
+        .single();
+      if (e1) throw e1;
+      const novaQtd = Math.max(0, Number(curr.quantidade ?? 0) + dados.quantidade);
+      const qtdMin = Number(curr.quantidade_minima ?? 0);
+      const { data: updated, error: e2 } = await supabase
+        .from('estoque')
+        .update({ quantidade: novaQtd, status: novaQtd <= qtdMin ? 'critico' : 'normal' })
+        .eq('id', produtoId)
+        .eq('user_id', uid)
+        .select()
+        .single();
+      if (e2) throw e2;
+      await supabase.from('estoque_movimentos').insert({
+        user_id:        uid,
+        produto_id:     produtoId,
+        tipo:           dados.tipo,
+        quantidade:     dados.quantidade,
+        custo_unitario: Number(curr.custo_medio ?? 0),
+        referencia:     dados.referencia ?? null,
+        agendamento_id: dados.agendamentoId ?? null,
+        profissional:   dados.profissional ?? null,
+        justificativa:  dados.justificativa,
+        criado_por:     dados.criadoPor,
+      });
+      return mapEstoque(updated);
+    });
+  },
+
+  async baixarEstoqueCheckout(
+    agendamentoId: string,
+    procedimentoNome: string,
+    profissionalNome: string,
+    userId: string,
+    quantidadesOverride?: Record<string, number>
+  ): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      // Fetch linked products for this procedure
+      const { data: vinculos, error: e1 } = await supabase
+        .from('estoque_vinculos_procedimentos')
+        .select('produto_id, quantidade')
+        .eq('user_id', uid)
+        .eq('procedimento_nome', procedimentoNome)
+        .eq('ativo', true);
+      if (e1) throw e1;
+      if (!vinculos || vinculos.length === 0) return;
+      for (const v of vinculos) {
+        const qtdConsumir = quantidadesOverride?.[v.produto_id] ?? Number(v.quantidade);
+        if (qtdConsumir <= 0) continue;
+        const { data: curr } = await supabase
+          .from('estoque')
+          .select('quantidade, quantidade_minima, custo_medio')
+          .eq('id', v.produto_id)
+          .single();
+        if (!curr) continue;
+        const novaQtd = Math.max(0, Number(curr.quantidade) - qtdConsumir);
+        const qtdMin = Number(curr.quantidade_minima ?? 0);
+        await supabase
+          .from('estoque')
+          .update({ quantidade: novaQtd, status: novaQtd <= qtdMin ? 'critico' : 'normal' })
+          .eq('id', v.produto_id);
+        await supabase.from('estoque_movimentos').insert({
+          user_id:        uid,
+          produto_id:     v.produto_id,
+          tipo:           'saida',
+          quantidade:     -qtdConsumir,
+          custo_unitario: Number(curr.custo_medio ?? 0),
+          referencia:     procedimentoNome,
+          agendamento_id: agendamentoId,
+          profissional:   profissionalNome,
+          justificativa:  'Baixa automática no checkout',
+          criado_por:     profissionalNome,
+        });
+      }
     });
   },
 
