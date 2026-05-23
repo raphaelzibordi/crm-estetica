@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+﻿import { supabase } from './supabase';
 import { ApiError, humanizeError } from './errors';
 import { findAgendamentoConflict } from './agendaConflict';
 import type {
@@ -3358,7 +3358,7 @@ export const api = {
   async getOrcamentos(userId: string, status?: OrcamentoStatus): Promise<Orcamento[]> {
     const uid = await requireUserId(userId);
     // Expirar orçamentos vencidos antes de buscar
-    await supabase.rpc('expirar_orcamentos_vencidos').catch(() => {});
+    try { await supabase.rpc('expirar_orcamentos_vencidos'); } catch (_) {};
 
     let q = supabase
       .from('orcamentos')
@@ -3369,7 +3369,7 @@ export const api = {
     if (status) q = q.eq('status', status);
 
     const { data, error } = await q;
-    if (error) throw new ApiError(humanizeError(error), 500, 'ORCAMENTOS_LIST');
+    if (error) throw humanizeError(error);
     return (data ?? []).map(mapOrcamento);
   },
 
@@ -3409,7 +3409,7 @@ export const api = {
       .select()
       .single();
 
-    if (orcErr || !orc) throw new ApiError(humanizeError(orcErr), 500, 'ORCAMENTO_CREATE');
+    if (orcErr || !orc) throw humanizeError(orcErr);
 
     if (payload.itens.length > 0) {
       const { error: itErr } = await supabase.from('orcamento_itens').insert(
@@ -3422,7 +3422,7 @@ export const api = {
           valor_unitario:  it.valorUnitario,
         }))
       );
-      if (itErr) throw new ApiError(humanizeError(itErr), 500, 'ORCAMENTO_ITENS_CREATE');
+      if (itErr) throw humanizeError(itErr);
     }
 
     // Recarrega com itens e valor_total calculado pelo trigger
@@ -3431,7 +3431,7 @@ export const api = {
       .select('*, orcamento_itens(*)')
       .eq('id', orc.id)
       .single();
-    if (fullErr || !full) throw new ApiError(humanizeError(fullErr), 500, 'ORCAMENTO_RELOAD');
+    if (fullErr || !full) throw humanizeError(fullErr);
     return mapOrcamento(full);
   },
 
@@ -3447,7 +3447,7 @@ export const api = {
       .update({ status, motivo_perda: motivoPerdaKey ?? null, updated_at: new Date().toISOString() })
       .eq('id', id)
       .eq('user_id', uid);
-    if (error) throw new ApiError(humanizeError(error), 500, 'ORCAMENTO_STATUS_UPDATE');
+    if (error) throw humanizeError(error);
   },
 
   async renovarOrcamento(id: string, novaValidade: string, userId: string): Promise<void> {
@@ -3457,7 +3457,7 @@ export const api = {
       .update({ status: 'aberto', validade: novaValidade, motivo_perda: null, updated_at: new Date().toISOString() })
       .eq('id', id)
       .eq('user_id', uid);
-    if (error) throw new ApiError(humanizeError(error), 500, 'ORCAMENTO_RENOVAR');
+    if (error) throw humanizeError(error);
   },
 
   async deleteOrcamento(id: string, userId: string): Promise<void> {
@@ -3467,7 +3467,7 @@ export const api = {
       .delete()
       .eq('id', id)
       .eq('user_id', uid);
-    if (error) throw new ApiError(humanizeError(error), 500, 'ORCAMENTO_DELETE');
+    if (error) throw humanizeError(error);
   },
 
   async getOrcamentoFollowupConfig(userId: string): Promise<OrcamentoFollowupConfig[]> {
@@ -3477,7 +3477,7 @@ export const api = {
       .select('*')
       .eq('user_id', uid)
       .order('ordem', { ascending: true });
-    if (error) throw new ApiError(humanizeError(error), 500, 'FOLLOWUP_CONFIG_LIST');
+    if (error) throw humanizeError(error);
     return (data ?? []).map(mapFollowupConfig);
   },
 
@@ -3498,7 +3498,7 @@ export const api = {
       })
       .select()
       .single();
-    if (error || !data) throw new ApiError(humanizeError(error), 500, 'FOLLOWUP_CONFIG_CREATE');
+    if (error || !data) throw humanizeError(error);
     return mapFollowupConfig(data);
   },
 
@@ -3519,7 +3519,7 @@ export const api = {
       .update(update)
       .eq('id', id)
       .eq('user_id', uid);
-    if (error) throw new ApiError(humanizeError(error), 500, 'FOLLOWUP_CONFIG_UPDATE');
+    if (error) throw humanizeError(error);
   },
 
   async deleteOrcamentoFollowupConfig(id: string, userId: string): Promise<void> {
@@ -3529,7 +3529,7 @@ export const api = {
       .delete()
       .eq('id', id)
       .eq('user_id', uid);
-    if (error) throw new ApiError(humanizeError(error), 500, 'FOLLOWUP_CONFIG_DELETE');
+    if (error) throw humanizeError(error);
   },
 
   async getOrcamentoFollowupLog(orcamentoId: string, userId: string): Promise<OrcamentoFollowupLog[]> {
@@ -3540,7 +3540,7 @@ export const api = {
       .eq('orcamento_id', orcamentoId)
       .eq('user_id', uid)
       .order('enviado_em', { ascending: false });
-    if (error) throw new ApiError(humanizeError(error), 500, 'FOLLOWUP_LOG_LIST');
+    if (error) throw humanizeError(error);
     return (data ?? []).map(mapFollowupLog);
   },
 
@@ -3561,20 +3561,20 @@ export const api = {
       })
       .select()
       .single();
-    if (error || !data) throw new ApiError(humanizeError(error), 500, 'FOLLOWUP_LOG_CREATE');
+    if (error || !data) throw humanizeError(error);
     return mapFollowupLog(data);
   },
 
   async getOrcamentoRelatorio(userId: string): Promise<OrcamentoRelatorio> {
     const uid = await requireUserId(userId);
-    await supabase.rpc('expirar_orcamentos_vencidos').catch(() => {});
+    try { await supabase.rpc('expirar_orcamentos_vencidos'); } catch (_) {};
 
     const { data, error } = await supabase
       .from('orcamentos')
       .select('status, motivo_perda, valor_total')
       .eq('user_id', uid);
 
-    if (error) throw new ApiError(humanizeError(error), 500, 'ORCAMENTO_RELATORIO');
+    if (error) throw humanizeError(error);
 
     const rows = data ?? [];
     const totalEnviados   = rows.length;
@@ -3618,7 +3618,7 @@ export const api = {
     if (profissionalId) q = (q as any).eq('profissional', profissionalId);
 
     const { data, error } = await q;
-    if (error) throw new ApiError(humanizeError(error), 500, 'CRC_FALTAS');
+    if (error) throw humanizeError(error);
 
     return (data ?? []).map((row: any) => ({
       agendamentoId: row.id,
@@ -3634,7 +3634,7 @@ export const api = {
 
   async getInadimplentes(userId: string): Promise<ContaReceber[]> {
     const uid = await requireUserId(userId);
-    await supabase.rpc('atualizar_status_contas_vencidas').catch(() => {});
+    try { await supabase.rpc('atualizar_status_contas_vencidas'); } catch (_) {};
 
     const { data, error } = await supabase
       .from('contas_receber')
@@ -3643,7 +3643,7 @@ export const api = {
       .neq('status', 'pago')
       .order('data_vencimento', { ascending: true });
 
-    if (error) throw new ApiError(humanizeError(error), 500, 'CRC_INADIMPLENTES');
+    if (error) throw humanizeError(error);
 
     const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
     return (data ?? []).map((row: any) => {
@@ -3685,7 +3685,7 @@ export const api = {
       })
       .select('*, clientes(nome, telefone)')
       .single();
-    if (error || !data) throw new ApiError(humanizeError(error), 500, 'CONTA_RECEBER_CREATE');
+    if (error || !data) throw humanizeError(error);
 
     const venc = new Date(data.data_vencimento + 'T00:00:00');
     const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
@@ -3713,7 +3713,7 @@ export const api = {
       .update({ status: 'pago', data_pagamento: dataPagamento, updated_at: new Date().toISOString() })
       .eq('id', id)
       .eq('user_id', uid);
-    if (error) throw new ApiError(humanizeError(error), 500, 'CONTA_PAGA');
+    if (error) throw humanizeError(error);
   },
 
   async deleteContaReceber(id: string, userId: string): Promise<void> {
@@ -3723,7 +3723,7 @@ export const api = {
       .delete()
       .eq('id', id)
       .eq('user_id', uid);
-    if (error) throw new ApiError(humanizeError(error), 500, 'CONTA_DELETE');
+    if (error) throw humanizeError(error);
   },
 
   async getPacientesSemReagendamento(userId: string, dias: number): Promise<CrcSemReagendamento[]> {
@@ -3740,7 +3740,7 @@ export const api = {
       .lte('data_ultima_visita', cutoffISO)
       .not('data_ultima_visita', 'is', null);
 
-    if (cErr) throw new ApiError(humanizeError(cErr), 500, 'CRC_SEM_REAGEND_CLIENTES');
+    if (cErr) throw humanizeError(cErr);
     if (!clientes?.length) return [];
 
     const clienteIds = clientes.map((c: any) => c.id);
@@ -3794,7 +3794,7 @@ export const api = {
       .update({ crc_nao_retorna: naoRetorna })
       .eq('id', clienteId)
       .eq('user_id', uid);
-    if (error) throw new ApiError(humanizeError(error), 500, 'CLIENTE_NAO_RETORNA');
+    if (error) throw humanizeError(error);
   },
 
   async registrarCrcAcao(
@@ -3814,7 +3814,7 @@ export const api = {
       })
       .select()
       .single();
-    if (error || !data) throw new ApiError(humanizeError(error), 500, 'CRC_ACAO_CREATE');
+    if (error || !data) throw humanizeError(error);
     return {
       id:          data.id,
       clienteId:   data.cliente_id,
@@ -3866,7 +3866,7 @@ export const api = {
     const { error } = await supabase
       .from('whatsapp_config')
       .upsert({ ...payload }, { onConflict: 'user_id' });
-    if (error) throw new ApiError(humanizeError(error), 500, 'WA_CONFIG_SAVE');
+    if (error) throw humanizeError(error);
   },
 
   async getWhatsAppMensagens(userId: string, clienteId?: string, limit = 100): Promise<WhatsAppMensagem[]> {
@@ -3879,7 +3879,7 @@ export const api = {
       .limit(limit);
     if (clienteId) q = (q as any).eq('cliente_id', clienteId);
     const { data, error } = await q;
-    if (error) throw new ApiError(humanizeError(error), 500, 'WA_MENSAGENS_LIST');
+    if (error) throw humanizeError(error);
     return (data ?? []).map((row: any) => ({
       id:             row.id,
       clienteId:      row.cliente_id,
@@ -3929,7 +3929,7 @@ export const api = {
       })
       .select('id')
       .single();
-    if (logErr || !msg) throw new ApiError(humanizeError(logErr), 500, 'WA_LOG');
+    if (logErr || !msg) throw humanizeError(logErr);
 
     // Verifica config e horário
     const cfg = await api.getWhatsAppConfig(uid);
@@ -3974,7 +3974,7 @@ export const api = {
       .select('*, clientes(nome)')
       .eq('user_id', uid)
       .order('opt_out_at', { ascending: false });
-    if (error) throw new ApiError(humanizeError(error), 500, 'WA_OPT_OUT_LIST');
+    if (error) throw humanizeError(error);
     return (data ?? []).map((row: any) => ({
       id:          row.id,
       clienteId:   row.cliente_id,
@@ -3989,7 +3989,7 @@ export const api = {
     const { error } = await supabase
       .from('whatsapp_opt_out')
       .upsert({ user_id: uid, cliente_id: clienteId, motivo, opt_out_at: new Date().toISOString() }, { onConflict: 'user_id,cliente_id' });
-    if (error) throw new ApiError(humanizeError(error), 500, 'WA_OPT_OUT_SET');
+    if (error) throw humanizeError(error);
   },
 
   async removerOptOut(clienteId: string, userId: string): Promise<void> {
@@ -3999,7 +3999,7 @@ export const api = {
       .delete()
       .eq('user_id', uid)
       .eq('cliente_id', clienteId);
-    if (error) throw new ApiError(humanizeError(error), 500, 'WA_OPT_OUT_REMOVE');
+    if (error) throw humanizeError(error);
   },
 
   async getWhatsAppBatchResult(batchId: string, userId: string): Promise<WhatsAppBatchResult> {
@@ -4009,7 +4009,7 @@ export const api = {
       .select('status')
       .eq('user_id', uid)
       .eq('batch_id', batchId);
-    if (error) throw new ApiError(humanizeError(error), 500, 'WA_BATCH_RESULT');
+    if (error) throw humanizeError(error);
     const rows = data ?? [];
     return {
       batchId,
@@ -4193,7 +4193,7 @@ export const api = {
       .limit(200);
     if (clienteId) q = (q as any).eq('cliente_id', clienteId);
     const { data, error } = await q;
-    if (error) throw new ApiError(humanizeError(error), 500, 'CRC_ACOES_LIST');
+    if (error) throw humanizeError(error);
     return (data ?? []).map((row: any) => ({
       id:          row.id,
       clienteId:   row.cliente_id,
