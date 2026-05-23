@@ -16,6 +16,7 @@ import { WelcomeModal } from './components/WelcomeModal';
 import { AgendamentoPublico } from './components/AgendamentoPublico';
 import { AssinaturaPublica } from './components/AssinaturaPublica';
 import { GaleriaPublica } from './components/GaleriaPublica';
+import { LGPD } from './components/LGPD';
 import type { Agendamento, StatusJornada, UserRole } from './types';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { api } from './lib/api';
@@ -40,7 +41,7 @@ function getPublicGaleriaToken(): string | null {
 }
 
 // Abas que membros da equipe NÃO podem acessar.
-const TABS_BLOQUEADAS_EQUIPE = new Set(['comunicacao', 'gestao', 'configuracoes']);
+const TABS_BLOQUEADAS_EQUIPE = new Set(['comunicacao', 'gestao', 'configuracoes', 'lgpd']);
 
 // Roteador raiz: delega para página pública ou app autenticado.
 function App() {
@@ -511,6 +512,10 @@ function AppMain() {
 
         {currentTab === 'gestao' && userRole === 'dono' && (
           <Gestao userId={effectiveTenantId} userName={userName} />
+        )}
+
+        {currentTab === 'lgpd' && userRole === 'dono' && (
+          <LGPD userId={effectiveTenantId} />
         )}
 
         {currentTab === 'configuracoes' && userRole === 'dono' && (

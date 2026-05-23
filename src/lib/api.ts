@@ -75,6 +75,12 @@ import type {
   RepasseModelo,
   RepasseRegra,
   RiscoFalta,
+  LGPDConsentimento,
+  LGPDConsentimentoTipo,
+  LGPDSolicitacao,
+  LGPDSolicitacaoStatus,
+  LGPDSolicitacaoTipo,
+  LGPDStats,
   SessaoTratamento,
   SlotOcupado,
   StatusJornada,
@@ -4665,6 +4671,213 @@ export const api = {
       return (data ?? []).map(mapPrescricaoTemplateUso);
     });
   },
+
+  // ── US-047: LGPD ─────────────────────────────────────────────────────────
+
+  async getLGPDConsentimentos(clienteId: string, userId: string): Promise<LGPDConsentimento[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('lgpd_consentimentos')
+        .select('*')
+        .eq('user_id', uid)
+        .eq('cliente_id', clienteId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map(mapLGPDConsentimento);
+    });
+  },
+
+  async registrarConsentimentoLGPD(
+    dados: {
+      clienteId: string;
+      tipo: LGPDConsentimentoTipo;
+      versaoTermo: string;
+      termoTexto: string;
+      metodo?: LGPDConsentimento['metodo'];
+      responsavelLegalNome?: string;
+      responsavelLegalCpf?: string;
+    },
+    userId: string
+  ): Promise<LGPDConsentimento> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('lgpd_consentimentos')
+        .insert({
+          user_id:                uid,
+          cliente_id:             dados.clienteId,
+          tipo:                   dados.tipo,
+          versao_termo:           dados.versaoTermo,
+          termo_texto:            dados.termoTexto,
+          aceito:                 true,
+          metodo:                 dados.metodo ?? 'checkbox',
+          responsavel_legal_nome: dados.responsavelLegalNome ?? null,
+          responsavel_legal_cpf:  dados.responsavelLegalCpf ?? null,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return mapLGPDConsentimento(data);
+    });
+  },
+
+  async revogarConsentimentoLGPD(consentimentoId: string, userId: string): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { error } = await supabase
+        .from('lgpd_consentimentos')
+        .update({ revogado_em: new Date().toISOString() })
+        .eq('id', consentimentoId)
+        .eq('user_id', uid);
+      if (error) throw error;
+    });
+  },
+
+  async registrarAcessoDados(
+    dados: { clienteId: string; tipoDado: string },
+    userId: string
+  ): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      await supabase.from('lgpd_acessos_dados').insert({
+        user_id:    uid,
+        ator_id:    uid,
+        cliente_id: dados.clienteId,
+        tipo_dado:  dados.tipoDado,
+      });
+    });
+  },
+
+  async getLGPDSolicitacoes(userId: string, status?: LGPDSolicitacaoStatus): Promise<LGPDSolicitacao[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      let q = supabase
+        .from('lgpd_solicitacoes')
+        .select('*, clientes(nome)')
+        .eq('user_id', uid)
+        .order('created_at', { ascending: false });
+      if (status) q = (q as any).eq('status', status);
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []).map((row: any) => ({
+        ...mapLGPDSolicitacao(row),
+        clienteNome: row.clientes?.nome ?? '',
+      }));
+    });
+  },
+
+  async criarSolicitacaoLGPD(
+    dados: { clienteId: string; tipo: LGPDSolicitacaoTipo; motivo?: string },
+    userId: string
+  ): Promise<LGPDSolicitacao> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      // Prazo legal: 72h para acesso, 15 dias para portabilidade
+      const horasPrazo = dados.tipo === 'acesso' ? 72 : dados.tipo === 'portabilidade' ? 15 * 24 : null;
+      const prazoLegal = horasPrazo
+        ? new Date(Date.now() + horasPrazo * 3600000).toISOString()
+        : null;
+      const { data, error } = await supabase
+        .from('lgpd_solicitacoes')
+        .insert({
+          user_id:     uid,
+          cliente_id:  dados.clienteId,
+          tipo:        dados.tipo,
+          motivo:      dados.motivo ?? null,
+          prazo_legal: prazoLegal,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return mapLGPDSolicitacao(data);
+    });
+  },
+
+  async processarSolicitacaoLGPD(
+    id: string,
+    atualizacao: { status: LGPDSolicitacaoStatus; resposta?: string },
+    userId: string
+  ): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { error } = await supabase
+        .from('lgpd_solicitacoes')
+        .update({
+          status:         atualizacao.status,
+          resposta:       atualizacao.resposta ?? null,
+          processado_por: uid,
+          processado_em:  new Date().toISOString(),
+        })
+        .eq('id', id)
+        .eq('user_id', uid);
+      if (error) throw error;
+    });
+  },
+
+  async anonimizarDadosPaciente(clienteId: string, userId: string): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const hash = `EXCLUIDO_${clienteId.substring(0, 8).toUpperCase()}`;
+      const { error } = await supabase
+        .from('clientes')
+        .update({
+          nome:     hash,
+          telefone: '',
+          email:    null,
+          foto_url: null,
+          tags:     [],
+        })
+        .eq('id', clienteId)
+        .eq('user_id', uid);
+      if (error) throw error;
+    });
+  },
+
+  async exportarDadosPaciente(clienteId: string, userId: string): Promise<Record<string, unknown>> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const [{ data: cliente }, { data: agendamentos }, { data: evolucoes }] = await Promise.all([
+        supabase.from('clientes').select('*').eq('id', clienteId).eq('user_id', uid).single(),
+        supabase.from('agendamentos').select('*').eq('cliente_id', clienteId).eq('user_id', uid),
+        supabase.from('prontuarios_evolucoes').select('*').eq('cliente_id', clienteId).eq('user_id', uid),
+      ]);
+      return {
+        exportadoEm:  new Date().toISOString(),
+        dadosCadastrais: cliente ?? {},
+        historico:    agendamentos ?? [],
+        prontuario:   evolucoes ?? [],
+      };
+    });
+  },
+
+  async getLGPDStats(userId: string): Promise<LGPDStats> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const [
+        { count: totalPacientes },
+        { data: consentimentos },
+        { count: pendentes },
+        { count: emProcessamento },
+      ] = await Promise.all([
+        supabase.from('clientes').select('id', { count: 'exact', head: true }).eq('user_id', uid),
+        supabase.from('lgpd_consentimentos').select('cliente_id, tipo, revogado_em').eq('user_id', uid).is('revogado_em', null),
+        supabase.from('lgpd_solicitacoes').select('id', { count: 'exact', head: true }).eq('user_id', uid).eq('status', 'pendente'),
+        supabase.from('lgpd_solicitacoes').select('id', { count: 'exact', head: true }).eq('user_id', uid).eq('status', 'em_processamento'),
+      ]);
+      const servicoIds = new Set((consentimentos ?? []).filter((c: any) => c.tipo === 'servico').map((c: any) => c.cliente_id));
+      const marketingIds = new Set((consentimentos ?? []).filter((c: any) => c.tipo === 'marketing').map((c: any) => c.cliente_id));
+      const total = totalPacientes ?? 0;
+      return {
+        totalPacientes:           total,
+        comConsentimentoServico:  servicoIds.size,
+        semConsentimento:         Math.max(0, total - servicoIds.size),
+        comConsentimentoMarketing: marketingIds.size,
+        solicitacoesPendentes:    pendentes ?? 0,
+        solicitacoesEmProcessamento: emProcessamento ?? 0,
+      };
+    });
+  },
 };
 
 // ── Mappers internos (US-012) ─────────────────────────────────────────
@@ -4805,6 +5018,41 @@ function mapPrescricaoTemplateUso(row: any): PrescricaoTemplateUso {
     clienteId:   row.cliente_id ?? null,
     procedimento: row.procedimento ?? null,
     usadoEm:     row.usado_em ?? '',
+  };
+}
+
+function mapLGPDConsentimento(row: any): LGPDConsentimento {
+  return {
+    id:                    row.id,
+    userId:                row.user_id,
+    clienteId:             row.cliente_id,
+    versaoTermo:           row.versao_termo ?? '1.0',
+    tipo:                  row.tipo ?? 'servico',
+    aceito:                row.aceito ?? true,
+    ipAddress:             row.ip_address ?? undefined,
+    metodo:                row.metodo ?? 'checkbox',
+    responsavelLegalNome:  row.responsavel_legal_nome ?? undefined,
+    responsavelLegalCpf:   row.responsavel_legal_cpf ?? undefined,
+    termoTexto:            row.termo_texto ?? undefined,
+    revogadoEm:            row.revogado_em ?? undefined,
+    createdAt:             row.created_at ?? '',
+  };
+}
+
+function mapLGPDSolicitacao(row: any): LGPDSolicitacao {
+  return {
+    id:              row.id,
+    userId:          row.user_id,
+    clienteId:       row.cliente_id,
+    tipo:            row.tipo,
+    status:          row.status,
+    motivo:          row.motivo ?? undefined,
+    resposta:        row.resposta ?? undefined,
+    processadoPor:   row.processado_por ?? undefined,
+    processadoEm:    row.processado_em ?? undefined,
+    prazoLegal:      row.prazo_legal ?? undefined,
+    dadosExportados: row.dados_exportados ?? undefined,
+    createdAt:       row.created_at ?? '',
   };
 }
 

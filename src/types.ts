@@ -820,4 +820,54 @@ export interface PrescricaoTemplateUso {
   usadoEm: string;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// US-047: LGPD
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type LGPDConsentimentoTipo = 'servico' | 'marketing';
+export type LGPDConsentimentoMetodo = 'checkbox' | 'assinatura_digital' | 'responsavel_legal';
+export type LGPDSolicitacaoTipo = 'acesso' | 'exclusao' | 'portabilidade' | 'revogacao_consentimento';
+export type LGPDSolicitacaoStatus = 'pendente' | 'em_processamento' | 'concluida' | 'rejeitada';
+
+export interface LGPDConsentimento {
+  id: string;
+  userId: string;
+  clienteId: string;
+  versaoTermo: string;
+  tipo: LGPDConsentimentoTipo;
+  aceito: boolean;
+  ipAddress?: string;
+  metodo: LGPDConsentimentoMetodo;
+  responsavelLegalNome?: string;
+  responsavelLegalCpf?: string;
+  termoTexto?: string;
+  revogadoEm?: string;
+  createdAt: string;
+}
+
+export interface LGPDSolicitacao {
+  id: string;
+  userId: string;
+  clienteId: string;
+  clienteNome?: string;
+  tipo: LGPDSolicitacaoTipo;
+  status: LGPDSolicitacaoStatus;
+  motivo?: string;
+  resposta?: string;
+  processadoPor?: string;
+  processadoEm?: string;
+  prazoLegal?: string;
+  dadosExportados?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface LGPDStats {
+  totalPacientes: number;
+  comConsentimentoServico: number;
+  semConsentimento: number;
+  comConsentimentoMarketing: number;
+  solicitacoesPendentes: number;
+  solicitacoesEmProcessamento: number;
+}
+
 export const IS_TYPED = true;

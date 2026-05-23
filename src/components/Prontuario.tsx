@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { Agendamento, Cliente, EvolucaoClinica, GaleriaItem, Procedimento, Profissional, PrescricaoTemplate } from '../types';
-import { FileText, Camera, Plus, Trash2, Edit2, User, CalendarPlus, UserPlus, AlertTriangle, Calendar, ChevronLeft, ChevronRight, LayoutTemplate, Search } from 'lucide-react';
+import { FileText, Camera, Plus, Trash2, Edit2, User, CalendarPlus, UserPlus, AlertTriangle, Calendar, ChevronLeft, ChevronRight, LayoutTemplate, Search, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { api } from '../lib/api';
 import { HistoricoPresenca } from './HistoricoPresenca';
 import { AnamneseDigital } from './AnamneseDigital';
 import { AssinaturaDigital } from './AssinaturaDigital';
 import { PlanoTratamento } from './PlanoTratamento';
 import { TemplatesPrescricoes } from './TemplatesPrescricoes';
+import { ConsentimentoLGPD } from './ConsentimentoLGPD';
 
 const OWNER_ID = '__owner__';
 
@@ -72,6 +73,11 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
   const [templatePickerSearch, setTemplatePickerSearch] = useState('');
   const [templatePickerCat, setTemplatePickerCat] = useState('');
   const [loadingTemplatePicker, setLoadingTemplatePicker] = useState(false);
+
+  // LGPD: estado de consentimento do paciente ativo
+  const [lgpdConsentido, setLgpdConsentido] = useState<boolean | null>(null);
+  const [showConsentimento, setShowConsentimento] = useState(false);
+  const [ehMenorIdade, setEhMenorIdade] = useState(false);
 
   // Ref for consultation carousel scroll navigation
   const carouselRef = React.useRef<HTMLDivElement>(null);
@@ -229,6 +235,31 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
       cancelled = true;
     };
   }, [activeClienteId, userId]);
+
+  // LGPD: verifica consentimento e loga acesso ao abrir prontuário
+  useEffect(() => {
+    if (!activeClienteId) { setLgpdConsentido(null); return; }
+    setLgpdConsentido(null);
+    setShowConsentimento(false);
+    api.getLGPDConsentimentos(activeClienteId, userId)
+      .then(consentimentos => {
+        const ativo = consentimentos.find(c => c.tipo === 'servico' && c.aceito && !c.revogadoEm);
+        setLgpdConsentido(!!ativo);
+        if (!ativo) {
+          const cliente = clientes.find(c => c.id === activeClienteId);
+          if (cliente?.dataNascimento) {
+            const nascimento = new Date(cliente.dataNascimento);
+            const idade = (Date.now() - nascimento.getTime()) / (365.25 * 24 * 3600 * 1000);
+            setEhMenorIdade(idade < 18);
+          }
+          setShowConsentimento(true);
+        } else {
+          // Registra acesso para trilha de auditoria (fire-and-forget)
+          api.registrarAcessoDados({ clienteId: activeClienteId, tipoDado: 'prontuario' }, userId).catch(() => {});
+        }
+      })
+      .catch(() => setLgpdConsentido(null));
+  }, [activeClienteId, userId, clientes]);
 
   // Fetch future appointments for the active client (used by the consultation carousel)
   useEffect(() => {
@@ -750,9 +781,25 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
                   {!isEditing ? (
                     <div className="prontuario-patient-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', gap: '16px' }}>
                       <div style={{ minWidth: 0 }}>
-                        <h2 style={{ fontSize: '22px', fontWeight: 600, marginBottom: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {currentCliente.nome}
-                        </h2>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                          <h2 style={{ fontSize: '22px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>
+                            {currentCliente.nome}
+                          </h2>
+                          {lgpdConsentido === true && (
+                            <span title="Consentimento LGPD ativo" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 600, color: 'var(--color-success)', background: '#e8f5e9', padding: '2px 8px', borderRadius: '100px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                              <ShieldCheck size={12} /> LGPD
+                            </span>
+                          )}
+                          {lgpdConsentido === false && (
+                            <button
+                              onClick={() => setShowConsentimento(true)}
+                              title="Sem consentimento LGPD — clique para coletar"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 600, color: 'var(--color-warning)', background: '#fff8e1', padding: '2px 8px', borderRadius: '100px', border: '1px solid var(--color-warning)', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+                            >
+                              <ShieldAlert size={12} /> Sem consentimento
+                            </button>
+                          )}
+                        </div>
                         <div className="prontuario-patient-meta" style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px', fontSize: '13px', color: 'var(--color-text-muted)' }}>
                           <span>Nasc: {currentCliente.dataNascimento ? currentCliente.dataNascimento.split('-').reverse().join('/') : 'N/A'}</span>
                           <span>Contato: {currentCliente.telefone || 'N/A'}</span>
@@ -1935,6 +1982,24 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
           </div>
           <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '11px', marginTop: '16px' }}>clique em qualquer lugar para fechar</div>
         </div>
+      )}
+
+      {/* Modal de consentimento LGPD */}
+      {showConsentimento && currentCliente && (
+        <ConsentimentoLGPD
+          clienteId={currentCliente.id}
+          clienteNome={currentCliente.nome}
+          userId={userId}
+          ehMenor={ehMenorIdade}
+          onConcluido={() => {
+            setShowConsentimento(false);
+            setLgpdConsentido(true);
+            api.registrarAcessoDados({ clienteId: currentCliente.id, tipoDado: 'prontuario' }, userId).catch(() => {});
+          }}
+          onPular={() => {
+            setShowConsentimento(false);
+          }}
+        />
       )}
     </div>
   );

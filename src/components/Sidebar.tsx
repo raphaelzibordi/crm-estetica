@@ -17,6 +17,7 @@ import {
   Receipt,
   HeartHandshake,
   MessageCircle,
+  ShieldCheck,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { UserRole } from '../types';
@@ -41,6 +42,7 @@ const ALL_MENU_ITEMS = [
   { id: 'whatsapp',    label: 'WhatsApp',           icon: MessageCircle,      donoOnly: false },
   { id: 'comunicacao', label: 'CRM & Retenção',     icon: MessageSquareHeart, donoOnly: true },
   { id: 'gestao',      label: 'Gestão da Clínica',  icon: TrendingUp,         donoOnly: true },
+  { id: 'lgpd',        label: 'LGPD',               icon: ShieldCheck,        donoOnly: true },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({
