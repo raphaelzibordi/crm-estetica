@@ -35,7 +35,9 @@
       "Bash(sed 's/create table.*public\\\\.//')",
       "mcp__claude_ai_Supabase__deploy_edge_function",
       "Bash(dir -Recurse src -Directory)",
-      "Bash(Select-Object -ExpandProperty FullName)"
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(xargs grep -l \"contas\\\\|pagamento\\\\|financeiro\\\\|checkout\\\\|fluxo_caixa\\\\|receber\\\\|pagar\")",
+      "Bash(xargs grep -l \"Gestao\\\\|Repassos\\\\|Dashboard\")"
     ]
   }
 }
