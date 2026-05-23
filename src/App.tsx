@@ -5,6 +5,10 @@ import { Dashboard } from './components/Dashboard';
 import { Agenda } from './components/Agenda';
 import { Prontuario } from './components/Prontuario';
 import { Comunicacao } from './components/Comunicacao';
+import { CRM } from './components/CRM';
+import { Orcamentos } from './components/Orcamentos';
+import { CRCCentral } from './components/CRCCentral';
+import { WhatsApp } from './components/WhatsApp';
 import { Gestao } from './components/Gestao';
 import { Auth } from './components/Auth';
 import { Configuracoes } from './components/Configuracoes';
@@ -449,6 +453,43 @@ function AppMain() {
             userId={effectiveTenantId}
             onAddAgendamento={handleAddAgendamento}
             userName={userName}
+          />
+        )}
+
+        {currentTab === 'crm' && (
+          <CRM
+            userId={effectiveTenantId}
+            userName={userName}
+            onConvertidoAgendar={(_clienteId, clienteNome) => {
+              alert(`"${clienteNome}" convertido em paciente! Acesse Prontuário para criar o agendamento.`);
+              setCurrentTabSafe('prontuario');
+            }}
+          />
+        )}
+
+        {currentTab === 'orcamentos' && (
+          <Orcamentos
+            userId={effectiveTenantId}
+            userName={userName || clinicName}
+            onConvertidoAgendar={(nomeCliente) => {
+              alert(`Orçamento de "${nomeCliente}" aprovado! Acesse a Agenda para criar o agendamento.`);
+              setCurrentTabSafe('agenda');
+            }}
+          />
+        )}
+
+        {currentTab === 'crc' && (
+          <CRCCentral
+            userId={effectiveTenantId}
+            userName={userName || clinicName}
+            onAgendar={() => setCurrentTabSafe('agenda')}
+          />
+        )}
+
+        {currentTab === 'whatsapp' && (
+          <WhatsApp
+            userId={effectiveTenantId}
+            userName={userName || clinicName}
           />
         )}
 

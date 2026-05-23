@@ -453,4 +453,287 @@ export interface PreviewRepasse {
   itens: RepasseItemSnapshot[];
 }
 
+// ── Pipeline de Leads / Funil CRM (US-011) ───────────────────────────
+
+export type FunilEtapaTipo = 'ativo' | 'convertido' | 'perdido';
+export type LeadOrigem = 'instagram' | 'google' | 'indicacao' | 'whatsapp' | 'tiktok' | 'outro';
+export type LeadHistoricoTipo = 'movimentacao' | 'tarefa' | 'nota' | 'automacao';
+export type LeadAutomacaoTipo = 'whatsapp' | 'email' | 'tarefa';
+export type LeadAutomacaoGatilho = 'ao_entrar' | 'apos_dias';
+
+export interface FunilEtapa {
+  id: string;
+  nome: string;
+  ordem: number;
+  cor: string;
+  tipo: FunilEtapaTipo;
+}
+
+export interface Lead {
+  id: string;
+  nome: string;
+  telefone: string;
+  email: string;
+  procedimentoInteresse: string;
+  origem: LeadOrigem;
+  observacoes: string;
+  etapaId: string;
+  etapaEntradaEm: string; // ISO — quando entrou na etapa atual
+  responsavelId: string | null;
+  responsavelNome: string | null;
+  clienteId: string | null; // preenchido após conversão
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LeadHistorico {
+  id: string;
+  leadId: string;
+  etapaAnteriorId: string | null;
+  etapaNovaId: string;
+  usuarioNome: string;
+  observacao: string | null;
+  tipo: LeadHistoricoTipo;
+  createdAt: string;
+}
+
+export interface LeadAutomacao {
+  id: string;
+  etapaId: string;
+  tipo: LeadAutomacaoTipo;
+  gatilho: LeadAutomacaoGatilho;
+  diasEspera: number | null;
+  mensagem: string | null;
+  tarefaTitulo: string | null;
+  ativo: boolean;
+}
+
+export interface FunilMetricas {
+  totalLeads: number;
+  leadsPorEtapa: Record<string, number>;
+  taxaConversaoPorEtapa: Record<string, number>; // % que saiu da etapa para a próxima
+  tempoMedioPorEtapa: Record<string, number>;    // dias médios por etapa
+  leadsPorOrigem: Record<string, number>;
+  leadsHoje: number;
+  leadsSemana: number;
+  leadsMes: number;
+}
+
+// ── Orçamentos (US-012) ───────────────────────────────────────────────
+
+export type OrcamentoStatus = 'aberto' | 'aprovado' | 'perdido' | 'expirado';
+export type OrcamentoMotivoPerdaKey = 'preco' | 'concorrente' | 'nao_respondeu' | 'outro';
+export type OrcamentoCanalFollowup = 'whatsapp' | 'email' | 'ambos';
+
+export interface OrcamentoItem {
+  id: string;
+  orcamentoId: string;
+  procedimentoId: string | null;
+  descricao: string;
+  quantidade: number;
+  valorUnitario: number;
+  valorTotal: number; // calculado: quantidade * valorUnitario
+}
+
+export interface Orcamento {
+  id: string;
+  clienteId: string | null;
+  leadId: string | null;
+  nomeCliente: string;
+  telefone: string;
+  profissionalId: string | null;
+  profissionalNome: string | null;
+  dataEnvio: string;    // YYYY-MM-DD
+  validade: string;     // YYYY-MM-DD
+  status: OrcamentoStatus;
+  motivoPerdaKey: OrcamentoMotivoPerdaKey | null;
+  valorTotal: number;
+  observacoes: string | null;
+  itens?: OrcamentoItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrcamentoFollowupConfig {
+  id: string;
+  diasAposEnvio: number;
+  canal: OrcamentoCanalFollowup;
+  mensagemTemplate: string;
+  ativo: boolean;
+  ordem: number;
+}
+
+export interface OrcamentoFollowupLog {
+  id: string;
+  orcamentoId: string;
+  configId: string | null;
+  canal: string;
+  mensagem: string;
+  enviadoEm: string;
+  status: 'pendente' | 'enviado' | 'falha';
+}
+
+export interface OrcamentoRelatorio {
+  totalEnviados: number;
+  totalAprovados: number;
+  totalPerdidos: number;
+  totalExpirados: number;
+  taxaConversao: number;        // percentual aprovados / (aprovados + perdidos + expirados)
+  valorTotalConvertido: number;
+  ticketMedioAprovados: number;
+  motivosPerda: Record<OrcamentoMotivoPerdaKey, number>;
+}
+
+// ── CRC — Central de Relacionamento (US-013) ─────────────────────────
+
+export interface CrcFalta {
+  agendamentoId: string;
+  clienteId: string;
+  clienteNome: string;
+  telefone: string;
+  data: string;
+  procedimento: string;
+  profissional: string;
+  faltaMotivo: string | null;
+}
+
+export type ContaReceberStatus = 'pendente' | 'pago' | 'vencido';
+
+export interface ContaReceber {
+  id: string;
+  clienteId: string;
+  clienteNome: string;
+  telefone: string;
+  descricao: string;
+  valor: number;
+  dataVencimento: string;
+  dataPagamento: string | null;
+  status: ContaReceberStatus;
+  agendamentoId: string | null;
+  observacoes: string | null;
+  diasAtraso: number;
+  createdAt: string;
+}
+
+export interface CrcSemReagendamento {
+  clienteId: string;
+  clienteNome: string;
+  telefone: string;
+  ultimoProcedimento: string;
+  profissional: string;
+  dataUltimaVisita: string;
+  diasSemVisita: number;
+}
+
+export type CrcAcaoTipo = 'mensagem_whatsapp' | 'ligacao' | 'reagendamento' | 'cobranca' | 'nao_retorna' | 'outro';
+export type CrcAcaoContexto = 'falta' | 'inadimplente' | 'sem_reagendamento';
+
+export interface CrcAcao {
+  id: string;
+  clienteId: string;
+  tipo: CrcAcaoTipo;
+  contexto: CrcAcaoContexto;
+  observacao: string | null;
+  usuarioNome: string;
+  createdAt: string;
+}
+
+// ── WhatsApp Integrado (US-017) ──────────────────────────────────────
+
+export type WhatsAppProvider = 'zapi' | '360dialog' | 'twilio';
+export type WhatsAppStatus = 'enviando' | 'enviado' | 'entregue' | 'lido' | 'falha' | 'agendado' | 'cancelado';
+export type TemplateMensagemCategoria = 'cobranca' | 'relacionamento' | 'marketing' | 'operacional';
+
+export interface WhatsAppConfig {
+  id: string | null;
+  provider: WhatsAppProvider;
+  zapiInstance: string;
+  zapiToken: string;
+  zapiClientToken: string;
+  numeroOficial: string;
+  horaInicio: string;   // HH:MM
+  horaFim: string;      // HH:MM
+  ativo: boolean;
+}
+
+export interface WhatsAppMensagem {
+  id: string;
+  clienteId: string;
+  clienteNome?: string;
+  direcao: 'out' | 'in';
+  conteudo: string;
+  status: WhatsAppStatus;
+  providerMsgId: string | null;
+  batchId: string | null;
+  usuarioNome: string;
+  agendadoPara: string | null;
+  errorMsg: string | null;
+  createdAt: string;
+}
+
+export interface WhatsAppOptOut {
+  id: string;
+  clienteId: string;
+  clienteNome?: string;
+  motivo: string;
+  optOutAt: string;
+}
+
+export interface WhatsAppBatchResult {
+  batchId: string;
+  total: number;
+  enviados: number;
+  falhas: number;
+  optOuts: number;
+  semTelefone: number;
+}
+
+// ── Plano de Tratamento (US-026) ─────────────────────────────────────
+
+export type PlanoStatus = 'ativo' | 'concluido' | 'encerrado_antecipado';
+
+export interface PlanoTratamento {
+  id: string;
+  clienteId: string;
+  nomeProtocolo: string;
+  objetivo: string;
+  procedimentos: string;
+  totalSessoes: number;
+  frequenciaRecomendada: string;
+  frequenciaDias: number | null;
+  observacoesIniciais: string;
+  status: PlanoStatus;
+  motivoEncerramento: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SessaoTratamento {
+  id: string;
+  planoId: string;
+  numeroSessao: number;
+  dataRealizada: string | null;
+  agendamentoId: string | null;
+  observacoesClinicas: string;
+  materiaisUsados: string;
+  fotoAntes: string | null;
+  fotoDepois: string | null;
+  nivelResposta: number | null;
+  realizada: boolean;
+  createdAt: string;
+}
+
+export interface PlanoAlertaContinuidade {
+  planoId: string;
+  clienteId: string;
+  clienteNome: string;
+  clienteTelefone: string;
+  nomeProtocolo: string;
+  totalSessoes: number;
+  sessoesRealizadas: number;
+  sessoesRestantes: number;
+  ultimaSessao: string;
+  frequenciaDias: number;
+}
+
 export const IS_TYPED = true;

@@ -5,6 +5,7 @@ import { api } from '../lib/api';
 import { HistoricoPresenca } from './HistoricoPresenca';
 import { AnamneseDigital } from './AnamneseDigital';
 import { AssinaturaDigital } from './AssinaturaDigital';
+import { PlanoTratamento } from './PlanoTratamento';
 
 const OWNER_ID = '__owner__';
 
@@ -1019,6 +1020,16 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
           {/* Assinatura Digital de Documentos (US-025) */}
           {currentCliente && (
             <AssinaturaDigital
+              clienteId={activeClienteId}
+              clienteNome={currentCliente.nome}
+              userId={userId}
+              userName={userName}
+            />
+          )}
+
+          {/* Plano de Tratamento Multi-Etapas (US-026) */}
+          {currentCliente && (
+            <PlanoTratamento
               clienteId={activeClienteId}
               clienteNome={currentCliente.nome}
               userId={userId}

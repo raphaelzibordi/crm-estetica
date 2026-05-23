@@ -13,6 +13,10 @@ import {
   Building2,
   Menu,
   X,
+  Users,
+  Receipt,
+  HeartHandshake,
+  MessageCircle,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { UserRole } from '../types';
@@ -28,11 +32,15 @@ interface SidebarProps {
 }
 
 const ALL_MENU_ITEMS = [
-  { id: 'dashboard',   label: 'Jornada da Cliente', icon: LayoutDashboard, donoOnly: false },
-  { id: 'agenda',      label: 'Agenda Inteligente', icon: CalendarRange,   donoOnly: false },
-  { id: 'prontuario',  label: 'Prontuário Visual',  icon: ClipboardList,   donoOnly: false },
+  { id: 'dashboard',   label: 'Jornada da Cliente', icon: LayoutDashboard,    donoOnly: false },
+  { id: 'agenda',      label: 'Agenda Inteligente', icon: CalendarRange,      donoOnly: false },
+  { id: 'prontuario',  label: 'Prontuário Visual',  icon: ClipboardList,      donoOnly: false },
+  { id: 'crm',         label: 'Pipeline de Leads',  icon: Users,              donoOnly: false },
+  { id: 'orcamentos',  label: 'Orçamentos',         icon: Receipt,            donoOnly: false },
+  { id: 'crc',         label: 'Relacionamento',     icon: HeartHandshake,     donoOnly: false },
+  { id: 'whatsapp',    label: 'WhatsApp',           icon: MessageCircle,      donoOnly: false },
   { id: 'comunicacao', label: 'CRM & Retenção',     icon: MessageSquareHeart, donoOnly: true },
-  { id: 'gestao',      label: 'Gestão da Clínica',  icon: TrendingUp,      donoOnly: true },
+  { id: 'gestao',      label: 'Gestão da Clínica',  icon: TrendingUp,         donoOnly: true },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({

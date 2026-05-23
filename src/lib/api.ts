@@ -4,6 +4,19 @@ import { findAgendamentoConflict } from './agendaConflict';
 import type {
   Agendamento,
   AnamneseCampo,
+  ContaReceber,
+  ContaReceberStatus,
+  CrcAcao,
+  CrcAcaoContexto,
+  CrcAcaoTipo,
+  CrcFalta,
+  CrcSemReagendamento,
+  WhatsAppBatchResult,
+  WhatsAppConfig,
+  WhatsAppMensagem,
+  WhatsAppOptOut,
+  WhatsAppProvider,
+  WhatsAppStatus,
   AnamneseFormulario,
   AnamneseResposta,
   AnamneseStatus,
@@ -23,20 +36,38 @@ import type {
   FechamentoComissao,
   FechamentoFinanceiro,
   FechamentoRepasse,
+  FunilEtapa,
+  FunilMetricas,
   GaleriaItem,
   HistoricoPresenca,
   ItemEstoque,
+  Lead,
+  LeadAutomacao,
+  LeadHistorico,
+  LeadOrigem,
   MembroEquipe,
+  Orcamento,
+  OrcamentoCanalFollowup,
+  OrcamentoFollowupConfig,
+  OrcamentoFollowupLog,
+  OrcamentoItem,
+  OrcamentoMotivoPerdaKey,
+  OrcamentoRelatorio,
+  OrcamentoStatus,
   PreviewRepasse,
   Procedimento,
   ProcedimentoPublico,
   ProfissionalPublico,
   RelatorioComissaoProfissional,
   RelatorioFaltas,
+  PlanoAlertaContinuidade,
+  PlanoStatus,
+  PlanoTratamento,
   RepasseItemSnapshot,
   RepasseModelo,
   RepasseRegra,
   RiscoFalta,
+  SessaoTratamento,
   SlotOcupado,
   StatusJornada,
   TemplateMensagem,
@@ -162,6 +193,61 @@ function mapEstoque(row: any): ItemEstoque {
     unidade: row.unidade ?? 'un',
     status: (row.status as ItemEstoque['status']) ?? 'normal',
     ultimaReposicao: row.ultima_reposicao ?? '',
+  };
+}
+
+function mapFunilEtapa(row: any): FunilEtapa {
+  return {
+    id:     row.id,
+    nome:   row.nome ?? '',
+    ordem:  Number(row.ordem ?? 0),
+    cor:    row.cor ?? '#6B7280',
+    tipo:   (row.tipo as FunilEtapa['tipo']) ?? 'ativo',
+  };
+}
+
+function mapLead(row: any): Lead {
+  return {
+    id:                     row.id,
+    nome:                   row.nome ?? '',
+    telefone:               row.telefone ?? '',
+    email:                  row.email ?? '',
+    procedimentoInteresse:  row.procedimento_interesse ?? '',
+    origem:                 (row.origem as LeadOrigem) ?? 'outro',
+    observacoes:            row.observacoes ?? '',
+    etapaId:                row.etapa_id,
+    etapaEntradaEm:         row.etapa_entrada_em ?? row.created_at,
+    responsavelId:          row.responsavel_id ?? null,
+    responsavelNome:        row.responsavel_nome ?? null,
+    clienteId:              row.cliente_id ?? null,
+    createdAt:              row.created_at,
+    updatedAt:              row.updated_at ?? row.created_at,
+  };
+}
+
+function mapLeadHistorico(row: any): LeadHistorico {
+  return {
+    id:               row.id,
+    leadId:           row.lead_id,
+    etapaAnteriorId:  row.etapa_anterior_id ?? null,
+    etapaNovaId:      row.etapa_nova_id,
+    usuarioNome:      row.usuario_nome ?? '',
+    observacao:       row.observacao ?? null,
+    tipo:             (row.tipo as LeadHistorico['tipo']) ?? 'movimentacao',
+    createdAt:        row.created_at,
+  };
+}
+
+function mapLeadAutomacao(row: any): LeadAutomacao {
+  return {
+    id:           row.id,
+    etapaId:      row.etapa_id,
+    tipo:         (row.tipo as LeadAutomacao['tipo']) ?? 'tarefa',
+    gatilho:      (row.gatilho as LeadAutomacao['gatilho']) ?? 'ao_entrar',
+    diasEspera:   row.dias_espera ?? null,
+    mensagem:     row.mensagem ?? null,
+    tarefaTitulo: row.tarefa_titulo ?? null,
+    ativo:        Boolean(row.ativo),
   };
 }
 
@@ -2728,7 +2814,1494 @@ export const api = {
       console.log('[repasse] Notificação marcada para fechamento', id, 'user', uid);
     });
   },
+
+  // ============================================================
+  // PIPELINE DE LEADS / FUNIL CRM (US-011)
+  // ============================================================
+
+  // ── Etapas do Funil ──────────────────────────────────────────
+
+  async getFunilEtapas(userId?: string): Promise<FunilEtapa[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('funil_etapas')
+        .select('*')
+        .eq('user_id', uid)
+        .order('ordem');
+      if (error) throw error;
+      return (data ?? []).map(mapFunilEtapa);
+    });
+  },
+
+  async initFunilPadrao(userId?: string): Promise<FunilEtapa[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data: existing } = await supabase
+        .from('funil_etapas')
+        .select('id')
+        .eq('user_id', uid)
+        .limit(1);
+      if ((existing ?? []).length > 0) return this.getFunilEtapas(uid);
+
+      const defaults = [
+        { nome: 'Novo Lead',          ordem: 0, cor: '#6366F1', tipo: 'ativo' },
+        { nome: 'Primeiro Contato',   ordem: 1, cor: '#F59E0B', tipo: 'ativo' },
+        { nome: 'Orçamento Enviado',  ordem: 2, cor: '#3B82F6', tipo: 'ativo' },
+        { nome: 'Agendado',           ordem: 3, cor: '#8B5CF6', tipo: 'ativo' },
+        { nome: 'Convertido',         ordem: 4, cor: '#10B981', tipo: 'convertido' },
+        { nome: 'Perdido',            ordem: 5, cor: '#EF4444', tipo: 'perdido' },
+      ];
+      const { data, error } = await supabase
+        .from('funil_etapas')
+        .insert(defaults.map((d) => ({ ...d, user_id: uid })))
+        .select();
+      if (error) throw error;
+      return (data ?? []).map(mapFunilEtapa).sort((a, b) => a.ordem - b.ordem);
+    });
+  },
+
+  async createFunilEtapa(
+    etapa: Omit<FunilEtapa, 'id'>,
+    userId?: string
+  ): Promise<FunilEtapa> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      if (!etapa.nome?.trim()) throw new ApiError('Informe o nome da etapa.', 400);
+      const { data, error } = await supabase
+        .from('funil_etapas')
+        .insert({ user_id: uid, nome: etapa.nome, ordem: etapa.ordem, cor: etapa.cor, tipo: etapa.tipo })
+        .select()
+        .single();
+      if (error) throw error;
+      return mapFunilEtapa(data);
+    });
+  },
+
+  async updateFunilEtapa(
+    id: string,
+    updates: Partial<Pick<FunilEtapa, 'nome' | 'ordem' | 'cor' | 'tipo'>>,
+    userId?: string
+  ): Promise<FunilEtapa> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const patch: Record<string, unknown> = {};
+      if (updates.nome  !== undefined) patch.nome  = updates.nome;
+      if (updates.ordem !== undefined) patch.ordem = updates.ordem;
+      if (updates.cor   !== undefined) patch.cor   = updates.cor;
+      if (updates.tipo  !== undefined) patch.tipo  = updates.tipo;
+      const { data, error } = await supabase
+        .from('funil_etapas')
+        .update(patch)
+        .eq('id', id)
+        .eq('user_id', uid)
+        .select()
+        .single();
+      if (error) throw error;
+      return mapFunilEtapa(data);
+    });
+  },
+
+  async deleteFunilEtapa(id: string, userId?: string): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { count } = await supabase
+        .from('leads')
+        .select('id', { count: 'exact', head: true })
+        .eq('etapa_id', id)
+        .eq('user_id', uid);
+      if ((count ?? 0) > 0) {
+        throw new ApiError('Mova os leads desta etapa antes de excluí-la.', 400);
+      }
+      const { error } = await supabase
+        .from('funil_etapas')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', uid);
+      if (error) throw error;
+    });
+  },
+
+  // ── Leads ────────────────────────────────────────────────────
+
+  async getLeads(userId?: string): Promise<Lead[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('leads')
+        .select('*')
+        .eq('user_id', uid)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map(mapLead);
+    });
+  },
+
+  async createLead(
+    lead: Omit<Lead, 'id' | 'createdAt' | 'updatedAt' | 'clienteId' | 'etapaEntradaEm'>,
+    userId?: string
+  ): Promise<Lead> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      if (!lead.nome?.trim()) throw new ApiError('Informe o nome do lead.', 400);
+      const { data, error } = await supabase
+        .from('leads')
+        .insert({
+          user_id:                uid,
+          nome:                   lead.nome,
+          telefone:               lead.telefone || null,
+          email:                  lead.email || null,
+          procedimento_interesse: lead.procedimentoInteresse || null,
+          origem:                 lead.origem,
+          observacoes:            lead.observacoes || null,
+          etapa_id:               lead.etapaId,
+          responsavel_id:         lead.responsavelId || null,
+          responsavel_nome:       lead.responsavelNome || null,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return mapLead(data);
+    });
+  },
+
+  async updateLead(
+    id: string,
+    updates: Partial<Pick<Lead, 'nome' | 'telefone' | 'email' | 'procedimentoInteresse' | 'origem' | 'observacoes' | 'responsavelId' | 'responsavelNome'>>,
+    userId?: string
+  ): Promise<Lead> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const patch: Record<string, unknown> = {};
+      if (updates.nome                  !== undefined) patch.nome                   = updates.nome;
+      if (updates.telefone              !== undefined) patch.telefone               = updates.telefone || null;
+      if (updates.email                 !== undefined) patch.email                  = updates.email || null;
+      if (updates.procedimentoInteresse !== undefined) patch.procedimento_interesse = updates.procedimentoInteresse || null;
+      if (updates.origem                !== undefined) patch.origem                 = updates.origem;
+      if (updates.observacoes           !== undefined) patch.observacoes            = updates.observacoes || null;
+      if (updates.responsavelId         !== undefined) patch.responsavel_id         = updates.responsavelId || null;
+      if (updates.responsavelNome       !== undefined) patch.responsavel_nome       = updates.responsavelNome || null;
+      const { data, error } = await supabase
+        .from('leads')
+        .update(patch)
+        .eq('id', id)
+        .eq('user_id', uid)
+        .select()
+        .single();
+      if (error) throw error;
+      return mapLead(data);
+    });
+  },
+
+  async moverLead(
+    leadId: string,
+    novaEtapaId: string,
+    usuarioNome: string,
+    userId?: string
+  ): Promise<Lead> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data: leadAtual, error: errLead } = await supabase
+        .from('leads')
+        .select('etapa_id')
+        .eq('id', leadId)
+        .eq('user_id', uid)
+        .single();
+      if (errLead) throw errLead;
+
+      const etapaAnteriorId = leadAtual.etapa_id as string;
+
+      // Atualiza etapa e reseta o timer de entrada
+      const { data, error } = await supabase
+        .from('leads')
+        .update({ etapa_id: novaEtapaId, etapa_entrada_em: new Date().toISOString() })
+        .eq('id', leadId)
+        .eq('user_id', uid)
+        .select()
+        .single();
+      if (error) throw error;
+
+      // Registra no histórico (trilha imutável)
+      await supabase.from('lead_historico').insert({
+        user_id:          uid,
+        lead_id:          leadId,
+        etapa_anterior_id: etapaAnteriorId,
+        etapa_nova_id:    novaEtapaId,
+        usuario_nome:     usuarioNome,
+        tipo:             'movimentacao',
+      });
+
+      return mapLead(data);
+    });
+  },
+
+  async converterLeadEmPaciente(
+    leadId: string,
+    usuarioNome: string,
+    userId?: string
+  ): Promise<{ lead: Lead; clienteId: string }> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+
+      // Busca dados do lead
+      const { data: leadRow, error: errLead } = await supabase
+        .from('leads')
+        .select('*, funil_etapas!leads_etapa_id_fkey(tipo)')
+        .eq('id', leadId)
+        .eq('user_id', uid)
+        .single();
+      if (errLead) throw errLead;
+
+      // Cria cliente com os dados do lead
+      const { data: clienteRow, error: errCliente } = await supabase
+        .from('clientes')
+        .insert({
+          user_id:           uid,
+          nome:              leadRow.nome,
+          telefone:          leadRow.telefone || null,
+          email:             leadRow.email || null,
+          data_ultima_visita: new Date().toISOString().split('T')[0],
+          status_retencao:   'em_dia',
+          tags:              [],
+        })
+        .select()
+        .single();
+      if (errCliente) throw errCliente;
+
+      const clienteId = clienteRow.id as string;
+
+      // Busca etapa de tipo 'convertido'
+      const { data: etapaConvertido } = await supabase
+        .from('funil_etapas')
+        .select('id')
+        .eq('user_id', uid)
+        .eq('tipo', 'convertido')
+        .limit(1)
+        .single();
+
+      const novaEtapaId = etapaConvertido?.id ?? leadRow.etapa_id;
+      const etapaAnteriorId = leadRow.etapa_id;
+
+      // Atualiza lead: marca cliente_id e move para etapa convertido
+      const { data: leadAtualizado, error: errUpdate } = await supabase
+        .from('leads')
+        .update({
+          cliente_id:       clienteId,
+          etapa_id:         novaEtapaId,
+          etapa_entrada_em: new Date().toISOString(),
+        })
+        .eq('id', leadId)
+        .eq('user_id', uid)
+        .select()
+        .single();
+      if (errUpdate) throw errUpdate;
+
+      // Registra conversão no histórico
+      await supabase.from('lead_historico').insert({
+        user_id:           uid,
+        lead_id:           leadId,
+        etapa_anterior_id: etapaAnteriorId,
+        etapa_nova_id:     novaEtapaId,
+        usuario_nome:      usuarioNome,
+        tipo:              'movimentacao',
+        observacao:        `Convertido em paciente (cliente #${clienteId.slice(0, 8)})`,
+      });
+
+      return { lead: mapLead(leadAtualizado), clienteId };
+    });
+  },
+
+  async deleteLead(id: string, userId?: string): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { error } = await supabase
+        .from('leads')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', uid);
+      if (error) throw error;
+    });
+  },
+
+  // ── Histórico ────────────────────────────────────────────────
+
+  async getLeadHistorico(leadId: string, userId?: string): Promise<LeadHistorico[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('lead_historico')
+        .select('*')
+        .eq('lead_id', leadId)
+        .eq('user_id', uid)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map(mapLeadHistorico);
+    });
+  },
+
+  async addLeadNota(
+    leadId: string,
+    nota: string,
+    usuarioNome: string,
+    userId?: string
+  ): Promise<LeadHistorico> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data: lead } = await supabase
+        .from('leads')
+        .select('etapa_id')
+        .eq('id', leadId)
+        .eq('user_id', uid)
+        .single();
+      const { data, error } = await supabase
+        .from('lead_historico')
+        .insert({
+          user_id:       uid,
+          lead_id:       leadId,
+          etapa_nova_id: lead?.etapa_id,
+          usuario_nome:  usuarioNome,
+          observacao:    nota,
+          tipo:          'nota',
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return mapLeadHistorico(data);
+    });
+  },
+
+  // ── Automações ───────────────────────────────────────────────
+
+  async getLeadAutomacoes(etapaId: string, userId?: string): Promise<LeadAutomacao[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('lead_automacoes')
+        .select('*')
+        .eq('etapa_id', etapaId)
+        .eq('user_id', uid)
+        .order('created_at');
+      if (error) throw error;
+      return (data ?? []).map(mapLeadAutomacao);
+    });
+  },
+
+  async createLeadAutomacao(
+    automacao: Omit<LeadAutomacao, 'id'> & { userId?: string },
+    userId?: string
+  ): Promise<LeadAutomacao> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('lead_automacoes')
+        .insert({
+          user_id:      uid,
+          etapa_id:     automacao.etapaId,
+          tipo:         automacao.tipo,
+          gatilho:      automacao.gatilho,
+          dias_espera:  automacao.diasEspera ?? null,
+          mensagem:     automacao.mensagem ?? null,
+          tarefa_titulo: automacao.tarefaTitulo ?? null,
+          ativo:        automacao.ativo,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return mapLeadAutomacao(data);
+    });
+  },
+
+  async updateLeadAutomacao(
+    id: string,
+    updates: Partial<Omit<LeadAutomacao, 'id' | 'etapaId'>>,
+    userId?: string
+  ): Promise<LeadAutomacao> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const patch: Record<string, unknown> = {};
+      if (updates.tipo         !== undefined) patch.tipo          = updates.tipo;
+      if (updates.gatilho      !== undefined) patch.gatilho       = updates.gatilho;
+      if (updates.diasEspera   !== undefined) patch.dias_espera   = updates.diasEspera;
+      if (updates.mensagem     !== undefined) patch.mensagem      = updates.mensagem;
+      if (updates.tarefaTitulo !== undefined) patch.tarefa_titulo = updates.tarefaTitulo;
+      if (updates.ativo        !== undefined) patch.ativo         = updates.ativo;
+      const { data, error } = await supabase
+        .from('lead_automacoes')
+        .update(patch)
+        .eq('id', id)
+        .eq('user_id', uid)
+        .select()
+        .single();
+      if (error) throw error;
+      return mapLeadAutomacao(data);
+    });
+  },
+
+  async deleteLeadAutomacao(id: string, userId?: string): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { error } = await supabase
+        .from('lead_automacoes')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', uid);
+      if (error) throw error;
+    });
+  },
+
+  async dispararAutomacoesEtapa(
+    leadId: string,
+    etapaId: string,
+    usuarioNome: string,
+    userId?: string
+  ): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data: automacoes } = await supabase
+        .from('lead_automacoes')
+        .select('*')
+        .eq('etapa_id', etapaId)
+        .eq('user_id', uid)
+        .eq('ativo', true)
+        .eq('gatilho', 'ao_entrar');
+
+      for (const a of automacoes ?? []) {
+        let observacao = '';
+        if (a.tipo === 'tarefa') {
+          observacao = `Tarefa: ${a.tarefa_titulo ?? 'Ação pendente'}`;
+        } else if (a.tipo === 'whatsapp') {
+          // E3-G4 não implementado — registra intenção no histórico
+          observacao = `[WhatsApp pendente] ${a.mensagem ?? ''}`;
+        } else if (a.tipo === 'email') {
+          observacao = `[E-mail pendente] ${a.mensagem ?? ''}`;
+        }
+
+        await supabase.from('lead_historico').insert({
+          user_id:       uid,
+          lead_id:       leadId,
+          etapa_nova_id: etapaId,
+          usuario_nome:  usuarioNome,
+          tipo:          'automacao',
+          observacao,
+        });
+      }
+    });
+  },
+
+  // ── Métricas do Funil (CA-06) ────────────────────────────────
+
+  async getFunilMetricas(etapas: FunilEtapa[], leads: Lead[]): Promise<FunilMetricas> {
+    const agora = new Date();
+    const hoje  = agora.toISOString().split('T')[0];
+    const inicioSemana = new Date(agora); inicioSemana.setDate(agora.getDate() - 7);
+    const inicioMes    = new Date(agora); inicioMes.setDate(agora.getDate() - 30);
+
+    const leadsPorEtapa: Record<string, number> = {};
+    const tempoTotalPorEtapa: Record<string, number> = {};
+    const contadorEtapa: Record<string, number> = {};
+    const leadsPorOrigem: Record<string, number> = {};
+
+    for (const etapa of etapas) {
+      leadsPorEtapa[etapa.id] = 0;
+      tempoTotalPorEtapa[etapa.id] = 0;
+      contadorEtapa[etapa.id] = 0;
+    }
+
+    let leadsHoje = 0;
+    let leadsSemana = 0;
+    let leadsMes = 0;
+
+    for (const lead of leads) {
+      if (leadsPorEtapa[lead.etapaId] !== undefined) {
+        leadsPorEtapa[lead.etapaId]++;
+      }
+
+      const diasNaEtapa = Math.floor(
+        (agora.getTime() - new Date(lead.etapaEntradaEm).getTime()) / (1000 * 60 * 60 * 24)
+      );
+      if (tempoTotalPorEtapa[lead.etapaId] !== undefined) {
+        tempoTotalPorEtapa[lead.etapaId] += diasNaEtapa;
+        contadorEtapa[lead.etapaId]++;
+      }
+
+      leadsPorOrigem[lead.origem] = (leadsPorOrigem[lead.origem] ?? 0) + 1;
+
+      const dataLead = lead.createdAt.split('T')[0];
+      if (dataLead === hoje) leadsHoje++;
+      if (new Date(lead.createdAt) >= inicioSemana) leadsSemana++;
+      if (new Date(lead.createdAt) >= inicioMes) leadsMes++;
+    }
+
+    const tempoMedioPorEtapa: Record<string, number> = {};
+    const taxaConversaoPorEtapa: Record<string, number> = {};
+    for (const etapa of etapas) {
+      tempoMedioPorEtapa[etapa.id] = contadorEtapa[etapa.id] > 0
+        ? Math.round(tempoTotalPorEtapa[etapa.id] / contadorEtapa[etapa.id])
+        : 0;
+      taxaConversaoPorEtapa[etapa.id] = 0; // calculado via historico — simplificado aqui
+    }
+
+    return {
+      totalLeads: leads.length,
+      leadsPorEtapa,
+      taxaConversaoPorEtapa,
+      tempoMedioPorEtapa,
+      leadsPorOrigem,
+      leadsHoje,
+      leadsSemana,
+      leadsMes,
+    };
+  },
+
+  // ── Orçamentos (US-012) ──────────────────────────────────────────────
+
+  async getOrcamentos(userId: string, status?: OrcamentoStatus): Promise<Orcamento[]> {
+    const uid = await requireUserId(userId);
+    // Expirar orçamentos vencidos antes de buscar
+    await supabase.rpc('expirar_orcamentos_vencidos').catch(() => {});
+
+    let q = supabase
+      .from('orcamentos')
+      .select('*, orcamento_itens(*)')
+      .eq('user_id', uid)
+      .order('data_envio', { ascending: false });
+
+    if (status) q = q.eq('status', status);
+
+    const { data, error } = await q;
+    if (error) throw new ApiError(humanizeError(error), 500, 'ORCAMENTOS_LIST');
+    return (data ?? []).map(mapOrcamento);
+  },
+
+  async createOrcamento(
+    payload: {
+      clienteId?: string | null;
+      leadId?: string | null;
+      nomeCliente: string;
+      telefone?: string;
+      profissionalId?: string | null;
+      profissionalNome?: string | null;
+      dataEnvio: string;
+      validade: string;
+      observacoes?: string | null;
+      itens: { procedimentoId?: string | null; descricao: string; quantidade: number; valorUnitario: number }[];
+    },
+    userId: string
+  ): Promise<Orcamento> {
+    const uid = await requireUserId(userId);
+
+    const { data: orc, error: orcErr } = await supabase
+      .from('orcamentos')
+      .insert({
+        user_id:           uid,
+        cliente_id:        payload.clienteId ?? null,
+        lead_id:           payload.leadId ?? null,
+        nome_cliente:      payload.nomeCliente,
+        telefone:          payload.telefone ?? '',
+        profissional_id:   payload.profissionalId ?? null,
+        profissional_nome: payload.profissionalNome ?? null,
+        data_envio:        payload.dataEnvio,
+        validade:          payload.validade,
+        observacoes:       payload.observacoes ?? null,
+        status:            'aberto',
+        valor_total:       0,
+      })
+      .select()
+      .single();
+
+    if (orcErr || !orc) throw new ApiError(humanizeError(orcErr), 500, 'ORCAMENTO_CREATE');
+
+    if (payload.itens.length > 0) {
+      const { error: itErr } = await supabase.from('orcamento_itens').insert(
+        payload.itens.map((it) => ({
+          orcamento_id:    orc.id,
+          user_id:         uid,
+          procedimento_id: it.procedimentoId ?? null,
+          descricao:       it.descricao,
+          quantidade:      it.quantidade,
+          valor_unitario:  it.valorUnitario,
+        }))
+      );
+      if (itErr) throw new ApiError(humanizeError(itErr), 500, 'ORCAMENTO_ITENS_CREATE');
+    }
+
+    // Recarrega com itens e valor_total calculado pelo trigger
+    const { data: full, error: fullErr } = await supabase
+      .from('orcamentos')
+      .select('*, orcamento_itens(*)')
+      .eq('id', orc.id)
+      .single();
+    if (fullErr || !full) throw new ApiError(humanizeError(fullErr), 500, 'ORCAMENTO_RELOAD');
+    return mapOrcamento(full);
+  },
+
+  async updateOrcamentoStatus(
+    id: string,
+    status: OrcamentoStatus,
+    motivoPerdaKey: OrcamentoMotivoPerdaKey | null,
+    userId: string
+  ): Promise<void> {
+    const uid = await requireUserId(userId);
+    const { error } = await supabase
+      .from('orcamentos')
+      .update({ status, motivo_perda: motivoPerdaKey ?? null, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('user_id', uid);
+    if (error) throw new ApiError(humanizeError(error), 500, 'ORCAMENTO_STATUS_UPDATE');
+  },
+
+  async renovarOrcamento(id: string, novaValidade: string, userId: string): Promise<void> {
+    const uid = await requireUserId(userId);
+    const { error } = await supabase
+      .from('orcamentos')
+      .update({ status: 'aberto', validade: novaValidade, motivo_perda: null, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('user_id', uid);
+    if (error) throw new ApiError(humanizeError(error), 500, 'ORCAMENTO_RENOVAR');
+  },
+
+  async deleteOrcamento(id: string, userId: string): Promise<void> {
+    const uid = await requireUserId(userId);
+    const { error } = await supabase
+      .from('orcamentos')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', uid);
+    if (error) throw new ApiError(humanizeError(error), 500, 'ORCAMENTO_DELETE');
+  },
+
+  async getOrcamentoFollowupConfig(userId: string): Promise<OrcamentoFollowupConfig[]> {
+    const uid = await requireUserId(userId);
+    const { data, error } = await supabase
+      .from('orcamento_followup_config')
+      .select('*')
+      .eq('user_id', uid)
+      .order('ordem', { ascending: true });
+    if (error) throw new ApiError(humanizeError(error), 500, 'FOLLOWUP_CONFIG_LIST');
+    return (data ?? []).map(mapFollowupConfig);
+  },
+
+  async createOrcamentoFollowupConfig(
+    payload: { diasAposEnvio: number; canal: OrcamentoCanalFollowup; mensagemTemplate: string; ordem: number },
+    userId: string
+  ): Promise<OrcamentoFollowupConfig> {
+    const uid = await requireUserId(userId);
+    const { data, error } = await supabase
+      .from('orcamento_followup_config')
+      .insert({
+        user_id:            uid,
+        dias_apos_envio:    payload.diasAposEnvio,
+        canal:              payload.canal,
+        mensagem_template:  payload.mensagemTemplate,
+        ativo:              true,
+        ordem:              payload.ordem,
+      })
+      .select()
+      .single();
+    if (error || !data) throw new ApiError(humanizeError(error), 500, 'FOLLOWUP_CONFIG_CREATE');
+    return mapFollowupConfig(data);
+  },
+
+  async updateOrcamentoFollowupConfig(
+    id: string,
+    payload: Partial<{ diasAposEnvio: number; canal: OrcamentoCanalFollowup; mensagemTemplate: string; ativo: boolean; ordem: number }>,
+    userId: string
+  ): Promise<void> {
+    const uid = await requireUserId(userId);
+    const update: Record<string, unknown> = {};
+    if (payload.diasAposEnvio !== undefined) update.dias_apos_envio = payload.diasAposEnvio;
+    if (payload.canal !== undefined)         update.canal = payload.canal;
+    if (payload.mensagemTemplate !== undefined) update.mensagem_template = payload.mensagemTemplate;
+    if (payload.ativo !== undefined)         update.ativo = payload.ativo;
+    if (payload.ordem !== undefined)         update.ordem = payload.ordem;
+    const { error } = await supabase
+      .from('orcamento_followup_config')
+      .update(update)
+      .eq('id', id)
+      .eq('user_id', uid);
+    if (error) throw new ApiError(humanizeError(error), 500, 'FOLLOWUP_CONFIG_UPDATE');
+  },
+
+  async deleteOrcamentoFollowupConfig(id: string, userId: string): Promise<void> {
+    const uid = await requireUserId(userId);
+    const { error } = await supabase
+      .from('orcamento_followup_config')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', uid);
+    if (error) throw new ApiError(humanizeError(error), 500, 'FOLLOWUP_CONFIG_DELETE');
+  },
+
+  async getOrcamentoFollowupLog(orcamentoId: string, userId: string): Promise<OrcamentoFollowupLog[]> {
+    const uid = await requireUserId(userId);
+    const { data, error } = await supabase
+      .from('orcamento_followup_log')
+      .select('*')
+      .eq('orcamento_id', orcamentoId)
+      .eq('user_id', uid)
+      .order('enviado_em', { ascending: false });
+    if (error) throw new ApiError(humanizeError(error), 500, 'FOLLOWUP_LOG_LIST');
+    return (data ?? []).map(mapFollowupLog);
+  },
+
+  async registrarFollowupLog(
+    payload: { orcamentoId: string; configId: string | null; canal: string; mensagem: string },
+    userId: string
+  ): Promise<OrcamentoFollowupLog> {
+    const uid = await requireUserId(userId);
+    const { data, error } = await supabase
+      .from('orcamento_followup_log')
+      .insert({
+        orcamento_id: payload.orcamentoId,
+        user_id:      uid,
+        config_id:    payload.configId,
+        canal:        payload.canal,
+        mensagem:     payload.mensagem,
+        status:       'pendente',
+      })
+      .select()
+      .single();
+    if (error || !data) throw new ApiError(humanizeError(error), 500, 'FOLLOWUP_LOG_CREATE');
+    return mapFollowupLog(data);
+  },
+
+  async getOrcamentoRelatorio(userId: string): Promise<OrcamentoRelatorio> {
+    const uid = await requireUserId(userId);
+    await supabase.rpc('expirar_orcamentos_vencidos').catch(() => {});
+
+    const { data, error } = await supabase
+      .from('orcamentos')
+      .select('status, motivo_perda, valor_total')
+      .eq('user_id', uid);
+
+    if (error) throw new ApiError(humanizeError(error), 500, 'ORCAMENTO_RELATORIO');
+
+    const rows = data ?? [];
+    const totalEnviados   = rows.length;
+    const totalAprovados  = rows.filter((r) => r.status === 'aprovado').length;
+    const totalPerdidos   = rows.filter((r) => r.status === 'perdido').length;
+    const totalExpirados  = rows.filter((r) => r.status === 'expirado').length;
+    const denominador     = totalAprovados + totalPerdidos + totalExpirados;
+    const taxaConversao   = denominador > 0 ? Math.round((totalAprovados / denominador) * 100) : 0;
+
+    const aprovados = rows.filter((r) => r.status === 'aprovado');
+    const valorTotalConvertido = aprovados.reduce((s, r) => s + (r.valor_total ?? 0), 0);
+    const ticketMedioAprovados = totalAprovados > 0 ? valorTotalConvertido / totalAprovados : 0;
+
+    const motivosPerda: Record<OrcamentoMotivoPerdaKey, number> = {
+      preco: 0, concorrente: 0, nao_respondeu: 0, outro: 0,
+    };
+    for (const r of rows.filter((r) => r.status === 'perdido')) {
+      const k = (r.motivo_perda ?? 'outro') as OrcamentoMotivoPerdaKey;
+      motivosPerda[k] = (motivosPerda[k] ?? 0) + 1;
+    }
+
+    return { totalEnviados, totalAprovados, totalPerdidos, totalExpirados, taxaConversao, valorTotalConvertido, ticketMedioAprovados, motivosPerda };
+  },
+
+  // ── CRC — Central de Relacionamento (US-013) ──────────────────────────
+
+  async getFaltasRecentes(userId: string, dias: number, profissionalId?: string): Promise<CrcFalta[]> {
+    const uid = await requireUserId(userId);
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - dias);
+    const cutoffISO = cutoff.toISOString().split('T')[0];
+
+    let q = supabase
+      .from('agendamentos')
+      .select('id, data, hora_inicio, procedimento, profissional, presenca_status, falta_motivo, cliente_id, clientes(id, nome, telefone)')
+      .eq('user_id', uid)
+      .eq('presenca_status', 'faltou')
+      .gte('data', cutoffISO)
+      .order('data', { ascending: false });
+
+    if (profissionalId) q = (q as any).eq('profissional', profissionalId);
+
+    const { data, error } = await q;
+    if (error) throw new ApiError(humanizeError(error), 500, 'CRC_FALTAS');
+
+    return (data ?? []).map((row: any) => ({
+      agendamentoId: row.id,
+      clienteId:     row.cliente_id,
+      clienteNome:   row.clientes?.nome ?? 'Desconhecido',
+      telefone:      row.clientes?.telefone ?? '',
+      data:          row.data,
+      procedimento:  row.procedimento ?? '',
+      profissional:  row.profissional ?? '',
+      faltaMotivo:   row.falta_motivo ?? null,
+    }));
+  },
+
+  async getInadimplentes(userId: string): Promise<ContaReceber[]> {
+    const uid = await requireUserId(userId);
+    await supabase.rpc('atualizar_status_contas_vencidas').catch(() => {});
+
+    const { data, error } = await supabase
+      .from('contas_receber')
+      .select('*, clientes(nome, telefone)')
+      .eq('user_id', uid)
+      .neq('status', 'pago')
+      .order('data_vencimento', { ascending: true });
+
+    if (error) throw new ApiError(humanizeError(error), 500, 'CRC_INADIMPLENTES');
+
+    const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+    return (data ?? []).map((row: any) => {
+      const venc = new Date(row.data_vencimento + 'T00:00:00');
+      const diasAtraso = Math.max(0, Math.floor((hoje.getTime() - venc.getTime()) / (1000 * 60 * 60 * 24)));
+      return {
+        id:             row.id,
+        clienteId:      row.cliente_id,
+        clienteNome:    row.clientes?.nome ?? 'Desconhecido',
+        telefone:       row.clientes?.telefone ?? '',
+        descricao:      row.descricao,
+        valor:          row.valor,
+        dataVencimento: row.data_vencimento,
+        dataPagamento:  row.data_pagamento ?? null,
+        status:         row.status as ContaReceberStatus,
+        agendamentoId:  row.agendamento_id ?? null,
+        observacoes:    row.observacoes ?? null,
+        diasAtraso,
+        createdAt:      row.created_at,
+      };
+    });
+  },
+
+  async createContaReceber(
+    payload: { clienteId: string; descricao: string; valor: number; dataVencimento: string; observacoes?: string | null },
+    userId: string
+  ): Promise<ContaReceber> {
+    const uid = await requireUserId(userId);
+    const { data, error } = await supabase
+      .from('contas_receber')
+      .insert({
+        user_id:         uid,
+        cliente_id:      payload.clienteId,
+        descricao:       payload.descricao,
+        valor:           payload.valor,
+        data_vencimento: payload.dataVencimento,
+        observacoes:     payload.observacoes ?? null,
+        status:          'pendente',
+      })
+      .select('*, clientes(nome, telefone)')
+      .single();
+    if (error || !data) throw new ApiError(humanizeError(error), 500, 'CONTA_RECEBER_CREATE');
+
+    const venc = new Date(data.data_vencimento + 'T00:00:00');
+    const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+    return {
+      id:             data.id,
+      clienteId:      data.cliente_id,
+      clienteNome:    (data as any).clientes?.nome ?? '',
+      telefone:       (data as any).clientes?.telefone ?? '',
+      descricao:      data.descricao,
+      valor:          data.valor,
+      dataVencimento: data.data_vencimento,
+      dataPagamento:  null,
+      status:         data.status as ContaReceberStatus,
+      agendamentoId:  null,
+      observacoes:    data.observacoes ?? null,
+      diasAtraso:     Math.max(0, Math.floor((hoje.getTime() - venc.getTime()) / (1000 * 60 * 60 * 24))),
+      createdAt:      data.created_at,
+    };
+  },
+
+  async marcarContaPaga(id: string, dataPagamento: string, userId: string): Promise<void> {
+    const uid = await requireUserId(userId);
+    const { error } = await supabase
+      .from('contas_receber')
+      .update({ status: 'pago', data_pagamento: dataPagamento, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('user_id', uid);
+    if (error) throw new ApiError(humanizeError(error), 500, 'CONTA_PAGA');
+  },
+
+  async deleteContaReceber(id: string, userId: string): Promise<void> {
+    const uid = await requireUserId(userId);
+    const { error } = await supabase
+      .from('contas_receber')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', uid);
+    if (error) throw new ApiError(humanizeError(error), 500, 'CONTA_DELETE');
+  },
+
+  async getPacientesSemReagendamento(userId: string, dias: number): Promise<CrcSemReagendamento[]> {
+    const uid = await requireUserId(userId);
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - dias);
+    const cutoffISO = cutoff.toISOString().split('T')[0];
+    const hojeISO   = new Date().toISOString().split('T')[0];
+
+    const { data: clientes, error: cErr } = await supabase
+      .from('clientes')
+      .select('id, nome, telefone, data_ultima_visita')
+      .eq('user_id', uid)
+      .eq('crc_nao_retorna', false)
+      .lte('data_ultima_visita', cutoffISO)
+      .not('data_ultima_visita', 'is', null);
+
+    if (cErr) throw new ApiError(humanizeError(cErr), 500, 'CRC_SEM_REAGEND_CLIENTES');
+    if (!clientes?.length) return [];
+
+    const clienteIds = clientes.map((c: any) => c.id);
+
+    const [futureRes, lastRes] = await Promise.all([
+      supabase
+        .from('agendamentos')
+        .select('cliente_id')
+        .eq('user_id', uid)
+        .gte('data', hojeISO)
+        .in('cliente_id', clienteIds),
+      supabase
+        .from('agendamentos')
+        .select('cliente_id, procedimento, profissional, data')
+        .eq('user_id', uid)
+        .in('cliente_id', clienteIds)
+        .order('data', { ascending: false }),
+    ]);
+
+    const withFuture = new Set((futureRes.data ?? []).map((a: any) => a.cliente_id));
+
+    const lastByClient = new Map<string, any>();
+    for (const a of (lastRes.data ?? [])) {
+      if (!lastByClient.has(a.cliente_id)) lastByClient.set(a.cliente_id, a);
+    }
+
+    const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+    return clientes
+      .filter((c: any) => !withFuture.has(c.id))
+      .map((c: any) => {
+        const last = lastByClient.get(c.id);
+        const visitDate = new Date(c.data_ultima_visita + 'T00:00:00');
+        const diasSemVisita = Math.floor((hoje.getTime() - visitDate.getTime()) / (1000 * 60 * 60 * 24));
+        return {
+          clienteId:         c.id,
+          clienteNome:       c.nome ?? '',
+          telefone:          c.telefone ?? '',
+          ultimoProcedimento: last?.procedimento ?? '',
+          profissional:      last?.profissional ?? '',
+          dataUltimaVisita:  c.data_ultima_visita,
+          diasSemVisita,
+        };
+      })
+      .sort((a, b) => b.diasSemVisita - a.diasSemVisita);
+  },
+
+  async marcarClienteNaoRetorna(clienteId: string, naoRetorna: boolean, userId: string): Promise<void> {
+    const uid = await requireUserId(userId);
+    const { error } = await supabase
+      .from('clientes')
+      .update({ crc_nao_retorna: naoRetorna })
+      .eq('id', clienteId)
+      .eq('user_id', uid);
+    if (error) throw new ApiError(humanizeError(error), 500, 'CLIENTE_NAO_RETORNA');
+  },
+
+  async registrarCrcAcao(
+    payload: { clienteId: string; tipo: CrcAcaoTipo; contexto: CrcAcaoContexto; observacao?: string | null; usuarioNome: string },
+    userId: string
+  ): Promise<CrcAcao> {
+    const uid = await requireUserId(userId);
+    const { data, error } = await supabase
+      .from('crc_acoes')
+      .insert({
+        user_id:      uid,
+        cliente_id:   payload.clienteId,
+        tipo:         payload.tipo,
+        contexto:     payload.contexto,
+        observacao:   payload.observacao ?? null,
+        usuario_nome: payload.usuarioNome,
+      })
+      .select()
+      .single();
+    if (error || !data) throw new ApiError(humanizeError(error), 500, 'CRC_ACAO_CREATE');
+    return {
+      id:          data.id,
+      clienteId:   data.cliente_id,
+      tipo:        data.tipo as CrcAcaoTipo,
+      contexto:    data.contexto as CrcAcaoContexto,
+      observacao:  data.observacao ?? null,
+      usuarioNome: data.usuario_nome,
+      createdAt:   data.created_at,
+    };
+  },
+
+  // ── WhatsApp Integrado (US-017) ───────────────────────────────────────
+
+  async getWhatsAppConfig(userId: string): Promise<WhatsAppConfig> {
+    const uid = await requireUserId(userId);
+    const { data } = await supabase
+      .from('whatsapp_config')
+      .select('*')
+      .eq('user_id', uid)
+      .maybeSingle();
+    if (!data) return { id: null, provider: 'zapi', zapiInstance: '', zapiToken: '', zapiClientToken: '', numeroOficial: '', horaInicio: '08:00', horaFim: '20:00', ativo: false };
+    return {
+      id:               data.id,
+      provider:         data.provider as WhatsAppProvider,
+      zapiInstance:     data.zapi_instance ?? '',
+      zapiToken:        data.zapi_token ?? '',
+      zapiClientToken:  data.zapi_client_token ?? '',
+      numeroOficial:    data.numero_oficial ?? '',
+      horaInicio:       data.hora_inicio ?? '08:00',
+      horaFim:          data.hora_fim ?? '20:00',
+      ativo:            data.ativo ?? false,
+    };
+  },
+
+  async saveWhatsAppConfig(config: Omit<WhatsAppConfig, 'id'>, userId: string): Promise<void> {
+    const uid = await requireUserId(userId);
+    const payload = {
+      user_id:           uid,
+      provider:          config.provider,
+      zapi_instance:     config.zapiInstance || null,
+      zapi_token:        config.zapiToken || null,
+      zapi_client_token: config.zapiClientToken || null,
+      numero_oficial:    config.numeroOficial || null,
+      hora_inicio:       config.horaInicio,
+      hora_fim:          config.horaFim,
+      ativo:             config.ativo,
+      updated_at:        new Date().toISOString(),
+    };
+    const { error } = await supabase
+      .from('whatsapp_config')
+      .upsert({ ...payload }, { onConflict: 'user_id' });
+    if (error) throw new ApiError(humanizeError(error), 500, 'WA_CONFIG_SAVE');
+  },
+
+  async getWhatsAppMensagens(userId: string, clienteId?: string, limit = 100): Promise<WhatsAppMensagem[]> {
+    const uid = await requireUserId(userId);
+    let q = supabase
+      .from('whatsapp_mensagens')
+      .select('*, clientes(nome)')
+      .eq('user_id', uid)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (clienteId) q = (q as any).eq('cliente_id', clienteId);
+    const { data, error } = await q;
+    if (error) throw new ApiError(humanizeError(error), 500, 'WA_MENSAGENS_LIST');
+    return (data ?? []).map((row: any) => ({
+      id:             row.id,
+      clienteId:      row.cliente_id,
+      clienteNome:    row.clientes?.nome ?? undefined,
+      direcao:        row.direcao as 'out' | 'in',
+      conteudo:       row.conteudo,
+      status:         row.status as WhatsAppStatus,
+      providerMsgId:  row.provider_msg_id ?? null,
+      batchId:        row.batch_id ?? null,
+      usuarioNome:    row.usuario_nome ?? '',
+      agendadoPara:   row.agendado_para ?? null,
+      errorMsg:       row.error_msg ?? null,
+      createdAt:      row.created_at,
+    }));
+  },
+
+  async sendWhatsApp(
+    payload: { clienteId: string; clienteNome: string; telefone: string; mensagem: string; batchId?: string | null },
+    userId: string,
+    usuarioNome: string
+  ): Promise<{ mensagemId: string; mode: 'api' | 'link' | 'fora_horario' | 'opt_out' | 'sem_telefone' }> {
+    const uid = await requireUserId(userId);
+
+    // Verifica opt-out
+    const { data: optOut } = await supabase
+      .from('whatsapp_opt_out')
+      .select('id')
+      .eq('user_id', uid)
+      .eq('cliente_id', payload.clienteId)
+      .maybeSingle();
+    if (optOut) return { mensagemId: '', mode: 'opt_out' };
+
+    // Verifica telefone
+    if (!payload.telefone?.trim()) return { mensagemId: '', mode: 'sem_telefone' };
+
+    // Loga a mensagem como "enviando"
+    const { data: msg, error: logErr } = await supabase
+      .from('whatsapp_mensagens')
+      .insert({
+        user_id:      uid,
+        cliente_id:   payload.clienteId,
+        direcao:      'out',
+        conteudo:     payload.mensagem,
+        status:       'enviando',
+        batch_id:     payload.batchId ?? null,
+        usuario_nome: usuarioNome,
+      })
+      .select('id')
+      .single();
+    if (logErr || !msg) throw new ApiError(humanizeError(logErr), 500, 'WA_LOG');
+
+    // Verifica config e horário
+    const cfg = await api.getWhatsAppConfig(uid);
+
+    const agora = new Date();
+    const [hIni, mIni] = cfg.horaInicio.split(':').map(Number);
+    const [hFim, mFim] = cfg.horaFim.split(':').map(Number);
+    const minAgora = agora.getHours() * 60 + agora.getMinutes();
+    const minIni   = hIni * 60 + mIni;
+    const minFim   = hFim * 60 + mFim;
+    const dentroHorario = minAgora >= minIni && minAgora <= minFim;
+
+    if (!dentroHorario) {
+      await supabase.from('whatsapp_mensagens').update({ status: 'agendado' }).eq('id', msg.id);
+      return { mensagemId: msg.id, mode: 'fora_horario' };
+    }
+
+    // Tenta enviar via Edge Function (API real) se configurado
+    if (cfg.ativo && cfg.zapiInstance && cfg.zapiToken) {
+      try {
+        const { data: fnData, error: fnErr } = await supabase.functions.invoke('send-whatsapp', {
+          body: { mensagemId: msg.id, clienteId: payload.clienteId, mensagem: payload.mensagem, telefone: payload.telefone, userId: uid },
+        });
+        if (!fnErr && fnData?.success) {
+          return { mensagemId: msg.id, mode: 'api' };
+        }
+      } catch (_) { /* fallback to wa.me */ }
+    }
+
+    // Fallback: wa.me link (abre navegador)
+    const num   = payload.telefone.replace(/\D/g, '');
+    const phone = num.startsWith('55') ? num : `55${num}`;
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(payload.mensagem)}`, '_blank');
+    await supabase.from('whatsapp_mensagens').update({ status: 'enviado' }).eq('id', msg.id);
+    return { mensagemId: msg.id, mode: 'link' };
+  },
+
+  async getWhatsAppOptOuts(userId: string): Promise<WhatsAppOptOut[]> {
+    const uid = await requireUserId(userId);
+    const { data, error } = await supabase
+      .from('whatsapp_opt_out')
+      .select('*, clientes(nome)')
+      .eq('user_id', uid)
+      .order('opt_out_at', { ascending: false });
+    if (error) throw new ApiError(humanizeError(error), 500, 'WA_OPT_OUT_LIST');
+    return (data ?? []).map((row: any) => ({
+      id:          row.id,
+      clienteId:   row.cliente_id,
+      clienteNome: row.clientes?.nome ?? undefined,
+      motivo:      row.motivo ?? '',
+      optOutAt:    row.opt_out_at,
+    }));
+  },
+
+  async marcarOptOut(clienteId: string, motivo: string, userId: string): Promise<void> {
+    const uid = await requireUserId(userId);
+    const { error } = await supabase
+      .from('whatsapp_opt_out')
+      .upsert({ user_id: uid, cliente_id: clienteId, motivo, opt_out_at: new Date().toISOString() }, { onConflict: 'user_id,cliente_id' });
+    if (error) throw new ApiError(humanizeError(error), 500, 'WA_OPT_OUT_SET');
+  },
+
+  async removerOptOut(clienteId: string, userId: string): Promise<void> {
+    const uid = await requireUserId(userId);
+    const { error } = await supabase
+      .from('whatsapp_opt_out')
+      .delete()
+      .eq('user_id', uid)
+      .eq('cliente_id', clienteId);
+    if (error) throw new ApiError(humanizeError(error), 500, 'WA_OPT_OUT_REMOVE');
+  },
+
+  async getWhatsAppBatchResult(batchId: string, userId: string): Promise<WhatsAppBatchResult> {
+    const uid = await requireUserId(userId);
+    const { data, error } = await supabase
+      .from('whatsapp_mensagens')
+      .select('status')
+      .eq('user_id', uid)
+      .eq('batch_id', batchId);
+    if (error) throw new ApiError(humanizeError(error), 500, 'WA_BATCH_RESULT');
+    const rows = data ?? [];
+    return {
+      batchId,
+      total:        rows.length,
+      enviados:     rows.filter((r: any) => ['enviado', 'entregue', 'lido'].includes(r.status)).length,
+      falhas:       rows.filter((r: any) => r.status === 'falha').length,
+      optOuts:      0,
+      semTelefone:  0,
+    };
+  },
+
+  // ── Planos de Tratamento (US-026) ──────────────────────────────────
+
+  async getPlanosTratamento(userId: string, clienteId: string): Promise<PlanoTratamento[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('planos_tratamento')
+        .select('*')
+        .eq('user_id', uid)
+        .eq('cliente_id', clienteId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map(mapPlanoTratamento);
+    });
+  },
+
+  async createPlanoTratamento(
+    userId: string,
+    clienteId: string,
+    payload: Omit<PlanoTratamento, 'id' | 'clienteId' | 'createdAt' | 'updatedAt'>,
+  ): Promise<PlanoTratamento> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('planos_tratamento')
+        .insert({
+          user_id:                uid,
+          cliente_id:             clienteId,
+          nome_protocolo:         payload.nomeProtocolo,
+          objetivo:               payload.objetivo,
+          procedimentos:          payload.procedimentos,
+          total_sessoes:          payload.totalSessoes,
+          frequencia_recomendada: payload.frequenciaRecomendada,
+          frequencia_dias:        payload.frequenciaDias ?? null,
+          observacoes_iniciais:   payload.observacoesIniciais,
+          status:                 'ativo',
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return mapPlanoTratamento(data);
+    });
+  },
+
+  async updatePlanoTratamento(
+    id: string,
+    userId: string,
+    payload: Partial<Pick<PlanoTratamento, 'status' | 'motivoEncerramento'>>,
+  ): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      if (payload.status !== undefined) updates.status = payload.status;
+      if (payload.motivoEncerramento !== undefined) updates.motivo_encerramento = payload.motivoEncerramento;
+      const { error } = await supabase
+        .from('planos_tratamento')
+        .update(updates)
+        .eq('id', id)
+        .eq('user_id', uid);
+      if (error) throw error;
+    });
+  },
+
+  async getSessoesTratamento(userId: string, planoId: string): Promise<SessaoTratamento[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('sessoes_tratamento')
+        .select('*')
+        .eq('user_id', uid)
+        .eq('plano_id', planoId)
+        .order('numero_sessao', { ascending: true });
+      if (error) throw error;
+      return (data ?? []).map(mapSessaoTratamento);
+    });
+  },
+
+  async registrarSessaoTratamento(
+    userId: string,
+    planoId: string,
+    payload: {
+      numeroSessao: number;
+      observacoesClinicas: string;
+      materiaisUsados: string;
+      fotoAntes?: string | null;
+      fotoDepois?: string | null;
+      nivelResposta?: number | null;
+      agendamentoId?: string | null;
+    },
+  ): Promise<SessaoTratamento> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const dataHoje = new Date().toISOString().split('T')[0];
+      const { data, error } = await supabase
+        .from('sessoes_tratamento')
+        .upsert(
+          {
+            user_id:              uid,
+            plano_id:             planoId,
+            numero_sessao:        payload.numeroSessao,
+            data_realizada:       dataHoje,
+            agendamento_id:       payload.agendamentoId ?? null,
+            observacoes_clinicas: payload.observacoesClinicas,
+            materiais_usados:     payload.materiaisUsados,
+            foto_antes:           payload.fotoAntes ?? null,
+            foto_depois:          payload.fotoDepois ?? null,
+            nivel_resposta:       payload.nivelResposta ?? null,
+            realizada:            true,
+          },
+          { onConflict: 'plano_id,numero_sessao' },
+        )
+        .select()
+        .single();
+      if (error) throw error;
+
+      // auto-concluir plano quando todas as sessões foram realizadas
+      const { data: plano } = await supabase
+        .from('planos_tratamento')
+        .select('total_sessoes, status')
+        .eq('id', planoId)
+        .single();
+      if (plano?.status === 'ativo') {
+        const { count } = await supabase
+          .from('sessoes_tratamento')
+          .select('id', { count: 'exact', head: true })
+          .eq('plano_id', planoId)
+          .eq('realizada', true);
+        if ((count ?? 0) >= plano.total_sessoes) {
+          await supabase
+            .from('planos_tratamento')
+            .update({ status: 'concluido', updated_at: new Date().toISOString() })
+            .eq('id', planoId);
+        }
+      }
+
+      return mapSessaoTratamento(data);
+    });
+  },
+
+  async getPlanoAlertasContinuidade(userId: string): Promise<PlanoAlertaContinuidade[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('vw_planos_alerta_continuidade')
+        .select('*')
+        .eq('user_id', uid);
+      if (error) throw error;
+      return (data ?? []).map((row: any) => ({
+        planoId:           row.plano_id,
+        clienteId:         row.cliente_id,
+        clienteNome:       row.cliente_nome ?? '',
+        clienteTelefone:   row.cliente_telefone ?? '',
+        nomeProtocolo:     row.nome_protocolo ?? '',
+        totalSessoes:      row.total_sessoes ?? 0,
+        sessoesRealizadas: Number(row.sessoes_realizadas ?? 0),
+        sessoesRestantes:  Number(row.sessoes_restantes ?? 0),
+        ultimaSessao:      row.ultima_sessao ?? '',
+        frequenciaDias:    row.frequencia_dias ?? 0,
+      }));
+    });
+  },
+
+  async getCrcAcoes(userId: string, clienteId?: string): Promise<CrcAcao[]> {
+    const uid = await requireUserId(userId);
+    let q = supabase
+      .from('crc_acoes')
+      .select('*')
+      .eq('user_id', uid)
+      .order('created_at', { ascending: false })
+      .limit(200);
+    if (clienteId) q = (q as any).eq('cliente_id', clienteId);
+    const { data, error } = await q;
+    if (error) throw new ApiError(humanizeError(error), 500, 'CRC_ACOES_LIST');
+    return (data ?? []).map((row: any) => ({
+      id:          row.id,
+      clienteId:   row.cliente_id,
+      tipo:        row.tipo as CrcAcaoTipo,
+      contexto:    row.contexto as CrcAcaoContexto,
+      observacao:  row.observacao ?? null,
+      usuarioNome: row.usuario_nome,
+      createdAt:   row.created_at,
+    }));
+  },
 };
+
+// ── Mappers internos (US-012) ─────────────────────────────────────────
+
+function mapOrcamento(row: any): Orcamento {
+  return {
+    id:               row.id,
+    clienteId:        row.cliente_id ?? null,
+    leadId:           row.lead_id ?? null,
+    nomeCliente:      row.nome_cliente ?? '',
+    telefone:         row.telefone ?? '',
+    profissionalId:   row.profissional_id ?? null,
+    profissionalNome: row.profissional_nome ?? null,
+    dataEnvio:        row.data_envio ?? '',
+    validade:         row.validade ?? '',
+    status:           (row.status as OrcamentoStatus) ?? 'aberto',
+    motivoPerdaKey:   (row.motivo_perda as OrcamentoMotivoPerdaKey) ?? null,
+    valorTotal:       row.valor_total ?? 0,
+    observacoes:      row.observacoes ?? null,
+    itens:            Array.isArray(row.orcamento_itens)
+                        ? row.orcamento_itens.map(mapOrcamentoItem)
+                        : undefined,
+    createdAt:        row.created_at ?? '',
+    updatedAt:        row.updated_at ?? '',
+  };
+}
+
+function mapOrcamentoItem(row: any): OrcamentoItem {
+  return {
+    id:             row.id,
+    orcamentoId:    row.orcamento_id,
+    procedimentoId: row.procedimento_id ?? null,
+    descricao:      row.descricao ?? '',
+    quantidade:     row.quantidade ?? 1,
+    valorUnitario:  row.valor_unitario ?? 0,
+    valorTotal:     (row.quantidade ?? 1) * (row.valor_unitario ?? 0),
+  };
+}
+
+function mapFollowupConfig(row: any): OrcamentoFollowupConfig {
+  return {
+    id:               row.id,
+    diasAposEnvio:    row.dias_apos_envio,
+    canal:            row.canal as OrcamentoCanalFollowup,
+    mensagemTemplate: row.mensagem_template ?? '',
+    ativo:            row.ativo ?? true,
+    ordem:            row.ordem ?? 0,
+  };
+}
+
+function mapFollowupLog(row: any): OrcamentoFollowupLog {
+  return {
+    id:           row.id,
+    orcamentoId:  row.orcamento_id,
+    configId:     row.config_id ?? null,
+    canal:        row.canal ?? '',
+    mensagem:     row.mensagem ?? '',
+    enviadoEm:    row.enviado_em ?? '',
+    status:       row.status ?? 'pendente',
+  };
+}
+
+// ── Mappers internos (US-026) ─────────────────────────────────────────
+
+function mapPlanoTratamento(row: any): PlanoTratamento {
+  return {
+    id:                     row.id,
+    clienteId:              row.cliente_id,
+    nomeProtocolo:          row.nome_protocolo ?? '',
+    objetivo:               row.objetivo ?? '',
+    procedimentos:          row.procedimentos ?? '',
+    totalSessoes:           row.total_sessoes ?? 1,
+    frequenciaRecomendada:  row.frequencia_recomendada ?? '',
+    frequenciaDias:         row.frequencia_dias ?? null,
+    observacoesIniciais:    row.observacoes_iniciais ?? '',
+    status:                 (row.status as PlanoStatus) ?? 'ativo',
+    motivoEncerramento:     row.motivo_encerramento ?? null,
+    createdAt:              row.created_at ?? '',
+    updatedAt:              row.updated_at ?? '',
+  };
+}
+
+function mapSessaoTratamento(row: any): SessaoTratamento {
+  return {
+    id:                   row.id,
+    planoId:              row.plano_id,
+    numeroSessao:         row.numero_sessao,
+    dataRealizada:        row.data_realizada ?? null,
+    agendamentoId:        row.agendamento_id ?? null,
+    observacoesClinicas:  row.observacoes_clinicas ?? '',
+    materiaisUsados:      row.materiais_usados ?? '',
+    fotoAntes:            row.foto_antes ?? null,
+    fotoDepois:           row.foto_depois ?? null,
+    nivelResposta:        row.nivel_resposta ?? null,
+    realizada:            row.realizada ?? false,
+    createdAt:            row.created_at ?? '',
+  };
+}
 
 // Marcador para detectar mock import residual em tooling/lint.
 export const __api_uses_only_supabase__ = true;
