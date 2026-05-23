@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import type { ItemEstoque, EstoqueVinculo, EstoqueMovimento } from '../types';
 import {
   Package, Plus, Edit2, Trash2, X, Check, AlertTriangle,
-  ChevronDown, ChevronUp, ArrowUp, ArrowDown, RefreshCw,
+  ArrowUp, ArrowDown, RefreshCw,
   Link, History, BarChart3, FileDown,
 } from 'lucide-react';
 import { api } from '../lib/api';
@@ -90,6 +90,7 @@ export const EstoqueAvancado: React.FC<Props> = ({ userId, onDataChange }) => {
   // ── Historico filter ──
   const [histProdFilter, setHistProdFilter] = useState('');
 
+
   const loadProdutos = useCallback(async () => {
     try {
       const data = await api.getEstoque(userId);
@@ -110,6 +111,15 @@ export const EstoqueAvancado: React.FC<Props> = ({ userId, onDataChange }) => {
     setLoading(true);
     Promise.all([loadProdutos(), loadVinculos(), loadHistorico()]).finally(() => setLoading(false));
   }, [loadProdutos, loadVinculos, loadHistorico]);
+
+  // ── Derived — declarados antes dos effects que os consomem ──
+  const criticos = produtos.filter(p => p.status === 'critico');
+  const vencendoBreve = produtos.filter(p => {
+    if (!p.validade) return false;
+    const dias = Math.ceil((new Date(p.validade).getTime() - Date.now()) / 86400000);
+    return dias >= 0 && dias <= 30;
+  });
+
 
   // ── Produto CRUD ──
   const openProdModal = (item?: ItemEstoque) => {
@@ -139,12 +149,12 @@ export const EstoqueAvancado: React.FC<Props> = ({ userId, onDataChange }) => {
     try {
       if (editProdId) {
         await api.updateEstoque(editProdId, qty, status, undefined, userId, {
-          custo_unitario: parseFloat(fCusto) || 0,
+          custoUnitario: parseFloat(fCusto) || 0,
           fornecedor: fFornecedor,
           validade: fValidade || null,
           observacoes: fObs,
           produto: fProduto,
-          quantidade_minima: min,
+          quantidadeMinima: min,
           unidade: fUnidade,
         });
       } else {
@@ -155,7 +165,7 @@ export const EstoqueAvancado: React.FC<Props> = ({ userId, onDataChange }) => {
           custoUnitario: parseFloat(fCusto) || 0,
           custoMedio: parseFloat(fCusto) || 0,
           fornecedor: fFornecedor,
-          validade: fValidade || undefined,
+          validade: fValidade || null,
           observacoes: fObs,
         }, userId);
       }
@@ -184,7 +194,11 @@ export const EstoqueAvancado: React.FC<Props> = ({ userId, onDataChange }) => {
     const qty = parseFloat(entradaQtd);
     if (!qty || qty <= 0) { alert('Quantidade inválida.'); return; }
     try {
-      await api.registrarEntradaEstoque(entradaProdId, qty, parseFloat(entradaCusto) || 0, entradaFornecedor, userId);
+      await api.registrarEntradaEstoque(
+        entradaProdId,
+        { quantidade: qty, custoUnitario: parseFloat(entradaCusto) || 0, fornecedor: entradaFornecedor, criadoPor: '' },
+        userId,
+      );
       await Promise.all([loadProdutos(), loadHistorico()]);
       setShowEntradaModal(false);
     } catch (err) { console.error(err); alert('Erro ao registrar entrada.'); }
@@ -204,7 +218,11 @@ export const EstoqueAvancado: React.FC<Props> = ({ userId, onDataChange }) => {
     const qty = parseFloat(ajusteQtd);
     if (!qty || qty <= 0) { alert('Quantidade inválida.'); return; }
     try {
-      await api.registrarAjusteEstoque(ajusteProdId, qty, ajusteTipo, ajusteJust, userId);
+      await api.registrarAjusteEstoque(
+        ajusteProdId,
+        { quantidade: -qty, tipo: ajusteTipo, justificativa: ajusteJust, criadoPor: '' },
+        userId,
+      );
       await Promise.all([loadProdutos(), loadHistorico()]);
       setShowAjusteModal(false);
     } catch (err) { console.error(err); alert('Erro ao registrar ajuste.'); }
@@ -228,13 +246,6 @@ export const EstoqueAvancado: React.FC<Props> = ({ userId, onDataChange }) => {
     try { await api.deleteEstoqueVinculo(id, userId); await loadVinculos(); } catch { alert('Erro ao remover.'); }
   };
 
-  // ── Derived ──
-  const criticos = produtos.filter(p => p.status === 'critico');
-  const vencendoBreve = produtos.filter(p => {
-    if (!p.validade) return false;
-    const dias = Math.ceil((new Date(p.validade).getTime() - Date.now()) / 86400000);
-    return dias >= 0 && dias <= 30;
-  });
   const histFiltrado = histProdFilter
     ? historico.filter(h => h.produtoId === histProdFilter)
     : historico;
@@ -292,6 +303,53 @@ export const EstoqueAvancado: React.FC<Props> = ({ userId, onDataChange }) => {
           </div>
         </div>
       </div>
+
+      {/* ── US-045: Banner de alerta de estoque mínimo ─────────── */}
+      {!loading && (criticos.length > 0 || vencendoBreve.length > 0) && (
+        <div className="card" style={{ padding: '16px 24px', borderLeft: '4px solid #dc2626', background: '#fff9f9' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+            <AlertTriangle size={18} style={{ color: '#dc2626', flexShrink: 0, marginTop: '2px' }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 700, fontSize: '14px', color: '#dc2626', marginBottom: '8px' }}>
+                {criticos.length > 0 && vencendoBreve.length > 0
+                  ? `${criticos.length} insumo(s) crítico(s) e ${vencendoBreve.length} com validade próxima`
+                  : criticos.length > 0
+                    ? `${criticos.length} insumo(s) abaixo do estoque mínimo`
+                    : `${vencendoBreve.length} insumo(s) com validade nos próximos 30 dias`}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {criticos.map(p => (
+                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', flexWrap: 'wrap', gap: '6px' }}>
+                    <span>
+                      <strong>{p.produto}</strong>
+                      <span style={{ color: '#dc2626' }}> — {fmtNum(p.quantidade)} {p.unidade} restantes</span>
+                      <span style={{ color: '#9ca3af' }}> (mín: {fmtNum(p.quantidadeMinima)})</span>
+                    </span>
+                    <button
+                      className="btn btn-primary"
+                      style={{ fontSize: '11px', padding: '3px 10px' }}
+                      onClick={() => { setTab('produtos'); openEntrada(p.id); }}
+                    >
+                      Repor
+                    </button>
+                  </div>
+                ))}
+                {vencendoBreve.map(p => {
+                  const dias = Math.ceil((new Date(p.validade!).getTime() - Date.now()) / 86400000);
+                  return (
+                    <div key={p.id} style={{ fontSize: '13px', color: '#b45309' }}>
+                      <strong>{p.produto}</strong>
+                      {' — vence em '}
+                      <strong>{dias} dia(s)</strong>
+                      {' (' + new Date(p.validade! + 'T00:00:00').toLocaleDateString('pt-BR') + ')'}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── TAB: PRODUTOS ───────────────────────────────────────── */}
       {tab === 'produtos' && (

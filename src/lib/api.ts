@@ -1205,6 +1205,31 @@ export const api = {
     });
   },
 
+  // ── US-045: Alerta de estoque mínimo por e-mail ──────────────────────
+
+  async enviarAlertaEstoque(
+    criticos: Array<{ id: string; produto: string; quantidade: number; quantidadeMinima: number; unidade: string }>,
+    vencendoBreve: Array<{ id: string; produto: string; validade: string | null }>,
+    userId: string
+  ): Promise<{ sent: boolean }> {
+    return run(async () => {
+      await requireUserId(userId);
+      const vencendoPayload = vencendoBreve
+        .filter(p => p.validade)
+        .map(p => ({
+          id: p.id,
+          produto: p.produto,
+          validade: p.validade!,
+          diasRestantes: Math.ceil((new Date(p.validade! + 'T00:00:00').getTime() - Date.now()) / 86400000),
+        }));
+      const { data, error } = await supabase.functions.invoke('notify-estoque-critico', {
+        body: { criticos, vencendoBreve: vencendoPayload },
+      });
+      if (error) throw error;
+      return { sent: data?.sent ?? false };
+    });
+  },
+
   // ============================================================
   // PERFIL DO USUÁRIO
   // ============================================================

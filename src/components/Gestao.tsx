@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import type { Agendamento, FechamentoFinanceiro, ItemEstoque, Procedimento } from '../types';
 import {
   AlertTriangle, DollarSign, Wallet, LayoutDashboard,
-  FileSpreadsheet, Edit2, Trash2, X, Check, Package, Stethoscope,
+  Edit2, Trash2, X, Check, Package, Stethoscope,
   User, Users, Receipt, Calendar, Activity, BarChart3, TrendingUp, Plus,
 } from 'lucide-react';
 import { api } from '../lib/api';
@@ -305,31 +305,72 @@ export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor' }) =
 
           {/* Second row: Estoque critico + Procedimentos recentes */}
           <div className="gestao-two-col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-            {/* Estoque Alerta */}
-            <div className="card" style={{ padding: '24px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <FileSpreadsheet size={16} style={{ color: 'var(--color-primary)' }} />
-                  <h3 style={{ fontSize: '15px', fontWeight: 600 }}>Alertas de Estoque</h3>
-                </div>
-                <button className="btn btn-outline" style={{ fontSize: '11px', padding: '4px 10px' }} onClick={() => setTab('estoque')}>Ver tudo</button>
-              </div>
-              {estoque.length === 0 ? (
-                <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', padding: '20px 0', textAlign: 'center' }}>Nenhum insumo cadastrado.</p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {estoque.slice(0, 5).map(item => (
-                    <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: '8px', background: item.status === 'critico' ? '#fef2f2' : '#f8faf8', border: `1px solid ${item.status === 'critico' ? '#fecaca' : 'var(--color-border)'}` }}>
-                      <div>
-                        <div style={{ fontSize: '13px', fontWeight: 600 }}>{item.produto}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{item.quantidade} {item.unidade}s restantes</div>
-                      </div>
-                      <span className={`badge ${item.status === 'critico' ? 'badge-terracotta' : 'badge-success'}`}>{item.status}</span>
+            {/* Estoque Alerta — US-045 */}
+            {(() => {
+              const criticos = estoque.filter(i => i.status === 'critico');
+              const vencendo = estoque.filter(p => {
+                if (!p.validade) return false;
+                const dias = Math.ceil((new Date(p.validade).getTime() - Date.now()) / 86400000);
+                return dias >= 0 && dias <= 30;
+              });
+              return (
+                <div className="card" style={{ padding: '24px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <AlertTriangle size={16} style={{ color: criticos.length > 0 ? '#dc2626' : 'var(--color-primary)' }} />
+                      <h3 style={{ fontSize: '15px', fontWeight: 600 }}>Alertas de Estoque</h3>
                     </div>
-                  ))}
+                    <button className="btn btn-outline" style={{ fontSize: '11px', padding: '4px 10px' }} onClick={() => setTab('estoque')}>
+                      Ver tudo
+                    </button>
+                  </div>
+                  {estoque.length === 0 ? (
+                    <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', padding: '20px 0', textAlign: 'center' }}>
+                      Nenhum insumo cadastrado.
+                    </p>
+                  ) : criticos.length === 0 && vencendo.length === 0 ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '16px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
+                      <Check size={15} style={{ color: '#15803d', flexShrink: 0 }} />
+                      <span style={{ fontSize: '13px', color: '#15803d', fontWeight: 500 }}>
+                        Todos os {estoque.length} insumo(s) dentro do estoque mínimo
+                      </span>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {criticos.map(item => (
+                        <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: '8px', background: '#fef2f2', border: '1px solid #fecaca' }}>
+                          <div>
+                            <div style={{ fontSize: '13px', fontWeight: 600 }}>{item.produto}</div>
+                            <div style={{ fontSize: '11px', color: '#dc2626' }}>
+                              {item.quantidade} {item.unidade} — mín: {item.quantidadeMinima}
+                            </div>
+                          </div>
+                          <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', background: '#fecaca', color: '#dc2626' }}>
+                            Crítico
+                          </span>
+                        </div>
+                      ))}
+                      {vencendo.map(item => {
+                        const dias = Math.ceil((new Date(item.validade!).getTime() - Date.now()) / 86400000);
+                        return (
+                          <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: '8px', background: '#fffbeb', border: '1px solid #fde68a' }}>
+                            <div>
+                              <div style={{ fontSize: '13px', fontWeight: 600 }}>{item.produto}</div>
+                              <div style={{ fontSize: '11px', color: '#b45309' }}>
+                                Vence em {dias} dia(s)
+                              </div>
+                            </div>
+                            <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', background: '#fde68a', color: '#b45309' }}>
+                              {dias}d
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              );
+            })()}
 
             {/* Procedimentos */}
             <div className="card" style={{ padding: '24px' }}>
