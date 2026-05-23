@@ -6,23 +6,19 @@ import {
   XCircle,
   Clock,
   AlertTriangle,
-  ChevronDown,
   Trash2,
   RefreshCw,
   Printer,
-  Settings2,
   BarChart3,
   Search,
   X,
   Edit3,
   Bell,
-  CalendarRange,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import type {
   Orcamento,
   OrcamentoFollowupConfig,
-  OrcamentoItem,
   OrcamentoMotivoPerdaKey,
   OrcamentoRelatorio,
   OrcamentoStatus,
@@ -173,8 +169,6 @@ export const Orcamentos: React.FC<OrcamentosProps> = ({ userId, userName, onConv
   const [novaValidade, setNovaValidade]             = useState('');
 
   // Modal de detalhes / follow-up manual
-  const [detailTarget, setDetailTarget]             = useState<Orcamento | null>(null);
-
   // Modal de follow-up config
   const [showFollowupModal, setShowFollowupModal]   = useState(false);
   const [followupForm, setFollowupForm]             = useState<FollowupForm>(EMPTY_FOLLOWUP);
@@ -189,7 +183,7 @@ export const Orcamentos: React.FC<OrcamentosProps> = ({ userId, userName, onConv
         api.getOrcamentos(userId),
         api.getOrcamentoFollowupConfig(userId),
         api.getClientes(userId),
-        api.getMembroEquipe(userId),
+        api.getEquipe(userId),
         api.getProcedimentos(userId),
       ]);
       setOrcamentos(orcs);

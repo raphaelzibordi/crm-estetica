@@ -83,7 +83,7 @@ function MiniGrafico({ sessoes }: { sessoes: SessaoTratamento[] }) {
   );
 }
 
-export const PlanoTratamento: React.FC<Props> = ({ clienteId, userId, userName }) => {
+export const PlanoTratamento: React.FC<Props> = ({ clienteId, userId, userName: _userName }) => {
   const [planos, setPlanos] = useState<PlanoTratamentoType[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPlano, setSelectedPlano] = useState<PlanoTratamentoType | null>(null);

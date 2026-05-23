@@ -5,15 +5,12 @@ import {
   Settings2,
   History,
   Users,
-  Plus,
   Trash2,
   Search,
   CheckCircle2,
   X,
-  AlertTriangle,
   Clock,
   CheckCheck,
-  Eye,
   Zap,
   RefreshCw,
   Ban,
@@ -58,11 +55,6 @@ const STATUS_LABELS: Record<string, string> = {
   lido: 'Lido', falha: 'Falha', agendado: 'Agendado', cancelado: 'Cancelado',
 };
 
-const CATEGORIA_LABELS: Record<string, string> = {
-  cobranca: 'Cobrança', relacionamento: 'Relacionamento',
-  marketing: 'Marketing', operacional: 'Operacional',
-};
-
 type TabId = 'enviar' | 'historico' | 'disparos' | 'configuracao';
 
 const BATCH_LIMIT = 50;
@@ -85,7 +77,7 @@ export const WhatsApp: React.FC<WhatsAppProps> = ({ userId, userName }) => {
   const [saving, setSaving]                         = useState(false);
 
   // Aba Enviar
-  const [selectedClienteId, setSelectedClienteId]   = useState('');
+  const [_selectedClienteId, setSelectedClienteId]  = useState('');
   const [selectedCliente, setSelectedCliente]       = useState<Cliente | null>(null);
   const [clienteBusca, setClienteBusca]             = useState('');
   const [clienteSugestoes, setClienteSugestoes]     = useState<Cliente[]>([]);

@@ -170,7 +170,7 @@ export const CRCCentral: React.FC<CRCCentralProps> = ({ userId, userName, onAgen
 
   useEffect(() => {
     api.getClientes(userId).then(setClientes).catch(console.error);
-    api.getMembroEquipe(userId).then(setEquipe).catch(console.error);
+    api.getEquipe(userId).then(setEquipe).catch(console.error);
     api.getTemplatesMensagens(userId).then(setTemplates).catch(console.error);
   }, [userId]);
 
