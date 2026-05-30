@@ -126,6 +126,7 @@ function mapSala(row: any): Sala {
     nome: row.nome ?? '',
     descricao: row.descricao ?? undefined,
     ativo: row.ativo ?? true,
+    createdAt: row.created_at ?? undefined,
   };
 }
 
@@ -856,8 +857,10 @@ export const api = {
   },
 
   // ============================================================
-  // SALAS (SALA-002)
+  // SALAS (SALA-001 / SALA-002)
   // ============================================================
+
+  // Retorna apenas salas ativas (usado no agendamento)
   async getSalas(userId?: string): Promise<Sala[]> {
     return run(async () => {
       const uid = await requireUserId(userId);
@@ -869,6 +872,114 @@ export const api = {
         .order('nome');
       if (error) throw error;
       return (data ?? []).map(mapSala);
+    });
+  },
+
+  // Retorna todas as salas (ativas + inativas) — para tela de gerenciamento SALA-001
+  async getSalasAll(userId?: string): Promise<Sala[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('salas')
+        .select('*')
+        .eq('user_id', uid)
+        .order('nome');
+      if (error) throw error;
+      return (data ?? []).map(mapSala);
+    });
+  },
+
+  async createSala(sala: { nome: string; descricao?: string }, userId?: string): Promise<Sala> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const nome = sala.nome.trim();
+      if (!nome) throw new ApiError('Nome da sala é obrigatório.', 400);
+      if (nome.length > 100) throw new ApiError('Nome da sala deve ter no máximo 100 caracteres.', 400);
+
+      // Validação de duplicata (case-insensitive)
+      const { data: existing } = await supabase
+        .from('salas')
+        .select('id')
+        .eq('user_id', uid)
+        .ilike('nome', nome)
+        .maybeSingle();
+      if (existing) throw new ApiError(`Já existe uma sala com o nome "${nome}".`, 409);
+
+      const { data, error } = await supabase
+        .from('salas')
+        .insert({ user_id: uid, nome, descricao: sala.descricao?.trim() || null, ativo: true })
+        .select()
+        .single();
+      if (error) throw error;
+      return mapSala(data);
+    });
+  },
+
+  async updateSala(
+    id: string,
+    updates: { nome?: string; descricao?: string; ativo?: boolean },
+    userId?: string
+  ): Promise<Sala> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const dbUpdates: Record<string, unknown> = {};
+
+      if (updates.nome !== undefined) {
+        const nome = updates.nome.trim();
+        if (!nome) throw new ApiError('Nome da sala é obrigatório.', 400);
+        if (nome.length > 100) throw new ApiError('Nome da sala deve ter no máximo 100 caracteres.', 400);
+        // Verificar duplicata (excluindo a própria sala)
+        const { data: existing } = await supabase
+          .from('salas')
+          .select('id')
+          .eq('user_id', uid)
+          .ilike('nome', nome)
+          .neq('id', id)
+          .maybeSingle();
+        if (existing) throw new ApiError(`Já existe uma sala com o nome "${nome}".`, 409);
+        dbUpdates.nome = nome;
+      }
+      if (updates.descricao !== undefined) dbUpdates.descricao = updates.descricao?.trim() || null;
+      if (updates.ativo !== undefined) dbUpdates.ativo = updates.ativo;
+
+      const { data, error } = await supabase
+        .from('salas')
+        .update(dbUpdates)
+        .eq('id', id)
+        .eq('user_id', uid)
+        .select()
+        .single();
+      if (error) throw error;
+      return mapSala(data);
+    });
+  },
+
+  async deleteSala(id: string, userId?: string): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+
+      // Validação: não deletar sala com agendamentos ativos
+      const { count, error: countErr } = await supabase
+        .from('agendamentos')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', uid)
+        .eq('room_id', id)
+        .in('status', ['agendada', 'chegou', 'atendimento', 'checkout']);
+      if (countErr) throw countErr;
+      if ((count ?? 0) > 0) {
+        throw new ApiError(
+          `Não é possível deletar. Sala tem ${count} agendamento${count === 1 ? '' : 's'} ativo${count === 1 ? '' : 's'}.`,
+          409,
+          'SALA_COM_AGENDAMENTOS'
+        );
+      }
+
+      const { error } = await supabase
+        .from('salas')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', uid);
+      if (error) throw error;
     });
   },
 

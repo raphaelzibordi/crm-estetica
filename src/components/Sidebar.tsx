@@ -18,6 +18,8 @@ import {
   HeartHandshake,
   MessageCircle,
   ShieldCheck,
+  DoorOpen,
+  Calendar,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { UserRole } from '../types';
@@ -40,9 +42,11 @@ const ALL_MENU_ITEMS = [
   { id: 'orcamentos',  label: 'Orçamentos',         icon: Receipt,            donoOnly: false },
   { id: 'crc',         label: 'Relacionamento',     icon: HeartHandshake,     donoOnly: false },
   { id: 'whatsapp',    label: 'WhatsApp',           icon: MessageCircle,      donoOnly: false },
-  { id: 'comunicacao', label: 'CRM & Retenção',     icon: MessageSquareHeart, donoOnly: true },
-  { id: 'gestao',      label: 'Gestão da Clínica',  icon: TrendingUp,         donoOnly: true },
-  { id: 'lgpd',        label: 'LGPD',               icon: ShieldCheck,        donoOnly: true },
+  { id: 'salas',             label: 'Salas de Atendimento',  icon: DoorOpen,   donoOnly: false },
+  { id: 'calendario-salas', label: 'Calendário de Salas',   icon: Calendar,   donoOnly: false },
+  { id: 'comunicacao', label: 'CRM & Retenção',       icon: MessageSquareHeart, donoOnly: true },
+  { id: 'gestao',      label: 'Gestão da Clínica',    icon: TrendingUp,         donoOnly: true },
+  { id: 'lgpd',        label: 'LGPD',                 icon: ShieldCheck,        donoOnly: true },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({

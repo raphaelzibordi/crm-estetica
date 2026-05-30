@@ -10,6 +10,7 @@ import { RelatorioFaltas } from './RelatorioFaltas';
 import { Comissoes } from './Comissoes';
 import { Repassos } from './Repassos';
 import { RelatorioOcupacao } from './RelatorioOcupacao';
+import { RelatorioOcupacaoSalas } from './RelatorioOcupacaoSalas';
 import { EstoqueAvancado } from './EstoqueAvancado';
 import { ContasFinanceiras } from './ContasFinanceiras';
 
@@ -17,7 +18,7 @@ interface GestaoProps { userId: string; userName?: string; }
 
 const EMPTY_FECHAMENTO: FechamentoFinanceiro = { faturamentoTotal: 0, comissoesPagas: 0, formasPagamento: [] };
 
-type ActiveTab = 'dashboard' | 'financeiro' | 'contas' | 'estoque' | 'procedimentos' | 'faltas' | 'comissoes' | 'repassos' | 'ocupacao';
+type ActiveTab = 'dashboard' | 'financeiro' | 'contas' | 'estoque' | 'procedimentos' | 'faltas' | 'comissoes' | 'repassos' | 'ocupacao' | 'salas';
 
 // ──────────────────────────────────────────────────────────────────────
 // FILTRO DE PERÍODO — presets + range customizado
@@ -252,6 +253,9 @@ export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor' }) =
           </button>
           <button style={tabStyle('ocupacao')} onClick={() => setTab('ocupacao')}>
             <Activity size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Ocupação
+          </button>
+          <button style={tabStyle('salas')} onClick={() => setTab('salas')}>
+            <BarChart3 size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Salas
           </button>
         </div>
       </div>
@@ -655,6 +659,11 @@ export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor' }) =
       {/* ── TAB: OCUPAÇÃO ─────────────────────────────────────────────── */}
       {tab === 'ocupacao' && (
         <RelatorioOcupacao userId={userId} />
+      )}
+
+      {/* ── TAB: SALAS (SALA-004) ─────────────────────────────────────── */}
+      {tab === 'salas' && (
+        <RelatorioOcupacaoSalas userId={userId} />
       )}
 
       {/* ── MODAL: FILTRO PERSONALIZADO (bottom-sheet no mobile) ───────── */}
