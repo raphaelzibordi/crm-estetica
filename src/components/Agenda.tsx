@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import type { Agendamento, Procedimento, Profissional } from '../types';
-import { Users, Clock, Sparkles, ChevronLeft, ChevronRight, CalendarRange, AlertTriangle } from 'lucide-react';
+import type { Agendamento, Procedimento, Profissional, SalaStatus } from '../types';
+import { Users, Clock, Sparkles, ChevronLeft, ChevronRight, CalendarRange, AlertTriangle, DoorOpen } from 'lucide-react';
 import { api } from '../lib/api';
 import { findAgendamentoConflict, calcularEncaixeSugestoes, type EncaixeSugestao } from '../lib/agendaConflict';
 
@@ -102,6 +102,12 @@ export const Agenda: React.FC<AgendaProps> = ({
   const [newProfissionalId, setNewProfissionalId] = useState<string>(OWNER_ID);
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
 
+  // SALA-002: room selection states
+  const [salasStatus, setSalasStatus] = useState<SalaStatus[]>([]);
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+  const [loadingRooms, setLoadingRooms] = useState(false);
+  const [showRoomDropdown, setShowRoomDropdown] = useState(false);
+
   // Carrega procedimentos + equipe ativa do banco (com fallback de seed)
   useEffect(() => {
     let cancelled = false;
@@ -158,6 +164,44 @@ export const Agenda: React.FC<AgendaProps> = ({
     }
   }, [profissionais, newProfissionalId, selectedProfessional]);
 
+  // SALA-002: carrega disponibilidade de salas ao mudar data/hora/procedimento no modal
+  useEffect(() => {
+    if (!showAddModal || !newData || !newHora) {
+      setSalasStatus([]);
+      setSelectedRoomId(null);
+      setShowRoomDropdown(false);
+      return;
+    }
+
+    const matchedProc =
+      procedimentos.find((p) => p.nome.toLowerCase().includes(newProcedimento.toLowerCase())) ||
+      procedimentos[0];
+    if (!matchedProc) return;
+
+    const [h, m] = newHora.split(':').map((x) => parseInt(x, 10));
+    const endMin = h * 60 + m + matchedProc.duracaoMinutos;
+    const endH = String(Math.floor((endMin % (24 * 60)) / 60)).padStart(2, '0');
+    const endM = String(endMin % 60).padStart(2, '0');
+    const endStr = `${endH}:${endM}`;
+
+    let cancelled = false;
+    setLoadingRooms(true);
+    api.getSalasDisponiveis(userId, newData, newHora, endStr)
+      .then((status) => {
+        if (cancelled) return;
+        setSalasStatus(status);
+        const firstAvailable = status.find((s) => s.disponivel);
+        setSelectedRoomId(firstAvailable?.sala.id ?? null);
+        setShowRoomDropdown(false);
+        setLoadingRooms(false);
+      })
+      .catch(() => {
+        if (!cancelled) setLoadingRooms(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [showAddModal, newData, newHora, newProcedimento, userId, procedimentos]);
+
   const formatTelefone = (value: string) => {
     const numbersOnly = value.replace(/\D/g, '');
     const truncated = numbersOnly.slice(0, 11);
@@ -207,10 +251,19 @@ export const Agenda: React.FC<AgendaProps> = ({
       userName ||
       'Responsável da Clínica';
 
+    const selectedRoom = salasStatus.find((s) => s.sala.id === selectedRoomId)?.sala;
+
     // Pré-check de conflito (feedback instantâneo para hoje). API revalida como autoridade.
     if (newData === toISODate(new Date())) {
       const conflito = findAgendamentoConflict(
-        { clienteId: '', profissional: profissionalNome, data: newData, horaInicio: newHora, horaFim: endStr },
+        {
+          clienteId: '',
+          profissional: profissionalNome,
+          data: newData,
+          horaInicio: newHora,
+          horaFim: endStr,
+          roomId: selectedRoomId ?? undefined,
+        },
         agendamentos
       );
       if (conflito) {
@@ -229,24 +282,31 @@ export const Agenda: React.FC<AgendaProps> = ({
           horaFim: endStr,
           procedimento: newProcedimento,
           profissional: profissionalNome,
-          sala: matchedProc.salaRequerida,
+          sala: selectedRoom?.nome ?? matchedProc.salaRequerida,
+          roomId: selectedRoomId ?? undefined,
           status: 'agendada',
           valor: price
         },
         { telefone: newTelefone }
       );
-      
+
       setShowAddModal(false);
       setNewNome('');
       setNewTelefone('');
       setHasSearched(false);
       setSugestoes([]);
-      alert('Nova(o) paciente acolhida(o) com sucesso!');
+      setSalasStatus([]);
+      setSelectedRoomId(null);
 
-      setCursor(prev => new Date(prev)); // Force range reload
-    } catch (err) {
+      // CA-05: confirmação com nome da sala
+      const salaConfirmacao = selectedRoom ? selectedRoom.nome : matchedProc.salaRequerida;
+      alert(`Agendamento criado! ${salaConfirmacao} reservada para ${newProcedimento} com ${profissionalNome}.`);
+
+      setCursor(prev => new Date(prev));
+    } catch (err: any) {
       console.error(err);
-      alert('Erro ao agendar paciente.');
+      const msg = err?.message || 'Erro ao agendar paciente.';
+      setConflictMessage(msg);
     }
   };
 
@@ -594,6 +654,11 @@ export const Agenda: React.FC<AgendaProps> = ({
                                 <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                   <Users size={12} /> {booked.profissional}
                                 </span>
+                                {booked.sala && (
+                                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <DoorOpen size={12} /> {booked.sala}
+                                  </span>
+                                )}
                               </div>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
@@ -885,10 +950,103 @@ export const Agenda: React.FC<AgendaProps> = ({
                 </div>
               </div>
 
+              {/* SALA-002: Seleção de sala */}
+              {newData && newHora && (
+                <div className="form-group">
+                  <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <DoorOpen size={14} /> Sala de Atendimento
+                  </label>
+                  {loadingRooms ? (
+                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', padding: '10px 0' }}>
+                      Verificando disponibilidade de salas…
+                    </div>
+                  ) : salasStatus.length === 0 ? (
+                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', padding: '8px 0' }}>
+                      Nenhuma sala cadastrada.
+                    </div>
+                  ) : !showRoomDropdown ? (
+                    (() => {
+                      const suggestion = salasStatus.find((s) => s.disponivel);
+                      return suggestion ? (
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '10px 12px',
+                          background: 'var(--color-success-light)',
+                          borderRadius: 'var(--border-radius-sm)',
+                          border: '1px solid var(--color-success)',
+                          flexWrap: 'wrap',
+                        }}>
+                          <span style={{ flex: 1, fontSize: '13px', fontWeight: 500, color: 'var(--color-success)' }}>
+                            Sugestão: {suggestion.sala.nome} (Disponível)
+                          </span>
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            style={{ padding: '4px 12px', fontSize: '11px' }}
+                            onClick={() => setSelectedRoomId(suggestion.sala.id)}
+                          >
+                            Confirmar
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-outline"
+                            style={{ padding: '4px 12px', fontSize: '11px' }}
+                            onClick={() => setShowRoomDropdown(true)}
+                          >
+                            Escolher outra
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{
+                          padding: '10px 12px',
+                          background: '#FFF5F5',
+                          borderRadius: 'var(--border-radius-sm)',
+                          border: '1px solid #FEB2B2',
+                          fontSize: '13px',
+                          color: '#C53030',
+                        }}>
+                          Nenhuma sala disponível neste horário.
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    /* CA-02: dropdown com salas disponíveis e ocupadas */
+                    <select
+                      className="form-select"
+                      value={selectedRoomId ?? ''}
+                      onChange={(e) => setSelectedRoomId(e.target.value || null)}
+                    >
+                      <option value="">Selecionar sala…</option>
+                      {salasStatus.map(({ sala, disponivel, ocupadaPor }) => (
+                        <option
+                          key={sala.id}
+                          value={sala.id}
+                          disabled={!disponivel}
+                        >
+                          {sala.nome} {disponivel ? '(Disponível)' : `(Ocupada${ocupadaPor ? ` — ${ocupadaPor}` : ''})`}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {selectedRoomId && !showRoomDropdown && (
+                    <div style={{ marginTop: '6px', fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                      Sala confirmada: <strong>{salasStatus.find(s => s.sala.id === selectedRoomId)?.sala.nome}</strong>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
                 <button
                   type="button"
-                  onClick={() => setShowAddModal(false)}
+                  onClick={() => {
+                    setShowAddModal(false);
+                    setSalasStatus([]);
+                    setSelectedRoomId(null);
+                    setShowRoomDropdown(false);
+                  }}
                   className="btn btn-outline"
                 >
                   Cancelar
