@@ -4,6 +4,7 @@ import { findAgendamentoConflict } from './agendaConflict';
 import type {
   Agendamento,
   AnamneseCampo,
+  AppointmentChange,
   ContaReceber,
   Sala,
   SalaStatus,
@@ -869,6 +870,117 @@ export const api = {
         .order('nome');
       if (error) throw error;
       return (data ?? []).map(mapSala);
+    });
+  },
+
+  // SALA-005: atualiza a sala de um agendamento existente com auditoria
+  async updateAgendamentoSala(
+    id: string,
+    newRoomId: string,
+    alteradoPor: string,
+    userId?: string
+  ): Promise<Agendamento> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+
+      const { data: atual, error: fetchErr } = await supabase
+        .from('agendamentos')
+        .select('*, clientes ( nome, foto_url ), salas ( nome )')
+        .eq('id', id)
+        .eq('user_id', uid)
+        .single();
+      if (fetchErr) throw fetchErr;
+
+      const atualMapped = mapAgendamento(atual);
+
+      if (atualMapped.status === 'finalizada') {
+        throw new ApiError('Não é possível alterar a sala de um agendamento já encerrado.', 400);
+      }
+      const today = new Date().toISOString().split('T')[0];
+      if (atualMapped.data < today) {
+        throw new ApiError('Não é possível alterar a sala de agendamentos de datas passadas.', 400);
+      }
+      if (atualMapped.roomId === newRoomId) {
+        return atualMapped;
+      }
+
+      // Valida disponibilidade da nova sala no mesmo horário
+      const { data: conflitos } = await supabase
+        .from('agendamentos')
+        .select('id')
+        .eq('user_id', uid)
+        .eq('data', atualMapped.data)
+        .eq('room_id', newRoomId)
+        .neq('id', id)
+        .in('status', ['agendada', 'chegou', 'atendimento', 'checkout'])
+        .lt('hora_inicio', atualMapped.horaFim)
+        .gt('hora_fim', atualMapped.horaInicio);
+
+      if (conflitos && conflitos.length > 0) {
+        const { data: salaRow } = await supabase
+          .from('salas')
+          .select('nome')
+          .eq('id', newRoomId)
+          .single();
+        const nomeSala = salaRow?.nome ?? 'Sala selecionada';
+        throw new ApiError(
+          `${nomeSala} já está ocupada das ${atualMapped.horaInicio.substring(0, 5)} às ${atualMapped.horaFim.substring(0, 5)}. Escolha outra sala.`,
+          409,
+          'SALA_CONFLITO'
+        );
+      }
+
+      const { data: novaSalaRow } = await supabase
+        .from('salas')
+        .select('nome')
+        .eq('id', newRoomId)
+        .single();
+      const novaNome = novaSalaRow?.nome ?? null;
+
+      const { data, error } = await supabase
+        .from('agendamentos')
+        .update({ room_id: newRoomId, sala: novaNome })
+        .eq('id', id)
+        .eq('user_id', uid)
+        .select('*, clientes ( nome, foto_url ), salas ( nome )')
+        .single();
+      if (error) throw error;
+
+      // Registra auditoria
+      await supabase.from('appointment_changes').insert({
+        user_id: uid,
+        agendamento_id: id,
+        campo: 'sala',
+        valor_anterior: atualMapped.sala || null,
+        valor_novo: novaNome,
+        alterado_por: alteradoPor,
+      });
+
+      return mapAgendamento(data);
+    });
+  },
+
+  // SALA-005: retorna histórico de mudanças de um agendamento
+  async getAppointmentChanges(agendamentoId: string, userId?: string): Promise<AppointmentChange[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('appointment_changes')
+        .select('*')
+        .eq('user_id', uid)
+        .eq('agendamento_id', agendamentoId)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      return (data ?? []).map((row: any) => ({
+        id: row.id,
+        agendamentoId: row.agendamento_id,
+        campo: row.campo,
+        valorAnterior: row.valor_anterior ?? undefined,
+        valorNovo: row.valor_novo ?? undefined,
+        alteradoPor: row.alterado_por,
+        createdAt: row.created_at,
+      }));
     });
   },
 

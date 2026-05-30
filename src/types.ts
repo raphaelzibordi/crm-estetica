@@ -76,6 +76,17 @@ export interface SalaStatus {
   ocupadaPor?: string;
 }
 
+// SALA-005: auditoria de mudanças em agendamentos
+export interface AppointmentChange {
+  id: string;
+  agendamentoId: string;
+  campo: string;
+  valorAnterior?: string;
+  valorNovo?: string;
+  alteradoPor: string;
+  createdAt: string;
+}
+
 export interface Agendamento {
   id: string;
   clienteId: string;

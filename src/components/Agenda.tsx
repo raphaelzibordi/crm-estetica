@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import type { Agendamento, Procedimento, Profissional, SalaStatus } from '../types';
-import { Users, Clock, Sparkles, ChevronLeft, ChevronRight, CalendarRange, AlertTriangle, DoorOpen } from 'lucide-react';
+import type { Agendamento, AppointmentChange, Procedimento, Profissional, SalaStatus } from '../types';
+import { Users, Clock, Sparkles, ChevronLeft, ChevronRight, CalendarRange, AlertTriangle, DoorOpen, History } from 'lucide-react';
 import { api } from '../lib/api';
 import { findAgendamentoConflict, calcularEncaixeSugestoes, type EncaixeSugestao } from '../lib/agendaConflict';
 
@@ -102,11 +102,20 @@ export const Agenda: React.FC<AgendaProps> = ({
   const [newProfissionalId, setNewProfissionalId] = useState<string>(OWNER_ID);
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
 
-  // SALA-002: room selection states
+  // SALA-002: room selection states (create modal)
   const [salasStatus, setSalasStatus] = useState<SalaStatus[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [loadingRooms, setLoadingRooms] = useState(false);
   const [showRoomDropdown, setShowRoomDropdown] = useState(false);
+
+  // SALA-005: edit room modal states
+  const [editRoomAgendamento, setEditRoomAgendamento] = useState<Agendamento | null>(null);
+  const [editRoomId, setEditRoomId] = useState<string | null>(null);
+  const [editSalasStatus, setEditSalasStatus] = useState<SalaStatus[]>([]);
+  const [editLoadingRooms, setEditLoadingRooms] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editAuditLog, setEditAuditLog] = useState<AppointmentChange[]>([]);
+  const [editErrorMsg, setEditErrorMsg] = useState<string | null>(null);
 
   // Carrega procedimentos + equipe ativa do banco (com fallback de seed)
   useEffect(() => {
@@ -201,6 +210,54 @@ export const Agenda: React.FC<AgendaProps> = ({
 
     return () => { cancelled = true; };
   }, [showAddModal, newData, newHora, newProcedimento, userId, procedimentos]);
+
+  // SALA-005: helpers e handlers para edição de sala
+  const canEditRoom = (ag: Agendamento): boolean => {
+    if (ag.status === 'finalizada') return false;
+    const today = new Date().toISOString().split('T')[0];
+    return ag.data >= today;
+  };
+
+  const handleOpenEditRoom = async (ag: Agendamento) => {
+    setEditRoomAgendamento(ag);
+    setEditRoomId(ag.roomId ?? null);
+    setEditErrorMsg(null);
+    setEditAuditLog([]);
+    setEditLoadingRooms(true);
+    try {
+      const [status, changes] = await Promise.all([
+        api.getSalasDisponiveis(userId, ag.data, ag.horaInicio, ag.horaFim, ag.id),
+        api.getAppointmentChanges(ag.id, userId),
+      ]);
+      setEditSalasStatus(status);
+      setEditAuditLog(changes);
+    } catch (err) {
+      console.error('[SALA-005] Erro ao carregar dados de edição:', err);
+    } finally {
+      setEditLoadingRooms(false);
+    }
+  };
+
+  const handleSaveEditRoom = async () => {
+    if (!editRoomAgendamento || !editRoomId) return;
+    setEditSaving(true);
+    setEditErrorMsg(null);
+    try {
+      const updated = await api.updateAgendamentoSala(
+        editRoomAgendamento.id,
+        editRoomId,
+        userName || 'Responsável',
+        userId
+      );
+      setEditRoomAgendamento(null);
+      setCursor((prev) => new Date(prev));
+      alert(`Agendamento atualizado! Sala alterada para ${updated.sala}.`);
+    } catch (err: any) {
+      setEditErrorMsg(err?.message || 'Erro ao alterar sala.');
+    } finally {
+      setEditSaving(false);
+    }
+  };
 
   const formatTelefone = (value: string) => {
     const numbersOnly = value.replace(/\D/g, '');
@@ -665,6 +722,17 @@ export const Agenda: React.FC<AgendaProps> = ({
                               <span className={`badge ${booked.status === 'finalizada' ? 'badge-neutral' : 'badge-sage'}`}>
                                 {booked.status}
                               </span>
+                              {canEditRoom(booked) && (
+                                <button
+                                  onClick={() => handleOpenEditRoom(booked)}
+                                  className="btn btn-outline"
+                                  style={{ padding: '4px 10px', fontSize: '11px', cursor: 'pointer' }}
+                                  title="Editar Sala"
+                                >
+                                  <DoorOpen size={12} style={{ marginRight: '4px' }} />
+                                  Sala
+                                </button>
+                              )}
                               {booked.status !== 'finalizada' && (
                                 <button
                                   onClick={() => handleCancelAgendamento(booked.id)}
@@ -1056,6 +1124,159 @@ export const Agenda: React.FC<AgendaProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* SALA-005: Modal de edição de sala */}
+      {editRoomAgendamento && (
+        <div className="modal-overlay" style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.35)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1050,
+        }}>
+          <div className="card" style={{ maxWidth: '480px', width: '92%', padding: '32px', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+              <DoorOpen size={20} style={{ color: 'var(--color-primary)' }} />
+              <h3 style={{ fontSize: '17px', fontWeight: 600 }}>Editar Sala</h3>
+            </div>
+
+            {/* Info do agendamento (read-only) */}
+            <div style={{
+              background: 'var(--color-primary-light)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--border-radius-sm)',
+              padding: '12px 16px',
+              marginBottom: '20px',
+              fontSize: '13px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px',
+            }}>
+              <div><strong>{editRoomAgendamento.clienteNome}</strong></div>
+              <div style={{ color: 'var(--color-text-muted)' }}>
+                {editRoomAgendamento.procedimento} · {editRoomAgendamento.profissional}
+              </div>
+              <div style={{ color: 'var(--color-text-muted)' }}>
+                {new Date(editRoomAgendamento.data + 'T00:00:00').toLocaleDateString('pt-BR')} · {editRoomAgendamento.horaInicio.substring(0, 5)}–{editRoomAgendamento.horaFim.substring(0, 5)}
+              </div>
+              {editRoomAgendamento.sala && (
+                <div style={{ marginTop: '4px', fontSize: '12px' }}>
+                  Sala atual: <strong>{editRoomAgendamento.sala}</strong>
+                </div>
+              )}
+            </div>
+
+            {/* Seleção de nova sala */}
+            <div className="form-group">
+              <label className="form-label">Selecionar nova sala</label>
+              {editLoadingRooms ? (
+                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', padding: '8px 0' }}>
+                  Verificando disponibilidade…
+                </div>
+              ) : editSalasStatus.length === 0 ? (
+                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', padding: '8px 0' }}>
+                  Nenhuma sala cadastrada.
+                </div>
+              ) : (
+                <select
+                  className="form-select"
+                  value={editRoomId ?? ''}
+                  onChange={(e) => {
+                    setEditRoomId(e.target.value || null);
+                    setEditErrorMsg(null);
+                  }}
+                >
+                  <option value="">Selecionar sala…</option>
+                  {editSalasStatus.map(({ sala, disponivel, ocupadaPor }) => (
+                    <option
+                      key={sala.id}
+                      value={sala.id}
+                      disabled={!disponivel && sala.id !== editRoomAgendamento.roomId}
+                    >
+                      {sala.id === editRoomAgendamento.roomId ? `${sala.nome} (atual)` : sala.nome}
+                      {' '}
+                      {disponivel || sala.id === editRoomAgendamento.roomId
+                        ? '(Disponível)'
+                        : `(Ocupada${ocupadaPor ? ` — ${ocupadaPor}` : ''})`}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            {/* Erro de conflito */}
+            {editErrorMsg && (
+              <div style={{
+                padding: '10px 12px',
+                background: '#FFF5F5',
+                border: '1px solid #FEB2B2',
+                borderRadius: 'var(--border-radius-sm)',
+                fontSize: '13px',
+                color: '#C53030',
+                marginBottom: '16px',
+                display: 'flex',
+                gap: '8px',
+                alignItems: 'flex-start',
+              }}>
+                <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: '1px' }} />
+                {editErrorMsg}
+              </div>
+            )}
+
+            {/* Auditoria */}
+            {editAuditLog.length > 0 && (
+              <div style={{ marginBottom: '20px' }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '6px',
+                  fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)',
+                  textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px',
+                }}>
+                  <History size={12} /> Histórico de Mudanças
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {editAuditLog.map((change) => (
+                    <div key={change.id} style={{
+                      fontSize: '12px',
+                      padding: '8px 10px',
+                      background: 'var(--color-primary-light)',
+                      borderRadius: 'var(--border-radius-sm)',
+                      color: 'var(--color-text-muted)',
+                    }}>
+                      <span style={{ fontWeight: 500, color: 'var(--color-text-main)' }}>
+                        {change.valorAnterior ?? '—'} → {change.valorNovo ?? '—'}
+                      </span>
+                      {' '}por <strong>{change.alteradoPor}</strong>
+                      {' '}em {new Date(change.createdAt).toLocaleString('pt-BR')}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={() => {
+                  setEditRoomAgendamento(null);
+                  setEditSalasStatus([]);
+                  setEditAuditLog([]);
+                  setEditErrorMsg(null);
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={!editRoomId || editSaving || editLoadingRooms || editRoomId === editRoomAgendamento.roomId}
+                onClick={handleSaveEditRoom}
+              >
+                {editSaving ? 'Salvando…' : 'Salvar'}
+              </button>
+            </div>
           </div>
         </div>
       )}
