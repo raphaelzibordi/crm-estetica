@@ -17,6 +17,7 @@ import { AgendamentoPublico } from './components/AgendamentoPublico';
 import { AssinaturaPublica } from './components/AssinaturaPublica';
 import { GaleriaPublica } from './components/GaleriaPublica';
 import { LGPD } from './components/LGPD';
+import { Salas } from './components/Salas';
 import type { Agendamento, StatusJornada, UserRole } from './types';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { api } from './lib/api';
@@ -506,6 +507,10 @@ function AppMain() {
         )}
 
         {/* Abas restritas: apenas donos chegam aqui (setCurrentTabSafe bloqueia equipe) */}
+        {currentTab === 'salas' && (
+          <Salas userId={effectiveTenantId} userRole={userRole} />
+        )}
+
         {currentTab === 'comunicacao' && userRole === 'dono' && (
           <Comunicacao userId={effectiveTenantId} />
         )}
