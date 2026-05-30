@@ -6,11 +6,13 @@ export interface ConflictCheckInput {
   data: string;
   horaInicio: string;
   horaFim: string;
+  roomId?: string; // SALA-002: 4ª regra de conflito
 }
 
 export type AgendaConflict =
   | { kind: 'cliente'; existente: Agendamento; mensagem: string }
-  | { kind: 'profissional'; existente: Agendamento; mensagem: string };
+  | { kind: 'profissional'; existente: Agendamento; mensagem: string }
+  | { kind: 'sala'; existente: Agendamento; mensagem: string };
 
 const STATUS_OCUPADOS: ReadonlyArray<StatusJornada> = ['agendada', 'chegou', 'atendimento', 'checkout'];
 
@@ -31,6 +33,7 @@ function sameNormalizedName(a: string, b: string): boolean {
  *   1. Mesmo paciente, mesmo profissional, mesmo horário → BLOQUEADO
  *   2. Mesmo paciente, profissionais diferentes, mesmo horário → BLOQUEADO
  *   3. Pacientes diferentes, profissionais diferentes, mesmo horário → PERMITIDO
+ *   4. (SALA-002) Mesma sala (room_id), horários sobrepostos → BLOQUEADO
  *
  * Agendamentos finalizados não bloqueiam (registro histórico).
  * Passe `ignoreId` ao editar para que o próprio agendamento não se conflite.
@@ -54,6 +57,15 @@ export function findAgendamentoConflict(
     if (!aStart || !aEnd) continue;
 
     if (!intervalsOverlap(novoStart, novoEnd, aStart, aEnd)) continue;
+
+    // Regra 4 (SALA-002): mesma sala física + sobreposição de horário → bloqueado
+    if (novo.roomId && a.roomId && novo.roomId === a.roomId) {
+      return {
+        kind: 'sala',
+        existente: a,
+        mensagem: `Sala já está ocupada neste horário (das ${aStart} às ${aEnd}) com ${a.clienteNome} — ${a.profissional}. Escolha outra sala ou mude o horário.`,
+      };
+    }
 
     if (novo.clienteId && a.clienteId === novo.clienteId) {
       return {
