@@ -37,7 +37,9 @@
       "Bash(dir -Recurse src -Directory)",
       "Bash(Select-Object -ExpandProperty FullName)",
       "Bash(xargs grep -l \"contas\\\\|pagamento\\\\|financeiro\\\\|checkout\\\\|fluxo_caixa\\\\|receber\\\\|pagar\")",
-      "Bash(xargs grep -l \"Gestao\\\\|Repassos\\\\|Dashboard\")"
+      "Bash(xargs grep -l \"Gestao\\\\|Repassos\\\\|Dashboard\")",
+      "mcp__84ef42a8-55c6-42bb-9150-d4040d81915a__list_projects",
+      "mcp__84ef42a8-55c6-42bb-9150-d4040d81915a__apply_migration"
     ]
   }
 }
