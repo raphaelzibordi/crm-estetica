@@ -120,6 +120,14 @@ export interface Profissional {
   isResponsavel: boolean;
 }
 
+export interface Room {
+  id: string;
+  name: string;
+  description?: string;
+  status: 'ativa' | 'inativa';
+  createdAt: string;
+}
+
 export interface ItemEstoque {
   id: string;
   produto: string;

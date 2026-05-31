@@ -5213,6 +5213,100 @@ export const api = {
     const { data } = supabase.storage.from('financeiro').getPublicUrl(path);
     return data.publicUrl;
   },
+
+  // ============================================================
+  // SALA-001: CRUD de Salas de Atendimento
+  // ============================================================
+
+  async getRooms(userId?: string): Promise<import('../types').Room[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('rooms')
+        .select('*')
+        .eq('user_id', uid)
+        .order('name');
+      if (error) throw error;
+      return (data ?? []).map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        description: r.description ?? undefined,
+        status: (r.status as 'ativa' | 'inativa') ?? 'ativa',
+        createdAt: r.created_at,
+      }));
+    });
+  },
+
+  async createRoom(
+    payload: { name: string; description?: string },
+    userId?: string
+  ): Promise<import('../types').Room> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('rooms')
+        .insert([{ user_id: uid, name: payload.name.trim(), description: payload.description?.trim() || null, status: 'ativa' }])
+        .select()
+        .single();
+      if (error) {
+        if (error.code === '23505') throw new ApiError('Já existe uma sala com este nome.', 409, 'ROOM_DUPLICATE');
+        throw error;
+      }
+      return { id: data.id, name: data.name, description: data.description ?? undefined, status: data.status, createdAt: data.created_at };
+    });
+  },
+
+  async updateRoom(
+    id: string,
+    updates: { name?: string; description?: string; status?: 'ativa' | 'inativa' },
+    userId?: string
+  ): Promise<import('../types').Room> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const dbUpdates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      if (updates.name !== undefined) dbUpdates.name = updates.name.trim();
+      if (updates.description !== undefined) dbUpdates.description = updates.description.trim() || null;
+      if (updates.status !== undefined) dbUpdates.status = updates.status;
+      const { data, error } = await supabase
+        .from('rooms')
+        .update(dbUpdates)
+        .eq('id', id)
+        .eq('user_id', uid)
+        .select()
+        .single();
+      if (error) {
+        if (error.code === '23505') throw new ApiError('Já existe uma sala com este nome.', 409, 'ROOM_DUPLICATE');
+        throw error;
+      }
+      return { id: data.id, name: data.name, description: data.description ?? undefined, status: data.status, createdAt: data.created_at };
+    });
+  },
+
+  async deleteRoom(id: string, userId?: string): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      // Block deletion if active appointments exist for this room
+      const { data: room } = await supabase.from('rooms').select('name').eq('id', id).eq('user_id', uid).single();
+      if (room) {
+        const STATUS_ATIVOS = ['agendada', 'chegou', 'atendimento', 'checkout'];
+        const { count } = await supabase
+          .from('agendamentos')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', uid)
+          .eq('sala', room.name)
+          .in('status', STATUS_ATIVOS);
+        if ((count ?? 0) > 0) {
+          throw new ApiError(
+            `Não é possível deletar. A sala "${room.name}" possui ${count} agendamento(s) ativo(s).`,
+            409,
+            'ROOM_HAS_APPOINTMENTS'
+          );
+        }
+      }
+      const { error } = await supabase.from('rooms').delete().eq('id', id).eq('user_id', uid);
+      if (error) throw error;
+    });
+  },
 };
 
 // ── Mappers internos (US-012) ─────────────────────────────────────────
