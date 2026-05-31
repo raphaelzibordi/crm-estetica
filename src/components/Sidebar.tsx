@@ -19,6 +19,7 @@ import {
   MessageCircle,
   ShieldCheck,
   DoorOpen,
+  CalendarDays,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { UserRole } from '../types';
@@ -44,6 +45,7 @@ const ALL_MENU_ITEMS = [
   { id: 'comunicacao', label: 'CRM & Retenção',     icon: MessageSquareHeart, donoOnly: true },
   { id: 'gestao',      label: 'Gestão da Clínica',  icon: TrendingUp,         donoOnly: true },
   { id: 'salas',       label: 'Salas',              icon: DoorOpen,           donoOnly: true },
+  { id: 'calendario-salas', label: 'Calendário Salas', icon: CalendarDays,   donoOnly: true },
   { id: 'lgpd',        label: 'LGPD',               icon: ShieldCheck,        donoOnly: true },
 ];
 

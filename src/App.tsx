@@ -18,6 +18,7 @@ import { AssinaturaPublica } from './components/AssinaturaPublica';
 import { GaleriaPublica } from './components/GaleriaPublica';
 import { LGPD } from './components/LGPD';
 import { GerenciamentoSalas } from './components/GerenciamentoSalas';
+import { CalendarioSalas } from './components/CalendarioSalas';
 import type { Agendamento, StatusJornada, UserRole } from './types';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { api } from './lib/api';
@@ -517,6 +518,14 @@ function AppMain() {
 
         {currentTab === 'salas' && userRole === 'dono' && (
           <GerenciamentoSalas userId={effectiveTenantId} />
+        )}
+
+        {currentTab === 'calendario-salas' && userRole === 'dono' && (
+          <CalendarioSalas
+            userId={effectiveTenantId}
+            agendamentosHoje={agendamentos}
+            onEditAgendamento={handleUpdateAgendamentoDados}
+          />
         )}
 
         {currentTab === 'lgpd' && userRole === 'dono' && (
