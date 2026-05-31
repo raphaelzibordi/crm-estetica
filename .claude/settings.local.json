@@ -40,7 +40,7 @@
       "Bash(xargs grep -l \"Gestao\\\\|Repassos\\\\|Dashboard\")",
       "Bash(timeout 5)",
       "Bash(Start-Sleep -Seconds 4)",
-      "Bash(Get-Content \"C:\\\\Users\\\\rapha\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-rapha-OneDrive-Documents-GitHub-CRM-Est-tica-crm-estetica\\\\094b4b20-89af-4ad3-8564-5a38832d6002\\\\tasks\\\\bgf73dicz.output\")"
+      "mcp__claude_ai_Supabase__execute_sql"
     ]
   }
 }

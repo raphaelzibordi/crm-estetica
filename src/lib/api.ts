@@ -5,6 +5,8 @@ import type {
   Agendamento,
   AnamneseCampo,
   ContaReceber,
+  Sala,
+  SalaStatus,
   ContaReceberStatus,
   CrcAcao,
   CrcAcaoContexto,
@@ -118,6 +120,16 @@ function mapCliente(row: any): Cliente {
   };
 }
 
+function mapSala(row: any): Sala {
+  return {
+    id: row.id,
+    nome: row.nome ?? '',
+    descricao: row.descricao ?? undefined,
+    ativo: row.ativo ?? true,
+    createdAt: row.created_at ?? undefined,
+  };
+}
+
 function mapAgendamento(row: any): Agendamento {
   return {
     id: row.id,
@@ -128,7 +140,8 @@ function mapAgendamento(row: any): Agendamento {
     horaInicio: row.hora_inicio,
     horaFim: row.hora_fim,
     profissional: row.profissional ?? '',
-    sala: row.sala ?? '',
+    sala: row.salas?.nome ?? row.sala ?? '',
+    roomId: row.room_id ?? undefined,
     procedimento: row.procedimento ?? '',
     status: (row.status as StatusJornada) ?? 'agendada',
     tempoEsperaMinutos: row.tempo_espera_minutos ?? undefined,
@@ -635,7 +648,7 @@ export const api = {
       const uid = await requireUserId(userId);
       const { data, error } = await supabase
         .from('agendamentos')
-        .select('*, clientes ( nome, foto_url )')
+        .select('*, clientes ( nome, foto_url ), salas ( nome )')
         .eq('user_id', uid)
         .eq('data', dataStr)
         .order('hora_inicio');
@@ -653,7 +666,7 @@ export const api = {
       const uid = await requireUserId(userId);
       const { data, error } = await supabase
         .from('agendamentos')
-        .select('*, clientes ( nome, foto_url )')
+        .select('*, clientes ( nome, foto_url ), salas ( nome )')
         .eq('user_id', uid)
         .gte('data', inicio)
         .lte('data', fim)
@@ -674,10 +687,10 @@ export const api = {
         throw new ApiError('Selecione o cliente antes de criar o agendamento.', 400);
       }
 
-      // Trava de conflito (autoridade): pacientes e profissionais não podem se sobrepor no mesmo horário
+      // Trava de conflito (autoridade): pacientes, profissionais e salas não podem se sobrepor
       const { data: existentes, error: fetchError } = await supabase
         .from('agendamentos')
-        .select('*, clientes ( nome, foto_url )')
+        .select('*, clientes ( nome, foto_url ), salas ( nome )')
         .eq('user_id', uid)
         .eq('data', agendamento.data);
       if (fetchError) throw fetchError;
@@ -689,6 +702,7 @@ export const api = {
           data: agendamento.data,
           horaInicio: agendamento.horaInicio,
           horaFim: agendamento.horaFim,
+          roomId: agendamento.roomId,
         },
         (existentes ?? []).map(mapAgendamento)
       );
@@ -707,6 +721,7 @@ export const api = {
             hora_fim: agendamento.horaFim,
             profissional: agendamento.profissional,
             sala: agendamento.sala,
+            room_id: agendamento.roomId ?? null,
             procedimento: agendamento.procedimento,
             status: agendamento.status,
             tempo_espera_minutos: agendamento.tempoEsperaMinutos ?? null,
@@ -714,7 +729,7 @@ export const api = {
             valor: agendamento.valor,
           },
         ])
-        .select('*, clientes ( nome, foto_url )')
+        .select('*, clientes ( nome, foto_url ), salas ( nome )')
         .single();
       if (error) throw error;
       return mapAgendamento(data);
@@ -874,6 +889,183 @@ export const api = {
         .eq('id', id)
         .eq('user_id', uid);
       if (error) throw error;
+    });
+  },
+
+  // ============================================================
+  // SALAS (SALA-001 / SALA-002)
+  // ============================================================
+
+  // Retorna apenas salas ativas (usado no agendamento)
+  async getSalas(userId?: string): Promise<Sala[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('salas')
+        .select('*')
+        .eq('user_id', uid)
+        .eq('ativo', true)
+        .order('nome');
+      if (error) throw error;
+      return (data ?? []).map(mapSala);
+    });
+  },
+
+  // Retorna todas as salas (ativas + inativas) — para tela de gerenciamento SALA-001
+  async getSalasAll(userId?: string): Promise<Sala[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('salas')
+        .select('*')
+        .eq('user_id', uid)
+        .order('nome');
+      if (error) throw error;
+      return (data ?? []).map(mapSala);
+    });
+  },
+
+  async createSala(sala: { nome: string; descricao?: string }, userId?: string): Promise<Sala> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const nome = sala.nome.trim();
+      if (!nome) throw new ApiError('Nome da sala é obrigatório.', 400);
+      if (nome.length > 100) throw new ApiError('Nome da sala deve ter no máximo 100 caracteres.', 400);
+
+      // Validação de duplicata (case-insensitive)
+      const { data: existing } = await supabase
+        .from('salas')
+        .select('id')
+        .eq('user_id', uid)
+        .ilike('nome', nome)
+        .maybeSingle();
+      if (existing) throw new ApiError(`Já existe uma sala com o nome "${nome}".`, 409);
+
+      const { data, error } = await supabase
+        .from('salas')
+        .insert({ user_id: uid, nome, descricao: sala.descricao?.trim() || null, ativo: true })
+        .select()
+        .single();
+      if (error) throw error;
+      return mapSala(data);
+    });
+  },
+
+  async updateSala(
+    id: string,
+    updates: { nome?: string; descricao?: string; ativo?: boolean },
+    userId?: string
+  ): Promise<Sala> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const dbUpdates: Record<string, unknown> = {};
+
+      if (updates.nome !== undefined) {
+        const nome = updates.nome.trim();
+        if (!nome) throw new ApiError('Nome da sala é obrigatório.', 400);
+        if (nome.length > 100) throw new ApiError('Nome da sala deve ter no máximo 100 caracteres.', 400);
+        // Verificar duplicata (excluindo a própria sala)
+        const { data: existing } = await supabase
+          .from('salas')
+          .select('id')
+          .eq('user_id', uid)
+          .ilike('nome', nome)
+          .neq('id', id)
+          .maybeSingle();
+        if (existing) throw new ApiError(`Já existe uma sala com o nome "${nome}".`, 409);
+        dbUpdates.nome = nome;
+      }
+      if (updates.descricao !== undefined) dbUpdates.descricao = updates.descricao?.trim() || null;
+      if (updates.ativo !== undefined) dbUpdates.ativo = updates.ativo;
+
+      const { data, error } = await supabase
+        .from('salas')
+        .update(dbUpdates)
+        .eq('id', id)
+        .eq('user_id', uid)
+        .select()
+        .single();
+      if (error) throw error;
+      return mapSala(data);
+    });
+  },
+
+  async deleteSala(id: string, userId?: string): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+
+      // Validação: não deletar sala com agendamentos ativos
+      const { count, error: countErr } = await supabase
+        .from('agendamentos')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', uid)
+        .eq('room_id', id)
+        .in('status', ['agendada', 'chegou', 'atendimento', 'checkout']);
+      if (countErr) throw countErr;
+      if ((count ?? 0) > 0) {
+        throw new ApiError(
+          `Não é possível deletar. Sala tem ${count} agendamento${count === 1 ? '' : 's'} ativo${count === 1 ? '' : 's'}.`,
+          409,
+          'SALA_COM_AGENDAMENTOS'
+        );
+      }
+
+      const { error } = await supabase
+        .from('salas')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', uid);
+      if (error) throw error;
+    });
+  },
+
+  async getSalasDisponiveis(
+    userId: string,
+    data: string,
+    horaInicio: string,
+    horaFim: string,
+    ignoreAgendamentoId?: string
+  ): Promise<SalaStatus[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+
+      const [salaRes, aptRes] = await Promise.all([
+        supabase
+          .from('salas')
+          .select('*')
+          .eq('user_id', uid)
+          .eq('ativo', true)
+          .order('nome'),
+        (() => {
+          let q = supabase
+            .from('agendamentos')
+            .select('room_id, profissional, hora_inicio, hora_fim')
+            .eq('user_id', uid)
+            .eq('data', data)
+            .not('room_id', 'is', null)
+            .in('status', ['agendada', 'chegou', 'atendimento', 'checkout'])
+            .lt('hora_inicio', horaFim)
+            .gt('hora_fim', horaInicio);
+          if (ignoreAgendamentoId) q = q.neq('id', ignoreAgendamentoId) as typeof q;
+          return q;
+        })(),
+      ]);
+
+      if (salaRes.error) throw salaRes.error;
+      if (aptRes.error) throw aptRes.error;
+
+      const ocupadasMap = new Map<string, string>();
+      for (const a of aptRes.data ?? []) {
+        if (a.room_id && !ocupadasMap.has(a.room_id)) {
+          ocupadasMap.set(a.room_id, a.profissional ?? '');
+        }
+      }
+
+      return (salaRes.data ?? []).map(mapSala).map((sala) => ({
+        sala,
+        disponivel: !ocupadasMap.has(sala.id),
+        ocupadaPor: ocupadasMap.get(sala.id),
+      }));
     });
   },
 
@@ -2080,10 +2272,19 @@ export const api = {
       // Nunca semear dados em nome de outra conta.
       const { data: authData } = await supabase.auth.getUser();
       if (authData?.user?.id && authData.user.id !== uid) return;
-      const [{ count: procCount }, { count: tplCount }] = await Promise.all([
+      const [{ count: procCount }, { count: tplCount }, { count: salaCount }] = await Promise.all([
         supabase.from('procedimentos').select('id', { count: 'exact', head: true }).eq('user_id', uid),
         supabase.from('templates_mensagens').select('id', { count: 'exact', head: true }).eq('user_id', uid),
+        supabase.from('salas').select('id', { count: 'exact', head: true }).eq('user_id', uid),
       ]);
+
+      if ((salaCount ?? 0) === 0) {
+        await supabase.from('salas').insert([
+          { user_id: uid, nome: 'Cabine 01 - Clínica', descricao: 'Sala para procedimentos médicos estéticos', ativo: true },
+          { user_id: uid, nome: 'Cabine 02 - Tecnologias', descricao: 'Sala para equipamentos de tecnologia estética', ativo: true },
+          { user_id: uid, nome: 'Cabine 03 - Facial', descricao: 'Sala dedicada a tratamentos faciais', ativo: true },
+        ]);
+      }
 
       if ((procCount ?? 0) === 0) {
         await supabase.from('procedimentos').insert([

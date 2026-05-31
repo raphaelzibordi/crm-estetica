@@ -62,6 +62,21 @@ export interface ProntuarioEstetico {
 
 export type StatusJornada = 'agendada' | 'chegou' | 'atendimento' | 'checkout' | 'finalizada';
 
+// SALA-001/002: Gerenciamento de salas de atendimento
+export interface Sala {
+  id: string;
+  nome: string;
+  descricao?: string;
+  ativo: boolean;
+  createdAt?: string;
+}
+
+export interface SalaStatus {
+  sala: Sala;
+  disponivel: boolean;
+  ocupadaPor?: string;
+}
+
 export interface Agendamento {
   id: string;
   clienteId: string;
@@ -72,6 +87,7 @@ export interface Agendamento {
   horaFim: string; // HH:MM
   profissional: string;
   sala: string;
+  roomId?: string; // SALA-002: FK para salas.id
   procedimento: string;
   status: StatusJornada;
   tempoEsperaMinutos?: number; // Tempo de espera na clínica
