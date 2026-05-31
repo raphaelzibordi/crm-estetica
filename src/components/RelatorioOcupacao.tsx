@@ -193,14 +193,28 @@ export const RelatorioOcupacao: React.FC<Props> = ({ userId }) => {
 
   const salaMetrics = useMemo(() => {
     const salas = [...new Set(agendamentos.map(a => a.sala).filter(Boolean))].sort();
+    const availableMin = workingDays * CLINIC_HOURS_PER_DAY * 60;
     return salas.map(sala => {
       const appts = agendamentos.filter(a => a.sala === sala && a.presencaStatus !== 'faltou');
       const totalMin = appts.reduce((s, a) => s + parseDuration(a.horaInicio, a.horaFim), 0);
-      const availableMin = workingDays * CLINIC_HOURS_PER_DAY * 60;
       const occupancyPct = availableMin > 0 ? (totalMin / availableMin) * 100 : 0;
-      return { sala, totalAppointments: appts.length, totalMin, occupancyPct };
+      return { sala, totalAppointments: appts.length, totalMin, availableMin, occupancyPct };
     }).sort((a, b) => b.occupancyPct - a.occupancyPct);
   }, [agendamentos, workingDays]);
+
+  const salaResumo = useMemo(() => {
+    if (salaMetrics.length === 0) return null;
+    const totalOcupadas = salaMetrics.reduce((s, m) => s + m.totalMin, 0);
+    const totalDisponiveis = salaMetrics[0].availableMin * salaMetrics.length;
+    const mediaOcupacao = totalDisponiveis > 0 ? (totalOcupadas / totalDisponiveis) * 100 : 0;
+    return {
+      totalDisponiveisH: Math.round(totalDisponiveis / 60),
+      totalOcupadasH: Math.round(totalOcupadas / 60),
+      mediaOcupacao,
+      maisMaior: salaMetrics[0],
+      maisOciosa: salaMetrics[salaMetrics.length - 1],
+    };
+  }, [salaMetrics]);
 
   // ── Heatmap data ─────────────────────────────────────────────────────────
   // heatmap[dayIndex 0=Mon..5=Sat][hourIndex 0=08h..10=18h]
@@ -511,26 +525,82 @@ export const RelatorioOcupacao: React.FC<Props> = ({ userId }) => {
               )}
             </div>
 
-            {/* By sala */}
+            {/* By sala — SALA-004: executive summary + bar chart + detail table */}
             <div className="card" style={{ padding: '24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
                 <BarChart3 size={16} style={{ color: 'var(--color-primary)' }} />
                 <h3 style={{ fontSize: '16px', fontWeight: 600 }}>Ocupação por Sala</h3>
               </div>
+
               {salaMetrics.length === 0 ? (
                 <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', textAlign: 'center', padding: '20px' }}>Sem dados no período.</p>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                  {salaMetrics.map(m => (
-                    <div key={m.sala}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                        <span style={{ fontSize: '13px', fontWeight: 500 }}>{m.sala}</span>
-                        <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{m.totalAppointments} atend. · {fmtMinutes(m.totalMin)}</span>
-                      </div>
-                      <OccupancyBar pct={m.occupancyPct} color='#7c3aed' />
+                <>
+                  {/* Executive summary */}
+                  {salaResumo && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', marginBottom: '20px' }}>
+                      {[
+                        { label: 'Horas Disponíveis', value: `${salaResumo.totalDisponiveisH}h` },
+                        { label: 'Horas Ocupadas', value: `${salaResumo.totalOcupadasH}h` },
+                        { label: 'Ocupação Média', value: `${salaResumo.mediaOcupacao.toFixed(0)}%` },
+                        { label: 'Maior Demanda', value: salaResumo.maisMaior.sala },
+                        { label: 'Mais Ociosa', value: salaResumo.maisOciosa.sala },
+                      ].map(({ label, value }) => (
+                        <div key={label} style={{ background: 'var(--color-primary-light)', borderRadius: 'var(--border-radius-sm)', padding: '10px 12px', border: '1px solid var(--color-border)' }}>
+                          <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>{label}</div>
+                          <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  )}
+
+                  {/* Bar chart */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '20px' }}>
+                    {salaMetrics.map(m => (
+                      <div key={m.sala}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                          <span style={{ fontSize: '13px', fontWeight: 500 }}>{m.sala}</span>
+                          <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{m.totalAppointments} atend. · {fmtMinutes(m.totalMin)}</span>
+                        </div>
+                        <OccupancyBar pct={m.occupancyPct} color='#7c3aed' />
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Detail table */}
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '2px solid var(--color-border)' }}>
+                          {['Sala', 'Ocupação', 'Agendamentos', 'H. Ocupadas', 'H. Disponíveis', 'Ranking'].map(h => (
+                            <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {salaMetrics.map((m, i) => {
+                          const rankColor = m.occupancyPct >= 70 ? { bg: '#d1fae5', text: '#065f46', label: '≥70%' }
+                            : m.occupancyPct >= 50 ? { bg: '#fef9c3', text: '#713f12', label: '50–70%' }
+                            : { bg: '#fee2e2', text: '#991b1b', label: '<50%' };
+                          return (
+                            <tr key={m.sala} style={{ borderBottom: '1px solid var(--color-border)', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                              <td style={{ padding: '8px 10px', fontWeight: 600 }}>{m.sala}</td>
+                              <td style={{ padding: '8px 10px' }}>{m.occupancyPct.toFixed(1)}%</td>
+                              <td style={{ padding: '8px 10px', color: 'var(--color-text-muted)' }}>{m.totalAppointments}</td>
+                              <td style={{ padding: '8px 10px' }}>{fmtMinutes(m.totalMin)}</td>
+                              <td style={{ padding: '8px 10px', color: 'var(--color-text-muted)' }}>{fmtMinutes(m.availableMin)}</td>
+                              <td style={{ padding: '8px 10px' }}>
+                                <span style={{ background: rankColor.bg, color: rankColor.text, fontSize: '10px', fontWeight: 600, padding: '2px 8px', borderRadius: '999px' }}>
+                                  {rankColor.label}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               )}
             </div>
           </div>
