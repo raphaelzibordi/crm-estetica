@@ -40,7 +40,9 @@
       "Bash(xargs grep -l \"Gestao\\\\|Repassos\\\\|Dashboard\")",
       "Bash(timeout 5)",
       "Bash(Start-Sleep -Seconds 4)",
-      "mcp__claude_ai_Supabase__execute_sql"
+      "mcp__claude_ai_Supabase__execute_sql",
+      "Bash(git commit *)",
+      "Bash(git push *)"
     ]
   }
 }
