@@ -37,7 +37,10 @@
       "Bash(dir -Recurse src -Directory)",
       "Bash(Select-Object -ExpandProperty FullName)",
       "Bash(xargs grep -l \"contas\\\\|pagamento\\\\|financeiro\\\\|checkout\\\\|fluxo_caixa\\\\|receber\\\\|pagar\")",
-      "Bash(xargs grep -l \"Gestao\\\\|Repassos\\\\|Dashboard\")"
+      "Bash(xargs grep -l \"Gestao\\\\|Repassos\\\\|Dashboard\")",
+      "Bash(timeout 5)",
+      "Bash(Start-Sleep -Seconds 4)",
+      "Bash(Get-Content \"C:\\\\Users\\\\rapha\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-rapha-OneDrive-Documents-GitHub-CRM-Est-tica-crm-estetica\\\\094b4b20-89af-4ad3-8564-5a38832d6002\\\\tasks\\\\bgf73dicz.output\")"
     ]
   }
 }
