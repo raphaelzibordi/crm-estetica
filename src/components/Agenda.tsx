@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import type { Agendamento, Procedimento, Profissional } from '../types';
 import { Users, Clock, Sparkles, ChevronLeft, ChevronRight, CalendarRange, AlertTriangle } from 'lucide-react';
 import { api } from '../lib/api';
-import { findAgendamentoConflict, calcularEncaixeSugestoes, type EncaixeSugestao } from '../lib/agendaConflict';
+import { findAgendamentoConflict, calcularEncaixeSugestoes, getSalasStatus, type EncaixeSugestao, type SalaStatus } from '../lib/agendaConflict';
 
 const OWNER_ID = '__owner__';
 
@@ -102,6 +102,11 @@ export const Agenda: React.FC<AgendaProps> = ({
   const [newProfissionalId, setNewProfissionalId] = useState<string>(OWNER_ID);
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
 
+  // Sala selection for the Add modal
+  const [newSala, setNewSala] = useState('');
+  const [modalAgendamentos, setModalAgendamentos] = useState<Agendamento[]>([]);
+  const [salaOptions, setSalaOptions] = useState<SalaStatus[]>([]);
+
   // Carrega procedimentos + equipe ativa do banco (com fallback de seed)
   useEffect(() => {
     let cancelled = false;
@@ -127,6 +132,48 @@ export const Agenda: React.FC<AgendaProps> = ({
       cancelled = true;
     };
   }, [userId]);
+
+  // Load appointments for the date selected in the Add modal (for sala conflict detection).
+  useEffect(() => {
+    if (!showAddModal || !newData) return;
+    if (newData === toISODate(new Date())) {
+      setModalAgendamentos(agendamentos);
+      return;
+    }
+    let cancelled = false;
+    api.getAgendamentosRange(userId, newData, newData)
+      .then((data) => { if (!cancelled) setModalAgendamentos(data); })
+      .catch(() => { if (!cancelled) setModalAgendamentos([]); });
+    return () => { cancelled = true; };
+  }, [showAddModal, newData, agendamentos, userId]);
+
+  // Auto-compute sala options whenever relevant modal fields change.
+  useEffect(() => {
+    if (!showAddModal || !newData || !newHora) { setSalaOptions([]); return; }
+    const matchedProc =
+      procedimentos.find((p) => p.nome === newProcedimento) ||
+      procedimentos.find((p) => p.nome.toLowerCase().includes(newProcedimento.toLowerCase())) ||
+      procedimentos[0];
+    if (!matchedProc) { setSalaOptions([]); return; }
+
+    const [h, m] = newHora.split(':').map((x) => parseInt(x, 10));
+    const endMin = h * 60 + m + matchedProc.duracaoMinutos;
+    const horaFim = `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
+
+    const allSalas = [...new Set(procedimentos.map((p) => p.salaRequerida).filter(Boolean))];
+    const options = getSalasStatus(allSalas, newData, newHora, horaFim, modalAgendamentos);
+    setSalaOptions(options);
+
+    // Auto-suggest: prefer the procedure's own sala, fallback to first available.
+    setNewSala((curr) => {
+      if (curr && options.find((o) => o.sala === curr)) return curr;
+      const suggested =
+        options.find((o) => o.sala === matchedProc.salaRequerida && o.disponivel) ||
+        options.find((o) => o.disponivel) ||
+        options[0];
+      return suggested?.sala ?? matchedProc.salaRequerida ?? '';
+    });
+  }, [showAddModal, newData, newHora, newProcedimento, modalAgendamentos, procedimentos]);
 
   // Profissionais = Responsável + equipe ativa.
   const profissionais = useMemo<Profissional[]>(() => {
@@ -207,14 +254,21 @@ export const Agenda: React.FC<AgendaProps> = ({
       userName ||
       'Responsável da Clínica';
 
-    // Pré-check de conflito (feedback instantâneo para hoje). API revalida como autoridade.
-    if (newData === toISODate(new Date())) {
-      const conflito = findAgendamentoConflict(
-        { clienteId: '', profissional: profissionalNome, data: newData, horaInicio: newHora, horaFim: endStr },
-        agendamentos
-      );
-      if (conflito) {
-        setConflictMessage(conflito.mensagem);
+    // Pré-check de conflito (profissional + sala). API revalida como autoridade.
+    const conflito = findAgendamentoConflict(
+      { clienteId: '', profissional: profissionalNome, data: newData, horaInicio: newHora, horaFim: endStr },
+      modalAgendamentos
+    );
+    if (conflito) {
+      setConflictMessage(conflito.mensagem);
+      return;
+    }
+
+    const salaEscolhida = newSala || matchedProc.salaRequerida;
+    if (salaEscolhida) {
+      const [salaStatus] = getSalasStatus([salaEscolhida], newData, newHora, endStr, modalAgendamentos);
+      if (salaStatus && !salaStatus.disponivel) {
+        setConflictMessage(`Sala "${salaEscolhida}" já está ocupada neste horário (${salaStatus.ocupadaPor}). Escolha outra sala ou mude o horário.`);
         return;
       }
     }
@@ -229,7 +283,7 @@ export const Agenda: React.FC<AgendaProps> = ({
           horaFim: endStr,
           procedimento: newProcedimento,
           profissional: profissionalNome,
-          sala: matchedProc.salaRequerida,
+          sala: salaEscolhida,
           status: 'agendada',
           valor: price
         },
@@ -239,6 +293,8 @@ export const Agenda: React.FC<AgendaProps> = ({
       setShowAddModal(false);
       setNewNome('');
       setNewTelefone('');
+      setNewSala('');
+      setSalaOptions([]);
       setHasSearched(false);
       setSugestoes([]);
       alert('Nova(o) paciente acolhida(o) com sucesso!');
@@ -364,6 +420,7 @@ export const Agenda: React.FC<AgendaProps> = ({
     setNewProfissionalId(sug.profissionalId);
     setNewNome('');
     setNewTelefone('');
+    setNewSala(sug.sala);
     setConflictMessage(null);
     setShowAddModal(true);
   };
@@ -550,6 +607,8 @@ export const Agenda: React.FC<AgendaProps> = ({
                             setNewHora(slot);
                             setNewNome('');
                             setNewTelefone('');
+                            setNewSala('');
+                            setConflictMessage(null);
                             setShowAddModal(true);
                           }}
                           className="btn btn-secondary"
@@ -829,13 +888,52 @@ export const Agenda: React.FC<AgendaProps> = ({
                 <select
                   className="form-select"
                   value={newProcedimento}
-                  onChange={(e) => setNewProcedimento(e.target.value)}
+                  onChange={(e) => { setNewProcedimento(e.target.value); setNewSala(''); }}
                 >
                   {procedimentos.map((p) => (
                     <option key={p.id} value={p.nome}>{p.nome}</option>
                   ))}
                 </select>
               </div>
+
+              {salaOptions.length > 0 && (
+                <div className="form-group">
+                  <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    Sala de Atendimento
+                    {newSala && (() => {
+                      const s = salaOptions.find((o) => o.sala === newSala);
+                      return s ? (
+                        <span style={{
+                          fontSize: '10px',
+                          fontWeight: 600,
+                          padding: '2px 8px',
+                          borderRadius: '999px',
+                          background: s.disponivel ? '#d1fae5' : '#fee2e2',
+                          color: s.disponivel ? '#065f46' : '#991b1b',
+                        }}>
+                          {s.disponivel ? 'Disponível' : 'Ocupada'}
+                        </span>
+                      ) : null;
+                    })()}
+                  </label>
+                  <select
+                    className="form-select"
+                    value={newSala}
+                    onChange={(e) => setNewSala(e.target.value)}
+                  >
+                    {salaOptions.map((o) => (
+                      <option key={o.sala} value={o.sala}>
+                        {o.disponivel ? `${o.sala} (Disponível)` : `${o.sala} (Ocupada — ${o.ocupadaPor})`}
+                      </option>
+                    ))}
+                  </select>
+                  {newSala && salaOptions.find((o) => o.sala === newSala && !o.disponivel) && (
+                    <p style={{ fontSize: '11px', color: '#991b1b', marginTop: '4px' }}>
+                      Esta sala está ocupada no horário selecionado. Escolha outra sala ou altere o horário.
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div className="form-group">
                 <label className="form-label">Profissional Responsável</label>

@@ -1,5 +1,11 @@
 import type { Agendamento, StatusJornada } from '../types';
 
+export interface SalaStatus {
+  sala: string;
+  disponivel: boolean;
+  ocupadaPor?: string; // "Profissional — HH:MM-HH:MM"
+}
+
 export interface ConflictCheckInput {
   clienteId: string;
   profissional: string;
@@ -154,6 +160,39 @@ export function calcularEncaixeSugestoes(
 
   sugestoes.sort((a, b) => a.hora.localeCompare(b.hora));
   return sugestoes;
+}
+
+/**
+ * Returns availability status for each sala at the given date/time window.
+ * Uses the same STATUS_OCUPADOS guard as the profissional conflict check.
+ */
+export function getSalasStatus(
+  salas: string[],
+  data: string,
+  horaInicio: string,
+  horaFim: string,
+  agendamentos: Agendamento[],
+  ignoreId?: string,
+): SalaStatus[] {
+  const start = normalizeTime(horaInicio);
+  const end = normalizeTime(horaFim);
+  return salas.map((sala) => {
+    if (!sala || !start || !end) return { sala, disponivel: true };
+    const ocupante = agendamentos.find((a) => {
+      if (ignoreId && a.id === ignoreId) return false;
+      if (a.data !== data) return false;
+      if (!STATUS_OCUPADOS.includes(a.status)) return false;
+      if (!a.sala || a.sala.trim().toLocaleLowerCase('pt-BR') !== sala.trim().toLocaleLowerCase('pt-BR')) return false;
+      return intervalsOverlap(start, end, normalizeTime(a.horaInicio), normalizeTime(a.horaFim));
+    });
+    return {
+      sala,
+      disponivel: !ocupante,
+      ocupadaPor: ocupante
+        ? `${ocupante.profissional} — ${normalizeTime(ocupante.horaInicio)}-${normalizeTime(ocupante.horaFim)}`
+        : undefined,
+    };
+  });
 }
 
 function buildSugestao(
