@@ -87,6 +87,8 @@ export interface Agendamento {
   presencaStatus?: 'compareceu' | 'faltou' | 'desmarcou';
   faltaMotivo?: string;
   faltaRegistradaEm?: string;
+  // SALA-005: Audit trail de mudanças de sala
+  salaHistorico?: Array<{ from: string; to: string; changedAt: string }>;
 }
 
 export interface Procedimento {

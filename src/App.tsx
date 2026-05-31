@@ -340,7 +340,7 @@ function AppMain() {
 
   const handleUpdateAgendamentoDados = async (
     id: string,
-    updates: { horaInicio?: string; horaFim?: string; procedimento?: string; profissional?: string }
+    updates: { horaInicio?: string; horaFim?: string; procedimento?: string; profissional?: string; sala?: string }
   ) => {
     setAgendamentos((prev) =>
       prev.map((a) => (a.id !== id ? a : { ...a, ...updates }))

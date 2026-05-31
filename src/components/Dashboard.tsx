@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import type { Agendamento, Procedimento, Profissional, StatusJornada } from '../types';
 import { Clock, UserCheck, UserPlus, CheckCircle, User, Pencil, AlertTriangle } from 'lucide-react';
 import { api } from '../lib/api';
-import { findAgendamentoConflict } from '../lib/agendaConflict';
+import { findAgendamentoConflict, getSalasStatus, type SalaStatus } from '../lib/agendaConflict';
 import { RegistrarPresenca } from './RegistrarPresenca';
 
 const OWNER_ID = '__owner__';
@@ -10,7 +10,7 @@ const OWNER_ID = '__owner__';
 interface DashboardProps {
   agendamentos: Agendamento[];
   onUpdateStatus: (id: string, newStatus: StatusJornada, extras?: { metodoPagamento?: Agendamento['metodoPagamento'] }) => void;
-  onUpdateAgendamentoDados?: (id: string, updates: { horaInicio?: string; horaFim?: string; procedimento?: string; profissional?: string }) => void;
+  onUpdateAgendamentoDados?: (id: string, updates: { horaInicio?: string; horaFim?: string; procedimento?: string; profissional?: string; sala?: string }) => void;
   onOpenProntuario: (clienteId: string) => void;
   onAddAgendamento: (
     agendamento: Omit<Agendamento, 'id'>,
@@ -195,13 +195,25 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [editHora, setEditHora] = useState('');
   const [editProcedimento, setEditProcedimento] = useState('');
   const [editProfissionalId, setEditProfissionalId] = useState<string>(OWNER_ID);
+  const [editSala, setEditSala] = useState('');
+  const [editSalaOptions, setEditSalaOptions] = useState<SalaStatus[]>([]);
+  const [, setEditItemData] = useState<string>('');
+  const [editSalaHistorico, setEditSalaHistorico] = useState<Array<{ from: string; to: string; changedAt: string }>>([]);
 
   const openEditModal = (item: Agendamento) => {
+    setEditItemData(item.data);
     setEditingId(item.id);
     setEditHora(item.horaInicio.substring(0, 5));
     setEditProcedimento(item.procedimento);
+    setEditSala(item.sala ?? '');
+    setEditSalaHistorico(item.salaHistorico ?? []);
     const match = profissionais.find((p) => p.nome === item.profissional);
     setEditProfissionalId(match?.id ?? profissionais[0]?.id ?? OWNER_ID);
+    // Compute sala options for this appointment's date/time
+    const allSalas = [...new Set(procedimentos.map((p) => p.salaRequerida).filter(Boolean))];
+    if (allSalas.length > 0 && item.sala && !allSalas.includes(item.sala)) allSalas.push(item.sala);
+    const options = getSalasStatus(allSalas, item.data, item.horaInicio.substring(0, 5), item.horaFim.substring(0, 5), agendamentos, item.id);
+    setEditSalaOptions(options);
   };
 
   const handleSaveEdit = () => {
@@ -214,6 +226,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       horaFim: addMinutesToTime(editHora, duracao),
       procedimento: editProcedimento,
       profissional: prof?.nome ?? editProcedimento,
+      sala: editSala || undefined,
     });
     setEditingId(null);
   };
@@ -811,6 +824,42 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </select>
             </div>
 
+            {editSalaOptions.length > 0 && (
+              <div className="form-group">
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  Sala de Atendimento
+                  {editSala && (() => {
+                    const s = editSalaOptions.find((o) => o.sala === editSala);
+                    return s ? (
+                      <span style={{
+                        fontSize: '10px', fontWeight: 600, padding: '2px 8px', borderRadius: '999px',
+                        background: s.disponivel ? '#d1fae5' : '#fee2e2',
+                        color: s.disponivel ? '#065f46' : '#991b1b',
+                      }}>
+                        {s.disponivel ? 'Disponível' : 'Ocupada'}
+                      </span>
+                    ) : null;
+                  })()}
+                </label>
+                <select
+                  className="form-select"
+                  value={editSala}
+                  onChange={(e) => setEditSala(e.target.value)}
+                >
+                  {editSalaOptions.map((o) => (
+                    <option key={o.sala} value={o.sala}>
+                      {o.disponivel ? `${o.sala} (Disponível)` : `${o.sala} (Ocupada — ${o.ocupadaPor})`}
+                    </option>
+                  ))}
+                </select>
+                {editSala && editSalaOptions.find((o) => o.sala === editSala && !o.disponivel) && (
+                  <p style={{ fontSize: '11px', color: '#991b1b', marginTop: '4px' }}>
+                    Esta sala está ocupada neste horário. Ao salvar, o sistema validará e poderá bloquear a operação.
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="form-group">
               <label className="form-label">Profissional</label>
               {profissionais.length === 1 ? (
@@ -832,6 +881,24 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </select>
               )}
             </div>
+
+            {editSalaHistorico.length > 0 && (
+              <div style={{ marginTop: '16px', padding: '12px', background: 'var(--color-primary-light)', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--color-border)' }}>
+                <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Histórico de Mudanças de Sala
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {editSalaHistorico.map((entry, i) => (
+                    <div key={i} style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                      <span style={{ color: 'var(--color-text-main)', fontWeight: 500 }}>
+                        {new Date(entry.changedAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      {' — '}"{entry.from || '—'}" → "{entry.to}"
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
               <button

@@ -1,6 +1,6 @@
 ﻿import { supabase } from './supabase';
 import { ApiError, humanizeError } from './errors';
-import { findAgendamentoConflict } from './agendaConflict';
+import { findAgendamentoConflict, getSalasStatus } from './agendaConflict';
 import type {
   Agendamento,
   AnamneseCampo,
@@ -144,6 +144,8 @@ function mapAgendamento(row: any): Agendamento {
     presencaStatus: (row.presenca_status as Agendamento['presencaStatus']) ?? undefined,
     faltaMotivo: row.falta_motivo ?? undefined,
     faltaRegistradaEm: row.falta_registrada_em ?? undefined,
+    // SALA-005: Audit trail
+    salaHistorico: Array.isArray(row.sala_historico) ? row.sala_historico : undefined,
   };
 }
 
@@ -766,17 +768,17 @@ export const api = {
 
   async updateAgendamentoDados(
     id: string,
-    updates: { horaInicio?: string; horaFim?: string; procedimento?: string; profissional?: string },
+    updates: { horaInicio?: string; horaFim?: string; procedimento?: string; profissional?: string; sala?: string },
     userId?: string
   ): Promise<Agendamento> {
     return run(async () => {
       const uid = await requireUserId(userId);
 
-      // Se houver mudança que afete a alocação (hora/profissional), revalida conflitos
       const precisaValidar =
         updates.horaInicio !== undefined ||
         updates.horaFim !== undefined ||
-        updates.profissional !== undefined;
+        updates.profissional !== undefined ||
+        updates.sala !== undefined;
 
       if (precisaValidar) {
         const { data: atual, error: fetchAtualErr } = await supabase
@@ -795,6 +797,8 @@ export const api = {
           .eq('data', atualMapped.data);
         if (listErr) throw listErr;
 
+        const agExistentes = (existentes ?? []).map(mapAgendamento);
+
         const conflito = findAgendamentoConflict(
           {
             clienteId: atualMapped.clienteId,
@@ -803,11 +807,25 @@ export const api = {
             horaInicio: updates.horaInicio ?? atualMapped.horaInicio,
             horaFim: updates.horaFim ?? atualMapped.horaFim,
           },
-          (existentes ?? []).map(mapAgendamento),
+          agExistentes,
           id
         );
         if (conflito) {
           throw new ApiError(conflito.mensagem, 409, 'AGENDAMENTO_CONFLITO');
+        }
+
+        // Validate sala conflict when sala is being changed
+        if (updates.sala !== undefined && updates.sala !== atualMapped.sala) {
+          const horaInicio = updates.horaInicio ?? atualMapped.horaInicio;
+          const horaFim = updates.horaFim ?? atualMapped.horaFim;
+          const [salaStatus] = getSalasStatus([updates.sala], atualMapped.data, horaInicio, horaFim, agExistentes, id);
+          if (salaStatus && !salaStatus.disponivel) {
+            throw new ApiError(
+              `Sala "${updates.sala}" já está ocupada neste horário (${salaStatus.ocupadaPor}). Escolha outra sala ou mude o horário.`,
+              409,
+              'SALA_CONFLITO'
+            );
+          }
         }
       }
 
@@ -816,6 +834,24 @@ export const api = {
       if (updates.horaFim !== undefined) dbUpdates.hora_fim = updates.horaFim;
       if (updates.procedimento !== undefined) dbUpdates.procedimento = updates.procedimento;
       if (updates.profissional !== undefined) dbUpdates.profissional = updates.profissional;
+      if (updates.sala !== undefined) {
+        // Fetch current sala for audit entry before overwriting
+        const { data: curr } = await supabase
+          .from('agendamentos')
+          .select('sala, sala_historico')
+          .eq('id', id)
+          .eq('user_id', uid)
+          .single();
+        const prevSala: string = (curr as { sala?: string } | null)?.sala ?? '';
+        if (prevSala !== updates.sala) {
+          const historico: unknown[] = Array.isArray((curr as { sala_historico?: unknown[] } | null)?.sala_historico)
+            ? ((curr as { sala_historico: unknown[] }).sala_historico)
+            : [];
+          historico.push({ from: prevSala, to: updates.sala, changedAt: new Date().toISOString() });
+          dbUpdates.sala_historico = historico;
+        }
+        dbUpdates.sala = updates.sala;
+      }
 
       const { data, error } = await supabase
         .from('agendamentos')
