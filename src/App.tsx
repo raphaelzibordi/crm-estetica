@@ -73,7 +73,6 @@ function AppMain() {
   const [redeUnidades, setRedeUnidades]       = useState<Unidade[]>([]);
   const [redes, setRedes]                     = useState<import('./types').Rede[]>([]);
   const [currentUnidadeId, setCurrentUnidadeId] = useState<string | null>(null);
-  const [hasRede, setHasRede]                 = useState(false);
 
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
@@ -130,7 +129,6 @@ function AppMain() {
           setRedes([]);
           setRedeUnidades([]);
           setCurrentUnidadeId(null);
-          setHasRede(false);
           sessionStorage.removeItem('lumina_welcome_shown');
           lastProfileUid.current = null;
         }
@@ -203,7 +201,6 @@ function AppMain() {
       const redesData = await api.getRedes(id);
       setRedes(redesData);
       if (redesData.length > 0) {
-        setHasRede(true);
         const unidadesAll: Unidade[] = [];
         for (const r of redesData) {
           const us = await api.getUnidades(r.id, id);
@@ -211,7 +208,6 @@ function AppMain() {
         }
         setRedeUnidades(unidadesAll);
       } else {
-        setHasRede(false);
         setRedeUnidades([]);
       }
     } catch {
@@ -477,7 +473,6 @@ function AppMain() {
         unidades={redeUnidades}
         currentUnidadeId={currentUnidadeId}
         onSwitchUnidade={setCurrentUnidadeId}
-        hasRede={hasRede}
       />
 
       <main className="main-content">

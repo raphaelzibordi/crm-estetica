@@ -39,7 +39,6 @@ interface SidebarProps {
   unidades?: Unidade[];
   currentUnidadeId?: string | null;
   onSwitchUnidade?: (unidadeId: string | null) => void;
-  hasRede?: boolean;
 }
 
 const ALL_MENU_ITEMS = [
@@ -68,7 +67,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   unidades = [],
   currentUnidadeId,
   onSwitchUnidade,
-  hasRede = false,
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
