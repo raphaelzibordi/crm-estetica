@@ -19,7 +19,7 @@ import { GaleriaPublica } from './components/GaleriaPublica';
 import { LGPD } from './components/LGPD';
 import { GerenciamentoSalas } from './components/GerenciamentoSalas';
 import { CalendarioSalas } from './components/CalendarioSalas';
-import type { Agendamento, StatusJornada, UserRole } from './types';
+import type { Agendamento, StatusJornada, UserRole, Unidade } from './types';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { api } from './lib/api';
 import { ApiError, isUnauthorized } from './lib/errors';
@@ -68,6 +68,12 @@ function AppMain() {
   const [clinicName, setClinicName] = useState('');
   const [tenantId, setTenantId]     = useState<string>(''); // ID usado em todas as chamadas de API
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+
+  // US-048: Multiclínicas
+  const [redeUnidades, setRedeUnidades]       = useState<Unidade[]>([]);
+  const [redes, setRedes]                     = useState<import('./types').Rede[]>([]);
+  const [currentUnidadeId, setCurrentUnidadeId] = useState<string | null>(null);
+  const [hasRede, setHasRede]                 = useState(false);
 
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
@@ -121,6 +127,10 @@ function AppMain() {
           setClinicName('');
           setTenantId('');
           setShowWelcomeModal(false);
+          setRedes([]);
+          setRedeUnidades([]);
+          setCurrentUnidadeId(null);
+          setHasRede(false);
           sessionStorage.removeItem('lumina_welcome_shown');
           lastProfileUid.current = null;
         }
@@ -169,6 +179,11 @@ function AppMain() {
         if (profile.role === 'equipe' && TABS_BLOQUEADAS_EQUIPE.has(currentTab)) {
           setCurrentTab('dashboard');
         }
+
+        // US-048: carrega redes e unidades do dono
+        if (profile.role === 'dono') {
+          loadRedeData(profile.tenantId);
+        }
       } catch (err) {
         console.error('[Lumina] Erro ao carregar perfil:', err);
         // Fallback seguro: trata como dono sem foto
@@ -181,6 +196,29 @@ function AppMain() {
   // ============================================================
   // Carga inicial de dados quando há sessão válida
   // ============================================================
+  const loadRedeData = useCallback(async (uid?: string) => {
+    const id = uid || tenantId;
+    if (!id) return;
+    try {
+      const redesData = await api.getRedes(id);
+      setRedes(redesData);
+      if (redesData.length > 0) {
+        setHasRede(true);
+        const unidadesAll: Unidade[] = [];
+        for (const r of redesData) {
+          const us = await api.getUnidades(r.id, id);
+          unidadesAll.push(...us);
+        }
+        setRedeUnidades(unidadesAll);
+      } else {
+        setHasRede(false);
+        setRedeUnidades([]);
+      }
+    } catch {
+      // Redes são opcionais — falha silenciosa
+    }
+  }, [tenantId]);
+
   const handleUnauthorized = useCallback(async (err: unknown) => {
     if (isUnauthorized(err)) {
       console.warn('[Lumina] Sessão expirada — efetuando signOut forçado.');
@@ -189,17 +227,20 @@ function AppMain() {
     }
   }, []);
 
+  // Quando há rede, pacienteCompartilhado vem da primeira rede ativa
+  const pacienteCompartilhado = redes.length > 0 && redes[0].pacienteCompartilhado;
+
   const loadAgendamentosDoDia = useCallback(async () => {
     if (!tenantId) return;
     try {
       const hoje = new Date().toISOString().split('T')[0];
-      const data = await api.getAgendamentos(tenantId, hoje);
+      const data = await api.getAgendamentos(tenantId, hoje, currentUnidadeId ?? undefined);
       setAgendamentos(data);
     } catch (err) {
       console.error('Erro ao carregar agendamentos:', err);
       await handleUnauthorized(err);
     }
-  }, [tenantId, handleUnauthorized]);
+  }, [tenantId, currentUnidadeId, handleUnauthorized]);
 
   useEffect(() => {
     if (tenantId) loadAgendamentosDoDia();
@@ -433,6 +474,10 @@ function AppMain() {
         userRole={userRole}
         userCargo={userCargo}
         clinicName={clinicName}
+        unidades={redeUnidades}
+        currentUnidadeId={currentUnidadeId}
+        onSwitchUnidade={setCurrentUnidadeId}
+        hasRede={hasRede}
       />
 
       <main className="main-content">
@@ -467,6 +512,8 @@ function AppMain() {
             userId={effectiveTenantId}
             onAddAgendamento={handleAddAgendamento}
             userName={userName}
+            unidadeId={currentUnidadeId}
+            pacienteCompartilhado={pacienteCompartilhado}
           />
         )}
 
@@ -513,7 +560,7 @@ function AppMain() {
         )}
 
         {currentTab === 'gestao' && userRole === 'dono' && (
-          <Gestao userId={effectiveTenantId} userName={userName} />
+          <Gestao userId={effectiveTenantId} userName={userName} unidadeId={currentUnidadeId} />
         )}
 
         {currentTab === 'salas' && userRole === 'dono' && (
@@ -540,6 +587,9 @@ function AppMain() {
               if (nome !== undefined) setUserName(nome);
               if (fotoUrl !== undefined) setUserPhotoUrl(fotoUrl);
             }}
+            redes={redes}
+            redeUnidades={redeUnidades}
+            onRedeUpdated={() => loadRedeData()}
           />
         )}
       </main>

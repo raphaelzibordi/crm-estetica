@@ -14,7 +14,7 @@ import { RelatorioOcupacaoSalas } from './RelatorioOcupacaoSalas';
 import { EstoqueAvancado } from './EstoqueAvancado';
 import { ContasFinanceiras } from './ContasFinanceiras';
 
-interface GestaoProps { userId: string; userName?: string; }
+interface GestaoProps { userId: string; userName?: string; unidadeId?: string | null; }
 
 const EMPTY_FECHAMENTO: FechamentoFinanceiro = { faturamentoTotal: 0, comissoesPagas: 0, formasPagamento: [] };
 
@@ -80,7 +80,7 @@ function diasNoIntervalo(start: string, end: string): number {
 
 
 
-export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor' }) => {
+export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor', unidadeId }) => {
   const [tab, setTab] = useState<ActiveTab>('dashboard');
   const [estoque, setEstoque] = useState<ItemEstoque[]>([]);
   const [financeiro, setFinanceiro] = useState<FechamentoFinanceiro>(EMPTY_FECHAMENTO);
@@ -648,12 +648,12 @@ export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor' }) =
 
       {/* ── TAB: COMISSÕES ──────────────────────────────────────────────── */}
       {tab === 'comissoes' && (
-        <Comissoes userId={userId} nomeGestor={userName} />
+        <Comissoes userId={userId} nomeGestor={userName} unidadeId={unidadeId} />
       )}
 
       {/* ── TAB: REPASSOS ───────────────────────────────────────────────── */}
       {tab === 'repassos' && (
-        <Repassos userId={userId} nomeGestor={userName} />
+        <Repassos userId={userId} nomeGestor={userName} unidadeId={unidadeId} />
       )}
 
       {/* ── TAB: OCUPAÇÃO ─────────────────────────────────────────────── */}

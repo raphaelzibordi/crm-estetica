@@ -8,6 +8,7 @@ import {
   Sparkles,
   LogOut,
   ChevronUp,
+  ChevronDown,
   Settings,
   User,
   Building2,
@@ -20,9 +21,11 @@ import {
   ShieldCheck,
   DoorOpen,
   CalendarDays,
+  Network,
+  Check,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import type { UserRole } from '../types';
+import type { UserRole, Unidade } from '../types';
 
 interface SidebarProps {
   currentTab: string;
@@ -32,21 +35,26 @@ interface SidebarProps {
   userRole?: UserRole;
   userCargo?: string;
   clinicName?: string;
+  // US-048: multiclínicas
+  unidades?: Unidade[];
+  currentUnidadeId?: string | null;
+  onSwitchUnidade?: (unidadeId: string | null) => void;
+  hasRede?: boolean;
 }
 
 const ALL_MENU_ITEMS = [
-  { id: 'dashboard',   label: 'Jornada da Cliente', icon: LayoutDashboard,    donoOnly: false },
-  { id: 'agenda',      label: 'Agenda Inteligente', icon: CalendarRange,      donoOnly: false },
-  { id: 'prontuario',  label: 'Prontuário Visual',  icon: ClipboardList,      donoOnly: false },
-  { id: 'crm',         label: 'Pipeline de Leads',  icon: Users,              donoOnly: false },
-  { id: 'orcamentos',  label: 'Orçamentos',         icon: Receipt,            donoOnly: false },
-  { id: 'crc',         label: 'Relacionamento',     icon: HeartHandshake,     donoOnly: false },
-  { id: 'whatsapp',    label: 'WhatsApp',           icon: MessageCircle,      donoOnly: false },
-  { id: 'comunicacao', label: 'CRM & Retenção',     icon: MessageSquareHeart, donoOnly: true },
-  { id: 'gestao',      label: 'Gestão da Clínica',  icon: TrendingUp,         donoOnly: true },
-  { id: 'salas',       label: 'Salas',              icon: DoorOpen,           donoOnly: true },
-  { id: 'calendario-salas', label: 'Calendário Salas', icon: CalendarDays,   donoOnly: true },
-  { id: 'lgpd',        label: 'LGPD',               icon: ShieldCheck,        donoOnly: true },
+  { id: 'dashboard',        label: 'Jornada da Cliente', icon: LayoutDashboard,    donoOnly: false },
+  { id: 'agenda',           label: 'Agenda Inteligente', icon: CalendarRange,      donoOnly: false },
+  { id: 'prontuario',       label: 'Prontuário Visual',  icon: ClipboardList,      donoOnly: false },
+  { id: 'crm',              label: 'Pipeline de Leads',  icon: Users,              donoOnly: false },
+  { id: 'orcamentos',       label: 'Orçamentos',         icon: Receipt,            donoOnly: false },
+  { id: 'crc',              label: 'Relacionamento',     icon: HeartHandshake,     donoOnly: false },
+  { id: 'whatsapp',         label: 'WhatsApp',           icon: MessageCircle,      donoOnly: false },
+  { id: 'comunicacao',      label: 'CRM & Retenção',     icon: MessageSquareHeart, donoOnly: true },
+  { id: 'gestao',           label: 'Gestão da Clínica',  icon: TrendingUp,         donoOnly: true },
+  { id: 'salas',            label: 'Salas',              icon: DoorOpen,           donoOnly: true },
+  { id: 'calendario-salas', label: 'Calendário Salas',   icon: CalendarDays,       donoOnly: true },
+  { id: 'lgpd',             label: 'LGPD',               icon: ShieldCheck,        donoOnly: true },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -57,20 +65,43 @@ export const Sidebar: React.FC<SidebarProps> = ({
   userRole = 'dono',
   userCargo,
   clinicName,
+  unidades = [],
+  currentUnidadeId,
+  onSwitchUnidade,
+  hasRede = false,
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [unidadeDropdownOpen, setUnidadeDropdownOpen] = useState(false);
   const footerRef = useRef<HTMLDivElement | null>(null);
+  const unidadeDropdownRef = useRef<HTMLDivElement | null>(null);
 
   const handleNavClick = (tabId: string) => {
     setCurrentTab(tabId);
     setIsMobileOpen(false);
   };
 
-  const menuItems = ALL_MENU_ITEMS.filter(
-    (item) => !item.donoOnly || userRole === 'dono'
-  );
+  const menuItems = ALL_MENU_ITEMS.filter(item => {
+    if (item.donoOnly && userRole !== 'dono') return false;
+    return true;
+  });
+
+  // Fecha dropdown de unidades ao clicar fora
+  useEffect(() => {
+    if (!unidadeDropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (unidadeDropdownRef.current && !unidadeDropdownRef.current.contains(e.target as Node)) {
+        setUnidadeDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [unidadeDropdownOpen]);
+
+  const currentUnidadeNome = currentUnidadeId
+    ? (unidades.find(u => u.id === currentUnidadeId)?.nome ?? clinicName)
+    : (unidades.length > 1 ? 'Todas as unidades' : clinicName);
 
   // Fecha o popover ao clicar fora
   useEffect(() => {
@@ -141,7 +172,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="brand-name">Lumina</div>
       </div>
 
-      {clinicName && (
+      {(clinicName || unidades.length > 0) && (
         <div
           style={{
             paddingLeft: '8px',
@@ -150,34 +181,136 @@ export const Sidebar: React.FC<SidebarProps> = ({
             marginBottom: '20px',
           }}
         >
-          <div
-            title={clinicName}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              background: 'var(--color-primary-light)',
-              border: '1px solid var(--color-border-hover)',
-              borderRadius: '100px',
-              padding: '5px 12px 5px 8px',
-              overflow: 'hidden',
-            }}
-          >
-            <Building2 size={12} style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
-            <span
+          {/* Seletor de unidade (quando há múltiplas) */}
+          {unidades.length > 1 && onSwitchUnidade ? (
+            <div ref={unidadeDropdownRef} style={{ position: 'relative' }}>
+              <button
+                onClick={() => setUnidadeDropdownOpen(v => !v)}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'var(--color-primary-light)',
+                  border: '1px solid var(--color-border-hover)',
+                  borderRadius: '100px',
+                  padding: '5px 10px 5px 8px',
+                  cursor: 'pointer',
+                  overflow: 'hidden',
+                }}
+              >
+                <Network size={12} style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
+                <span
+                  style={{
+                    fontSize: '12.5px',
+                    fontWeight: 500,
+                    color: 'var(--color-primary)',
+                    letterSpacing: '-0.01em',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    flex: 1,
+                    textAlign: 'left',
+                  }}
+                >
+                  {currentUnidadeNome ?? 'Todas as unidades'}
+                </span>
+                <ChevronDown
+                  size={11}
+                  style={{
+                    color: 'var(--color-primary)',
+                    flexShrink: 0,
+                    transform: unidadeDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.15s',
+                  }}
+                />
+              </button>
+
+              {unidadeDropdownOpen && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 6px)',
+                    left: 0,
+                    right: 0,
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--border-radius-md)',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                    zIndex: 300,
+                    padding: '4px',
+                    animation: 'fadeIn 0.12s ease-out',
+                  }}
+                >
+                  <button
+                    onClick={() => { onSwitchUnidade(null); setUnidadeDropdownOpen(false); }}
+                    style={{
+                      width: '100%', padding: '8px 10px',
+                      background: !currentUnidadeId ? 'var(--color-primary-light)' : 'transparent',
+                      border: 'none', borderRadius: 'var(--border-radius-sm)',
+                      color: 'var(--color-text-main)', fontSize: '13px',
+                      cursor: 'pointer', textAlign: 'left',
+                      display: 'flex', alignItems: 'center', gap: '8px',
+                    }}
+                  >
+                    <Network size={13} style={{ opacity: 0.6 }} />
+                    <span style={{ flex: 1 }}>Todas as unidades</span>
+                    {!currentUnidadeId && <Check size={13} color="var(--color-primary)" />}
+                  </button>
+                  {unidades.filter(u => u.ativo).map(u => (
+                    <button
+                      key={u.id}
+                      onClick={() => { onSwitchUnidade(u.id); setUnidadeDropdownOpen(false); }}
+                      style={{
+                        width: '100%', padding: '8px 10px',
+                        background: currentUnidadeId === u.id ? 'var(--color-primary-light)' : 'transparent',
+                        border: 'none', borderRadius: 'var(--border-radius-sm)',
+                        color: 'var(--color-text-main)', fontSize: '13px',
+                        cursor: 'pointer', textAlign: 'left',
+                        display: 'flex', alignItems: 'center', gap: '8px',
+                      }}
+                    >
+                      <Building2 size={13} style={{ opacity: 0.6 }} />
+                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {u.nome}
+                      </span>
+                      {currentUnidadeId === u.id && <Check size={13} color="var(--color-primary)" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : clinicName ? (
+            // Badge simples quando não há múltiplas unidades
+            <div
+              title={clinicName}
               style={{
-                fontSize: '12.5px',
-                fontWeight: 500,
-                color: 'var(--color-primary)',
-                letterSpacing: '-0.01em',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'var(--color-primary-light)',
+                border: '1px solid var(--color-border-hover)',
+                borderRadius: '100px',
+                padding: '5px 12px 5px 8px',
                 overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
               }}
             >
-              {clinicName}
-            </span>
-          </div>
+              <Building2 size={12} style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
+              <span
+                style={{
+                  fontSize: '12.5px',
+                  fontWeight: 500,
+                  color: 'var(--color-primary)',
+                  letterSpacing: '-0.01em',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {clinicName}
+              </span>
+            </div>
+          ) : null}
         </div>
       )}
 

@@ -95,6 +95,12 @@ import type {
   TemplateMensagem,
   UserProfile,
   UserRole,
+  Rede,
+  Unidade,
+  UnidadeUsuario,
+  UnidadeRole,
+  MetricasUnidade,
+  PainelRede,
 } from '../types';
 
 async function requireUserId(passedUserId?: string): Promise<string> {
@@ -542,14 +548,16 @@ export const api = {
   // ============================================================
   // CLIENTES
   // ============================================================
-  async getClientes(userId?: string): Promise<Cliente[]> {
+  async getClientes(userId?: string, unidadeId?: string | null): Promise<Cliente[]> {
     return run(async () => {
       const uid = await requireUserId(userId);
-      const { data, error } = await supabase
+      let query = supabase
         .from('clientes')
         .select('*')
         .eq('user_id', uid)
         .order('nome');
+      if (unidadeId) query = query.eq('unidade_id', unidadeId);
+      const { data, error } = await query;
       if (error) throw error;
       return (data ?? []).map(mapCliente);
     });
@@ -643,15 +651,17 @@ export const api = {
   // ============================================================
   // AGENDAMENTOS
   // ============================================================
-  async getAgendamentos(userId: string | undefined, dataStr: string): Promise<Agendamento[]> {
+  async getAgendamentos(userId: string | undefined, dataStr: string, unidadeId?: string | null): Promise<Agendamento[]> {
     return run(async () => {
       const uid = await requireUserId(userId);
-      const { data, error } = await supabase
+      let query = supabase
         .from('agendamentos')
         .select('*, clientes ( nome, foto_url ), salas ( nome )')
         .eq('user_id', uid)
         .eq('data', dataStr)
         .order('hora_inicio');
+      if (unidadeId) query = query.eq('unidade_id', unidadeId);
+      const { data, error } = await query;
       if (error) throw error;
       return (data ?? []).map(mapAgendamento);
     });
@@ -1695,7 +1705,7 @@ export const api = {
   // ============================================================
   // EQUIPE (membros profissionais da clínica)
   // ============================================================
-  async getEquipe(userId?: string, opts?: { somenteAtivos?: boolean }): Promise<MembroEquipe[]> {
+  async getEquipe(userId?: string, opts?: { somenteAtivos?: boolean }, unidadeId?: string | null): Promise<MembroEquipe[]> {
     return run(async () => {
       const uid = await requireUserId(userId);
       let query = supabase
@@ -1704,6 +1714,7 @@ export const api = {
         .eq('user_id', uid)
         .order('nome');
       if (opts?.somenteAtivos) query = query.eq('ativo', true);
+      if (unidadeId) query = query.eq('unidade_id', unidadeId);
       const { data, error } = await query;
       if (error) throw error;
       return (data ?? []).map(mapMembroEquipe);
@@ -5508,6 +5519,182 @@ export const api = {
       if (error) throw error;
     });
   },
+
+  // ============================================================
+  // MULTICLÍNICAS — REDES E UNIDADES (US-048)
+  // ============================================================
+
+  async getRedes(userId?: string): Promise<Rede[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('redes')
+        .select('*')
+        .eq('owner_id', uid)
+        .order('created_at');
+      if (error) throw error;
+      return (data ?? []).map(mapRede);
+    });
+  },
+
+  async createRede(payload: Pick<Rede, 'nome' | 'descricao' | 'pacienteCompartilhado' | 'descontoVolumePct'>, userId?: string): Promise<Rede> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('redes')
+        .insert({
+          owner_id: uid,
+          nome: payload.nome,
+          descricao: payload.descricao ?? null,
+          paciente_compartilhado: payload.pacienteCompartilhado,
+          desconto_volume_pct: payload.descontoVolumePct,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return mapRede(data);
+    });
+  },
+
+  async updateRede(id: string, payload: Partial<Pick<Rede, 'nome' | 'descricao' | 'pacienteCompartilhado' | 'descontoVolumePct' | 'ativo'>>, userId?: string): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const updates: Record<string, unknown> = {};
+      if (payload.nome !== undefined)                  updates.nome = payload.nome;
+      if (payload.descricao !== undefined)             updates.descricao = payload.descricao;
+      if (payload.pacienteCompartilhado !== undefined) updates.paciente_compartilhado = payload.pacienteCompartilhado;
+      if (payload.descontoVolumePct !== undefined)     updates.desconto_volume_pct = payload.descontoVolumePct;
+      if (payload.ativo !== undefined)                 updates.ativo = payload.ativo;
+      const { error } = await supabase.from('redes').update(updates).eq('id', id).eq('owner_id', uid);
+      if (error) throw error;
+    });
+  },
+
+  async getUnidades(redeId: string, userId?: string): Promise<Unidade[]> {
+    return run(async () => {
+      await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('unidades')
+        .select('*')
+        .eq('rede_id', redeId)
+        .order('created_at');
+      if (error) throw error;
+      return (data ?? []).map(mapUnidade);
+    });
+  },
+
+  async createUnidade(payload: Pick<Unidade, 'redeId' | 'nome' | 'cnpj' | 'endereco' | 'telefone'>, userId?: string): Promise<Unidade> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('unidades')
+        .insert({
+          rede_id:  payload.redeId,
+          owner_id: uid,
+          nome:     payload.nome,
+          cnpj:     payload.cnpj ?? null,
+          endereco: payload.endereco ?? null,
+          telefone: payload.telefone ?? null,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return mapUnidade(data);
+    });
+  },
+
+  async updateUnidade(id: string, payload: Partial<Pick<Unidade, 'nome' | 'cnpj' | 'endereco' | 'telefone' | 'ativo'>>, userId?: string): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const updates: Record<string, unknown> = {};
+      if (payload.nome !== undefined)     updates.nome = payload.nome;
+      if (payload.cnpj !== undefined)     updates.cnpj = payload.cnpj;
+      if (payload.endereco !== undefined) updates.endereco = payload.endereco;
+      if (payload.telefone !== undefined) updates.telefone = payload.telefone;
+      if (payload.ativo !== undefined)    updates.ativo = payload.ativo;
+      const { error } = await supabase.from('unidades').update(updates).eq('id', id).eq('owner_id', uid);
+      if (error) throw error;
+    });
+  },
+
+  async getUnidadeUsuarios(unidadeId: string): Promise<UnidadeUsuario[]> {
+    return run(async () => {
+      const { data, error } = await supabase
+        .from('unidade_usuarios')
+        .select('*')
+        .eq('unidade_id', unidadeId)
+        .order('created_at');
+      if (error) throw error;
+      return (data ?? []).map(mapUnidadeUsuario);
+    });
+  },
+
+  async upsertUnidadeUsuario(payload: Pick<UnidadeUsuario, 'unidadeId' | 'userId' | 'role' | 'permissoes'>): Promise<void> {
+    return run(async () => {
+      const { error } = await supabase
+        .from('unidade_usuarios')
+        .upsert({
+          unidade_id: payload.unidadeId,
+          user_id:    payload.userId,
+          role:       payload.role,
+          permissoes: payload.permissoes,
+          ativo:      true,
+        }, { onConflict: 'unidade_id,user_id' });
+      if (error) throw error;
+    });
+  },
+
+  async removeUnidadeUsuario(unidadeId: string, userId: string): Promise<void> {
+    return run(async () => {
+      const { error } = await supabase
+        .from('unidade_usuarios')
+        .update({ ativo: false })
+        .eq('unidade_id', unidadeId)
+        .eq('user_id', userId);
+      if (error) throw error;
+    });
+  },
+
+  async getPainelRede(redeId: string, dataInicio: string, dataFim: string): Promise<PainelRede> {
+    return run(async () => {
+      const [redeRes, unidadesRes, metricasRes] = await Promise.all([
+        supabase.from('redes').select('*').eq('id', redeId).single(),
+        supabase.from('unidades').select('*').eq('rede_id', redeId).eq('ativo', true).order('created_at'),
+        supabase.rpc('get_rede_metricas', {
+          p_rede_id:     redeId,
+          p_data_inicio: dataInicio,
+          p_data_fim:    dataFim,
+        }),
+      ]);
+      if (redeRes.error)      throw redeRes.error;
+      if (unidadesRes.error)  throw unidadesRes.error;
+      if (metricasRes.error)  throw metricasRes.error;
+
+      const metricas: MetricasUnidade[] = (metricasRes.data ?? []).map((r: any) => ({
+        unidadeId:               r.unidade_id,
+        unidadeNome:             r.unidade_nome,
+        faturamento:             Number(r.faturamento ?? 0),
+        totalAgendamentos:       Number(r.total_agendamentos ?? 0),
+        agendamentosFinalizados: Number(r.agendamentos_finalizados ?? 0),
+        ticketMedio:             Number(r.ticket_medio ?? 0),
+      }));
+
+      const totalFaturamento   = metricas.reduce((s, m) => s + m.faturamento, 0);
+      const totalAgendamentos  = metricas.reduce((s, m) => s + m.totalAgendamentos, 0);
+      const finalizados        = metricas.reduce((s, m) => s + m.agendamentosFinalizados, 0);
+      const ticketMedioGeral   = finalizados > 0 ? totalFaturamento / finalizados : 0;
+
+      return {
+        rede:              mapRede(redeRes.data),
+        unidades:          (unidadesRes.data ?? []).map(mapUnidade),
+        metricas,
+        totalFaturamento,
+        totalAgendamentos,
+        ticketMedioGeral,
+        periodo:           { dataInicio, dataFim },
+      };
+    });
+  },
 };
 
 // ── Mappers internos (US-012) ─────────────────────────────────────────
@@ -5712,6 +5899,47 @@ function mapContaPagar(row: any): ContaPagar {
     comprovanteUrl: row.comprovante_url ?? null,
     observacoes:    row.observacoes ?? null,
     createdAt:      row.created_at ?? '',
+  };
+}
+
+function mapRede(row: any): Rede {
+  return {
+    id:                    row.id,
+    ownerId:               row.owner_id,
+    nome:                  row.nome ?? '',
+    descricao:             row.descricao ?? undefined,
+    pacienteCompartilhado: row.paciente_compartilhado ?? false,
+    descontoVolumePct:     Number(row.desconto_volume_pct ?? 0),
+    ativo:                 row.ativo ?? true,
+    createdAt:             row.created_at ?? '',
+    updatedAt:             row.updated_at ?? '',
+  };
+}
+
+function mapUnidade(row: any): Unidade {
+  return {
+    id:        row.id,
+    redeId:    row.rede_id,
+    ownerId:   row.owner_id,
+    nome:      row.nome ?? '',
+    cnpj:      row.cnpj ?? undefined,
+    endereco:  row.endereco ?? undefined,
+    telefone:  row.telefone ?? undefined,
+    ativo:     row.ativo ?? true,
+    createdAt: row.created_at ?? '',
+    updatedAt: row.updated_at ?? '',
+  };
+}
+
+function mapUnidadeUsuario(row: any): UnidadeUsuario {
+  return {
+    id:         row.id,
+    unidadeId:  row.unidade_id,
+    userId:     row.user_id,
+    role:       (row.role as UnidadeRole) ?? 'visualizador',
+    permissoes: row.permissoes ?? {},
+    ativo:      row.ativo ?? true,
+    createdAt:  row.created_at ?? '',
   };
 }
 

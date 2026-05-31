@@ -25,9 +25,11 @@ interface ProntuarioProps {
   onClose?: () => void;
   onAddAgendamento?: (agendamento: Omit<Agendamento, 'id'>, extra?: { telefone?: string }) => Promise<void>;
   userName?: string;
+  unidadeId?: string | null;
+  pacienteCompartilhado?: boolean;
 }
 
-export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userId, onAddAgendamento, userName }) => {
+export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userId, onAddAgendamento, userName, unidadeId, pacienteCompartilhado }) => {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [activeClienteId, setActiveClienteId] = useState<string>(selectedClienteId || '');
   const [evolucoes, setEvolucoes] = useState<EvolucaoClinica[]>([]);
@@ -102,10 +104,10 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
   useEffect(() => {
     loadClientes();
     loadProcedimentos();
-    api.getEquipe(userId, { somenteAtivos: true })
+    api.getEquipe(userId, { somenteAtivos: true }, unidadeId ?? undefined)
       .then(members => setEquipe(members.map(m => ({ id: m.id, nome: m.nome, cargo: m.cargo }))))
       .catch(() => {});
-  }, [userId]);
+  }, [userId, unidadeId]);
 
   const loadProcedimentos = async () => {
     try {
@@ -561,7 +563,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
 
   const loadClientes = async () => {
     try {
-      const data = await api.getClientes(userId);
+      const data = await api.getClientes(userId, pacienteCompartilhado ? undefined : unidadeId ?? undefined);
       setClientes(data);
       if (data.length > 0 && !activeClienteId) {
         setActiveClienteId(data[0].id);

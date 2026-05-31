@@ -16,6 +16,7 @@ import type {
 interface ComissoesProps {
   userId: string;
   nomeGestor: string;
+  unidadeId?: string | null;
 }
 
 type SubTab = 'relatorio' | 'regras' | 'fechamentos';
@@ -58,7 +59,7 @@ const PRIORIDADE_COLOR: Record<string, string> = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-export const Comissoes: React.FC<ComissoesProps> = ({ userId, nomeGestor }) => {
+export const Comissoes: React.FC<ComissoesProps> = ({ userId, nomeGestor, unidadeId }) => {
   const [subTab, setSubTab] = useState<SubTab>('relatorio');
 
   // ── Período ──
@@ -108,7 +109,7 @@ export const Comissoes: React.FC<ComissoesProps> = ({ userId, nomeGestor }) => {
   const loadBase = useCallback(async () => {
     try {
       const [eq, procs, regs] = await Promise.all([
-        api.getEquipe(userId, { somenteAtivos: true }),
+        api.getEquipe(userId, { somenteAtivos: true }, unidadeId ?? undefined),
         api.getProcedimentos(userId),
         api.getComissaoRegras(userId),
       ]);

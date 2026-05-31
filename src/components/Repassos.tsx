@@ -15,6 +15,7 @@ import type {
 interface RepassosProps {
   userId: string;
   nomeGestor: string;
+  unidadeId?: string | null;
 }
 
 type SubTab = 'regras' | 'calcular' | 'fechamentos';
@@ -134,7 +135,7 @@ function printDemonstrativo(fechamento: FechamentoRepasse) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-export const Repassos: React.FC<RepassosProps> = ({ userId, nomeGestor }) => {
+export const Repassos: React.FC<RepassosProps> = ({ userId, nomeGestor, unidadeId }) => {
   const [subTab, setSubTab] = useState<SubTab>('regras');
 
   const [equipe, setEquipe] = useState<MembroEquipe[]>([]);
@@ -171,7 +172,7 @@ export const Repassos: React.FC<RepassosProps> = ({ userId, nomeGestor }) => {
     setError(null);
     try {
       const [equipeData, regrasData, fechamentosData] = await Promise.all([
-        api.getEquipe(userId, { somenteAtivos: true }),
+        api.getEquipe(userId, { somenteAtivos: true }, unidadeId ?? undefined),
         api.getRepasseRegras(userId),
         api.getFechamentosRepasse(userId),
       ]);

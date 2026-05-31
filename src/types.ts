@@ -943,4 +943,62 @@ export interface ResumoFinanceiro {
   vencidos: number;
 }
 
+// ── US-048: Multiclínicas e Rede de Clínicas ────────────────────────
+
+export interface Rede {
+  id: string;
+  ownerId: string;
+  nome: string;
+  descricao?: string;
+  pacienteCompartilhado: boolean;
+  descontoVolumePct: number;
+  ativo: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Unidade {
+  id: string;
+  redeId: string;
+  ownerId: string;
+  nome: string;
+  cnpj?: string;
+  endereco?: string;
+  telefone?: string;
+  ativo: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type UnidadeRole = 'gestor_rede' | 'dono' | 'equipe' | 'visualizador';
+
+export interface UnidadeUsuario {
+  id: string;
+  unidadeId: string;
+  userId: string;
+  role: UnidadeRole;
+  permissoes: Record<string, boolean>;
+  ativo: boolean;
+  createdAt: string;
+}
+
+export interface MetricasUnidade {
+  unidadeId: string;
+  unidadeNome: string;
+  faturamento: number;
+  totalAgendamentos: number;
+  agendamentosFinalizados: number;
+  ticketMedio: number;
+}
+
+export interface PainelRede {
+  rede: Rede;
+  unidades: Unidade[];
+  metricas: MetricasUnidade[];
+  totalFaturamento: number;
+  totalAgendamentos: number;
+  ticketMedioGeral: number;
+  periodo: { dataInicio: string; dataFim: string };
+}
+
 export const IS_TYPED = true;

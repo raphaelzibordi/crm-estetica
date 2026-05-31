@@ -1,16 +1,20 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { User, Building2, Users, Plus, X, Check, Edit2, Trash2, Shield, Link, ToggleLeft, ToggleRight, Copy, Eye, EyeOff, Bell, FileText } from 'lucide-react';
+import { User, Building2, Users, Plus, X, Check, Edit2, Trash2, Shield, Link, ToggleLeft, ToggleRight, Copy, Eye, EyeOff, Bell, FileText, Network, ChevronRight } from 'lucide-react';
 import { api } from '../lib/api';
-import type { BookingSettings, ConfirmacaoSettings, DocumentoModelo, DocumentoTipo, MembroEquipe, Procedimento } from '../types';
+import type { BookingSettings, ConfirmacaoSettings, DocumentoModelo, DocumentoTipo, MembroEquipe, Procedimento, Rede, Unidade } from '../types';
+import { RedeClinicas } from './RedeClinicas';
 import { MODELOS_PADRAO } from './AssinaturaDigital';
 
 interface ConfiguracoesProps {
   userId: string;
   userName?: string;
   onProfileUpdate?: (update: { nome?: string; fotoUrl?: string }) => void;
+  redes?: Rede[];
+  redeUnidades?: Unidade[];
+  onRedeUpdated?: () => void;
 }
 
-type ActiveTab = 'perfil' | 'equipe' | 'agendamento' | 'confirmacoes' | 'documentos';
+type ActiveTab = 'perfil' | 'equipe' | 'agendamento' | 'confirmacoes' | 'documentos' | 'rede';
 
 const CARGOS_SUGERIDOS = [
   'Diretora da Clínica',
@@ -23,7 +27,7 @@ const CARGOS_SUGERIDOS = [
   'Dermatologista',
 ];
 
-export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, onProfileUpdate }) => {
+export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, onProfileUpdate, redes = [], redeUnidades = [], onRedeUpdated }) => {
   const [tab, setTab] = useState<ActiveTab>('perfil');
 
   // ── Perfil pessoal ──
@@ -325,37 +329,118 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
         {tabBtn('agendamento', 'Agendamento Online', Link)}
         {tabBtn('confirmacoes', 'Confirmações Automáticas', Bell)}
         {tabBtn('documentos', 'Modelos de Documentos', FileText)}
+        {tabBtn('rede', 'Rede de Clínicas', Network)}
       </div>
 
       {/* ── TAB: PERFIL ── */}
       {tab === 'perfil' && (
         <form onSubmit={handleSavePerfil} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
-          {/* Dados da Clínica */}
-          <div className="card" style={{ padding: '28px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
-              <Building2 size={16} style={{ color: 'var(--color-primary)' }} />
-              <h3 style={{ fontSize: '16px', fontWeight: 600 }}>Dados da Clínica</h3>
+          {/* Dados da Clínica / Rede */}
+          {redes.length > 0 ? (
+            /* ── Modo rede: mostra resumo das unidades ── */
+            <div className="card" style={{ padding: '28px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Network size={16} style={{ color: 'var(--color-primary)' }} />
+                  <h3 style={{ fontSize: '16px', fontWeight: 600 }}>Rede de Clínicas</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTab('rede')}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '4px',
+                    padding: '6px 12px', background: 'var(--color-primary-light)',
+                    border: 'none', borderRadius: 'var(--border-radius-sm)',
+                    color: 'var(--color-primary)', fontSize: '12px', fontWeight: 600, cursor: 'pointer',
+                  }}
+                >
+                  Gerenciar <ChevronRight size={13} />
+                </button>
+              </div>
+
+              {redes.map(rede => {
+                const unidadesDaRede = redeUnidades.filter(u => u.redeId === rede.id);
+                return (
+                  <div key={rede.id} style={{ marginBottom: redes.length > 1 ? '20px' : 0 }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      {rede.nome}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {unidadesDaRede.length === 0 ? (
+                        <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>
+                          Nenhuma unidade cadastrada ainda.
+                        </p>
+                      ) : unidadesDaRede.map((u, idx) => (
+                        <div
+                          key={u.id}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: '12px',
+                            padding: '12px 14px',
+                            background: 'var(--color-bg)',
+                            border: '1px solid var(--color-border)',
+                            borderRadius: 'var(--border-radius-sm)',
+                            opacity: u.ativo ? 1 : 0.5,
+                          }}
+                        >
+                          <div style={{
+                            width: '32px', height: '32px', borderRadius: '8px',
+                            background: u.ativo ? 'var(--color-primary-light)' : 'var(--color-border)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            flexShrink: 0, fontSize: '12px', fontWeight: 700,
+                            color: u.ativo ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                          }}>
+                            {idx + 1}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: '14px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              {u.nome}
+                              {!u.ativo && (
+                                <span style={{ fontSize: '11px', padding: '1px 6px', borderRadius: '100px', background: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
+                                  Inativa
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                              {u.telefone && <span>{u.telefone}</span>}
+                              {u.endereco && <span>{u.endereco}</span>}
+                              {u.cnpj     && <span>CNPJ: {u.cnpj}</span>}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <div className="form-group">
-                <label className="form-label">Nome da Clínica</label>
-                <input className="form-input" value={nomeClinica} onChange={e => setNomeClinica(e.target.value)} placeholder="Ex: Lumina Estética Avançada" />
+          ) : (
+            /* ── Modo clínica única: formulário padrão ── */
+            <div className="card" style={{ padding: '28px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+                <Building2 size={16} style={{ color: 'var(--color-primary)' }} />
+                <h3 style={{ fontSize: '16px', fontWeight: 600 }}>Dados da Clínica</h3>
               </div>
-              <div className="form-group">
-                <label className="form-label">Telefone / WhatsApp</label>
-                <input className="form-input" value={telefoneClinica} onChange={e => setTelefoneClinica(e.target.value)} placeholder="(11) 9XXXX-XXXX" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Endereço</label>
-                <input className="form-input" value={enderecoClinica} onChange={e => setEnderecoClinica(e.target.value)} placeholder="Rua, número, bairro, cidade" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">E-mail Institucional</label>
-                <input className="form-input" type="email" value={emailClinica} onChange={e => setEmailClinica(e.target.value)} placeholder="contato@clinica.com.br" />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div className="form-group">
+                  <label className="form-label">Nome da Clínica</label>
+                  <input className="form-input" value={nomeClinica} onChange={e => setNomeClinica(e.target.value)} placeholder="Ex: Lumina Estética Avançada" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Telefone / WhatsApp</label>
+                  <input className="form-input" value={telefoneClinica} onChange={e => setTelefoneClinica(e.target.value)} placeholder="(11) 9XXXX-XXXX" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Endereço</label>
+                  <input className="form-input" value={enderecoClinica} onChange={e => setEnderecoClinica(e.target.value)} placeholder="Rua, número, bairro, cidade" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">E-mail Institucional</label>
+                  <input className="form-input" type="email" value={emailClinica} onChange={e => setEmailClinica(e.target.value)} placeholder="contato@clinica.com.br" />
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Dados pessoais do usuário */}
           <div className="card" style={{ padding: '28px' }}>
@@ -1003,6 +1088,10 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
             </form>
           </div>
         </div>
+      )}
+
+      {tab === 'rede' && (
+        <RedeClinicas userId={userId} onRedeUpdated={onRedeUpdated} />
       )}
     </div>
   );
