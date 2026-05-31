@@ -20,6 +20,7 @@ export const GerenciamentoSalas: React.FC<GerenciamentoSalasProps> = ({ userId }
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const [formName, setFormName] = useState('');
   const [formDescription, setFormDescription] = useState('');
+  const [formStatus, setFormStatus] = useState<'ativa' | 'inativa'>('ativa');
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -43,6 +44,7 @@ export const GerenciamentoSalas: React.FC<GerenciamentoSalasProps> = ({ userId }
   const openCreate = () => {
     setFormName('');
     setFormDescription('');
+    setFormStatus('ativa');
     setFormError(null);
     setEditingRoom(null);
     setModalMode('criar');
@@ -51,6 +53,7 @@ export const GerenciamentoSalas: React.FC<GerenciamentoSalasProps> = ({ userId }
   const openEdit = (room: Room) => {
     setFormName(room.name);
     setFormDescription(room.description ?? '');
+    setFormStatus(room.status);
     setFormError(null);
     setEditingRoom(room);
     setModalMode('editar');
@@ -69,7 +72,7 @@ export const GerenciamentoSalas: React.FC<GerenciamentoSalasProps> = ({ userId }
         const room = await api.createRoom({ name: formName, description: formDescription }, userId);
         setRooms((prev) => [...prev, room].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')));
       } else if (editingRoom) {
-        const room = await api.updateRoom(editingRoom.id, { name: formName, description: formDescription }, userId);
+        const room = await api.updateRoom(editingRoom.id, { name: formName, description: formDescription, status: formStatus }, userId);
         setRooms((prev) => prev.map((r) => (r.id === room.id ? room : r)).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')));
       }
       closeModal();
@@ -245,6 +248,34 @@ export const GerenciamentoSalas: React.FC<GerenciamentoSalasProps> = ({ userId }
                   placeholder="Ex: Sala para procedimentos injetáveis"
                 />
               </div>
+
+              {modalMode === 'editar' && (
+                <div className="form-group">
+                  <label className="form-label">Status</label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {(['ativa', 'inativa'] as const).map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setFormStatus(s)}
+                        style={{
+                          padding: '7px 18px',
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          borderRadius: 'var(--border-radius-sm)',
+                          border: `2px solid ${formStatus === s ? (s === 'ativa' ? '#22c55e' : '#ef4444') : 'var(--color-border)'}`,
+                          background: formStatus === s ? (s === 'ativa' ? '#dcfce7' : '#fee2e2') : 'transparent',
+                          color: formStatus === s ? (s === 'ativa' ? '#166534' : '#991b1b') : 'var(--color-text-muted)',
+                          cursor: 'pointer',
+                          transition: 'var(--transition-smooth)',
+                        }}
+                      >
+                        {s === 'ativa' ? 'Ativa' : 'Inativa'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {formError && (
                 <div style={{ background: '#fee2e2', color: '#991b1b', padding: '10px 14px', borderRadius: 'var(--border-radius-sm)', fontSize: '12px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
