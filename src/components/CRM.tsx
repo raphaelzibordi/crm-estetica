@@ -3,12 +3,13 @@ import {
   Plus, X, BarChart2, Settings2, Clock, AlertTriangle,
   ChevronRight, Zap, MessageSquare, Mail, CheckSquare,
   MoreHorizontal, User, Phone, Globe, Trash2, Edit3,
-  ArrowRightCircle, History, FileText, Tag,
+  ArrowRightCircle, History, FileText, Tag, Users,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import type {
   FunilEtapa, FunilEtapaTipo, Lead, LeadAutomacao, LeadHistorico, LeadOrigem,
 } from '../types';
+import { RankingPacientes } from './RankingPacientes';
 
 // ── Utilitários ───────────────────────────────────────────────────────
 
@@ -60,6 +61,8 @@ const LEAD_VAZIO = {
 // ═══════════════════════════════════════════════════════════════════════
 
 export const CRM: React.FC<CRMProps> = ({ userId, userName, onConvertidoAgendar }) => {
+  const [activeView, setActiveView] = useState<'pipeline' | 'ranking'>('pipeline');
+
   const [etapas, setEtapas]     = useState<FunilEtapa[]>([]);
   const [leads, setLeads]       = useState<Lead[]>([]);
   const [loading, setLoading]   = useState(true);
@@ -281,29 +284,51 @@ export const CRM: React.FC<CRMProps> = ({ userId, userName, onConvertidoAgendar 
         padding: '20px 24px 16px', flexShrink: 0,
         borderBottom: '1px solid var(--color-border)',
       }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: 'var(--color-text-main)' }}>
-            Pipeline de Leads
-          </h1>
-          <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
-            {leads.length} lead{leads.length !== 1 ? 's' : ''} no funil
-          </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div>
+            <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: 'var(--color-text-main)' }}>
+              {activeView === 'pipeline' ? 'Pipeline de Leads' : 'Ranking de Pacientes'}
+            </h1>
+            <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
+              {activeView === 'pipeline'
+                ? `${leads.length} lead${leads.length !== 1 ? 's' : ''} no funil`
+                : 'Score por LTV, frequência e ticket médio'}
+            </span>
+          </div>
+          {/* Tab switcher */}
+          <div style={{ display: 'flex', gap: '4px', background: '#f8f8f6', border: '1px solid var(--color-border)', borderRadius: '10px', padding: '4px' }}>
+            <button
+              onClick={() => setActiveView('pipeline')}
+              style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 600, border: 'none', cursor: 'pointer', borderRadius: '7px', background: activeView === 'pipeline' ? 'var(--color-primary)' : 'transparent', color: activeView === 'pipeline' ? '#fff' : 'var(--color-text-muted)', transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <BarChart2 size={13} /> Pipeline
+            </button>
+            <button
+              onClick={() => setActiveView('ranking')}
+              style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 600, border: 'none', cursor: 'pointer', borderRadius: '7px', background: activeView === 'ranking' ? 'var(--color-primary)' : 'transparent', color: activeView === 'ranking' ? '#fff' : 'var(--color-text-muted)', transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <Users size={13} /> Ranking de Pacientes
+            </button>
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button onClick={abrirMetricas} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
-            <BarChart2 size={15} /> Métricas
-          </button>
-          <button onClick={() => setEtapasOpen(true)} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
-            <Settings2 size={15} /> Etapas
-          </button>
-          <button onClick={() => abrirCriarLead(etapas[0]?.id ?? '')} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
-            <Plus size={15} /> Novo Lead
-          </button>
-        </div>
+        {activeView === 'pipeline' && (
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button onClick={abrirMetricas} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+              <BarChart2 size={15} /> Métricas
+            </button>
+            <button onClick={() => setEtapasOpen(true)} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+              <Settings2 size={15} /> Etapas
+            </button>
+            <button onClick={() => abrirCriarLead(etapas[0]?.id ?? '')} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+              <Plus size={15} /> Novo Lead
+            </button>
+          </div>
+        )}
       </div>
 
+      {/* ── Ranking de Pacientes (US-016) ─────────────────────────── */}
+      {activeView === 'ranking' && <RankingPacientes userId={userId} />}
+
       {/* ── Kanban ────────────────────────────────────────────────── */}
-      <div style={{
+      {activeView === 'pipeline' && <div style={{
         flex: 1, overflowX: 'auto', overflowY: 'hidden',
         display: 'flex', gap: '12px', padding: '16px 24px',
       }}>
@@ -397,7 +422,7 @@ export const CRM: React.FC<CRMProps> = ({ userId, userName, onConvertidoAgendar 
             </div>
           );
         })}
-      </div>
+      </div>}
 
       {/* ── Modal: Criar/Editar Lead (CA-02) ───────────────────────── */}
       {leadModal.open && (
