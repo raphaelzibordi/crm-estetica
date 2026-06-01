@@ -1506,6 +1506,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
       {/* Template Picker Modal (US-027) */}
       {showTemplatePicker && (
         <div
+          className="modal-overlay"
           style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2100, animation: 'fadeIn 0.2s ease-out' }}
           onClick={() => setShowTemplatePicker(false)}
         >

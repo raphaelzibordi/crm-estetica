@@ -5695,6 +5695,30 @@ export const api = {
       };
     });
   },
+
+  // ============================================================
+  // US-041: Rentabilidade — LTV, ticket médio e ranking de procedimentos
+  // ============================================================
+  async getAgendamentosFinalizados(
+    userId: string | undefined,
+    inicio?: string,
+    fim?: string
+  ): Promise<Agendamento[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      let query = supabase
+        .from('agendamentos')
+        .select('*, clientes ( nome, foto_url )')
+        .eq('user_id', uid)
+        .eq('status', 'finalizada')
+        .order('data', { ascending: true });
+      if (inicio) query = query.gte('data', inicio);
+      if (fim)    query = query.lte('data', fim);
+      const { data, error } = await query;
+      if (error) throw error;
+      return (data ?? []).map(mapAgendamento);
+    });
+  },
 };
 
 // ── Mappers internos (US-012) ─────────────────────────────────────────

@@ -915,6 +915,34 @@ h1, h2, h3, h4, h5, h6 {
     border-top: 1px solid var(--color-border);
     margin-top: 2px;
   }
+
+  /* ── Modal bottom-sheet: .modal-inner variant (CRM, PlanoTratamento) ── */
+  .modal-overlay .modal-inner {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0 !important;
+    max-height: 85vh !important;
+    overflow-y: auto !important;
+  }
+
+  /* Prevent modal inner content from overflowing viewport width */
+  .modal-overlay .modal-inner > * {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Kanban action buttons: bigger touch targets */
+  .esteira-card .btn {
+    min-height: 32px !important;
+    padding: 6px 10px !important;
+    font-size: 11px !important;
+  }
+
+  /* Orcamentos list items: stack on very small screens */
+  .orcamentos-list-item {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
 }
 
 /* Consultas carousel — hide native scrollbar, keep touch scroll */
@@ -937,5 +965,73 @@ h1, h2, h3, h4, h5, h6 {
 
   .gestao-kpi-grid {
     grid-template-columns: 1fr !important;
+  }
+}
+
+/* ── Responsive helpers ─────────────────────────────────────────────── */
+
+/* 4-col KPI grids inside modals/components */
+@media (max-width: 640px) {
+  .metricas-kpi-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+/* Ensure form inputs never overflow their container */
+.form-input,
+input[type="text"],
+input[type="email"],
+input[type="tel"],
+input[type="number"],
+input[type="date"],
+input[type="time"],
+textarea,
+select {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* ── iOS Safe Area (Dynamic Island / notch / home indicator) ──────── */
+/* Requires viewport-fit=cover in the meta tag */
+
+@supports (height: env(safe-area-inset-top)) {
+  /* Mobile header grows to clear the Dynamic Island / status bar */
+  .mobile-header {
+    height: calc(60px + env(safe-area-inset-top));
+    padding-top: env(safe-area-inset-top);
+  }
+
+  /* Main content top padding compensates for taller header */
+  @media (max-width: 1024px) {
+    .main-content {
+      padding-top: calc(80px + env(safe-area-inset-top));
+    }
+  }
+
+  @media (max-width: 640px) {
+    .main-content {
+      padding-top: calc(72px + env(safe-area-inset-top));
+    }
+  }
+
+  @media (max-width: 400px) {
+    .main-content {
+      padding-top: calc(68px + env(safe-area-inset-top));
+    }
+  }
+
+  /* Sidebar also needs top offset on mobile when open */
+  @media (max-width: 1024px) {
+    .sidebar {
+      padding-top: calc(32px + env(safe-area-inset-top));
+    }
+  }
+
+  /* Bottom-sheet modals: clear home indicator on iOS */
+  @media (max-width: 640px) {
+    .modal-overlay > .card,
+    .modal-overlay .modal-inner {
+      padding-bottom: calc(16px + env(safe-area-inset-bottom)) !important;
+    }
   }
 }

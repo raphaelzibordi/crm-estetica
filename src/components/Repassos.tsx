@@ -725,6 +725,7 @@ export const Repassos: React.FC<RepassosProps> = ({ userId, nomeGestor, unidadeI
       {/* ── MODAL: REGRA ────────────────────────────────────────────────── */}
       {showRegraModal && (
         <div
+          className="modal-overlay"
           style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}
           onClick={() => setShowRegraModal(false)}
         >

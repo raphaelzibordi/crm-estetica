@@ -96,12 +96,12 @@ export const ConsentimentoLGPD: React.FC<ConsentimentoLGPDProps> = ({
   };
 
   return (
-    <div style={{
+    <div className="modal-overlay" style={{
       position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       zIndex: 900, padding: '16px',
     }}>
-      <div style={{
+      <div className="modal-inner" style={{
         background: 'var(--bg-card)',
         border: '1px solid var(--color-border)',
         borderRadius: 'var(--border-radius-md)',

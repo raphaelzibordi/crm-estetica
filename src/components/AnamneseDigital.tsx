@@ -796,7 +796,7 @@ export const AnamneseDigital: React.FC<AnamneseDigitalProps> = ({
 
       {/* ── MODAL: SELECIONAR FORMULÁRIO PARA NOVA ANAMNESE ─────────── */}
       {showSelecionarForm && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+        <div className="modal-overlay" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
           <div className="card" style={{ padding: '28px', width: '100%', maxWidth: '440px', animation: 'fadeIn 0.2s ease-out' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3 style={{ fontSize: '16px', fontWeight: 600 }}>Selecionar formulário</h3>

@@ -13,12 +13,13 @@ import { RelatorioOcupacao } from './RelatorioOcupacao';
 import { RelatorioOcupacaoSalas } from './RelatorioOcupacaoSalas';
 import { EstoqueAvancado } from './EstoqueAvancado';
 import { ContasFinanceiras } from './ContasFinanceiras';
+import { Rentabilidade } from './Rentabilidade';
 
 interface GestaoProps { userId: string; userName?: string; unidadeId?: string | null; }
 
 const EMPTY_FECHAMENTO: FechamentoFinanceiro = { faturamentoTotal: 0, comissoesPagas: 0, formasPagamento: [] };
 
-type ActiveTab = 'dashboard' | 'financeiro' | 'contas' | 'estoque' | 'procedimentos' | 'faltas' | 'comissoes' | 'repassos' | 'ocupacao' | 'salas';
+type ActiveTab = 'dashboard' | 'financeiro' | 'contas' | 'estoque' | 'procedimentos' | 'faltas' | 'comissoes' | 'repassos' | 'ocupacao' | 'salas' | 'rentabilidade';
 
 // ──────────────────────────────────────────────────────────────────────
 // FILTRO DE PERÍODO — presets + range customizado
@@ -256,6 +257,9 @@ export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor', uni
           </button>
           <button style={tabStyle('salas')} onClick={() => setTab('salas')}>
             <BarChart3 size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Salas
+          </button>
+          <button style={tabStyle('rentabilidade')} onClick={() => setTab('rentabilidade')}>
+            <TrendingUp size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Rentabilidade
           </button>
         </div>
       </div>
@@ -664,6 +668,11 @@ export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor', uni
       {/* ── TAB: SALAS (SALA-004) ─────────────────────────────────────── */}
       {tab === 'salas' && (
         <RelatorioOcupacaoSalas userId={userId} />
+      )}
+
+      {/* ── TAB: RENTABILIDADE (US-041) ──────────────────────────────── */}
+      {tab === 'rentabilidade' && (
+        <Rentabilidade userId={userId} />
       )}
 
       {/* ── MODAL: FILTRO PERSONALIZADO (bottom-sheet no mobile) ───────── */}

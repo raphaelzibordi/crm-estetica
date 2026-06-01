@@ -337,11 +337,11 @@ export const PlanoTratamento: React.FC<Props> = ({ clienteId, userId, userName: 
 
         {/* Modal Novo Plano */}
         {showNovoPlano && (
-          <div style={{
+          <div className="modal-overlay" style={{
             position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 1000,
             display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px',
           }} onClick={() => setShowNovoPlano(false)}>
-            <div style={{
+            <div className="modal-inner" style={{
               backgroundColor: '#fff', borderRadius: 'var(--border-radius-lg)',
               padding: '28px', width: '100%', maxWidth: '540px', maxHeight: '90vh', overflowY: 'auto',
               boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
@@ -658,11 +658,11 @@ export const PlanoTratamento: React.FC<Props> = ({ clienteId, userId, userName: 
 
       {/* ── Modal: Registrar Sessão ─────────────────────────────── */}
       {showRegistrarSessao && (
-        <div style={{
+        <div className="modal-overlay" style={{
           position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 1000,
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px',
         }} onClick={() => setShowRegistrarSessao(false)}>
-          <div style={{
+          <div className="modal-inner" style={{
             backgroundColor: '#fff', borderRadius: 'var(--border-radius-lg)',
             padding: '28px', width: '100%', maxWidth: '540px', maxHeight: '90vh', overflowY: 'auto',
             boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
@@ -768,11 +768,11 @@ export const PlanoTratamento: React.FC<Props> = ({ clienteId, userId, userName: 
 
       {/* ── Modal: Encerrar Plano ───────────────────────────────── */}
       {showEncerrar && (
-        <div style={{
+        <div className="modal-overlay" style={{
           position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 1000,
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px',
         }} onClick={() => setShowEncerrar(false)}>
-          <div style={{
+          <div className="modal-inner" style={{
             backgroundColor: '#fff', borderRadius: 'var(--border-radius-lg)',
             padding: '28px', width: '100%', maxWidth: '420px',
             boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
@@ -815,11 +815,11 @@ export const PlanoTratamento: React.FC<Props> = ({ clienteId, userId, userName: 
 
       {/* ── Modal: Comparativo (CA-04) ─────────────────────────── */}
       {showComparativo && primeiraRealizada && ultimaRealizada && (
-        <div style={{
+        <div className="modal-overlay" style={{
           position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000,
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px',
         }} onClick={() => setShowComparativo(false)}>
-          <div style={{
+          <div className="modal-inner" style={{
             backgroundColor: '#fff', borderRadius: 'var(--border-radius-lg)',
             padding: '28px', width: '100%', maxWidth: '680px', maxHeight: '90vh', overflowY: 'auto',
             boxShadow: '0 20px 60px rgba(0,0,0,0.15)',

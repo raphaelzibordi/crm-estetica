@@ -304,12 +304,12 @@ export const LGPD: React.FC<LGPDProps> = ({ userId }) => {
 
       {/* Modal de confirmação de exclusão */}
       {confirmExclusao && (
-        <div style={{
+        <div className="modal-overlay" style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           zIndex: 1000,
         }}>
-          <div style={{
+          <div className="modal-inner" style={{
             background: 'var(--bg-card)',
             borderRadius: 'var(--border-radius-md)',
             padding: '28px',

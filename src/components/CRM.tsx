@@ -402,7 +402,7 @@ export const CRM: React.FC<CRMProps> = ({ userId, userName, onConvertidoAgendar 
       {/* ── Modal: Criar/Editar Lead (CA-02) ───────────────────────── */}
       {leadModal.open && (
         <ModalOverlay onClose={() => setLeadModal({ open: false })}>
-          <div style={{ width: '460px' }}>
+          <div style={{ width: '460px', maxWidth: '100%' }}>
             <ModalHeader
               title={leadModal.lead ? 'Editar Lead' : 'Novo Lead'}
               onClose={() => setLeadModal({ open: false })}
@@ -503,7 +503,7 @@ export const CRM: React.FC<CRMProps> = ({ userId, userName, onConvertidoAgendar 
       {/* ── Modal: Detalhe + Histórico (CA-03) ─────────────────────── */}
       {detalheModal && (
         <ModalOverlay onClose={() => setDetalheModal(null)}>
-          <div style={{ width: '520px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ width: '520px', maxWidth: '100%', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
             <ModalHeader
               title={detalheModal.nome}
               onClose={() => setDetalheModal(null)}
@@ -593,7 +593,7 @@ export const CRM: React.FC<CRMProps> = ({ userId, userName, onConvertidoAgendar 
       {/* ── Modal: Converter Lead (CA-05) ──────────────────────────── */}
       {convertDialog && (
         <ModalOverlay onClose={() => setConvertDialog(null)}>
-          <div style={{ width: '400px', padding: '28px' }}>
+          <div style={{ width: '400px', maxWidth: '100%', padding: '28px' }}>
             <div style={{ textAlign: 'center', marginBottom: '20px' }}>
               <div style={{ fontSize: '40px', marginBottom: '12px' }}>🎉</div>
               <h2 style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: 700 }}>Converter em Paciente</h2>
@@ -621,11 +621,11 @@ export const CRM: React.FC<CRMProps> = ({ userId, userName, onConvertidoAgendar 
       {/* ── Modal: Métricas (CA-06) ─────────────────────────────────── */}
       {metricasOpen && metricas && (
         <ModalOverlay onClose={() => setMetricasOpen(false)}>
-          <div style={{ width: '560px', maxHeight: '90vh', overflow: 'auto' }}>
+          <div style={{ width: '560px', maxWidth: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
             <ModalHeader title="Métricas do Funil" onClose={() => setMetricasOpen(false)} />
             <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
               {/* Totais */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+              <div className="metricas-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
                 {[
                   { label: 'Total leads', value: metricas.totalLeads },
                   { label: 'Hoje',   value: metricas.leadsHoje },
@@ -1178,6 +1178,7 @@ const AutomacoesModal: React.FC<{
 
 const ModalOverlay: React.FC<{ children: React.ReactNode; onClose: () => void }> = ({ children, onClose }) => (
   <div
+    className="modal-overlay"
     style={{
       position: 'fixed', inset: 0, zIndex: 1000,
       background: 'rgba(0,0,0,0.35)',
@@ -1187,14 +1188,17 @@ const ModalOverlay: React.FC<{ children: React.ReactNode; onClose: () => void }>
     }}
     onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
   >
-    <div style={{
-      background: 'var(--bg-card)',
-      borderRadius: '16px',
-      boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
-      overflow: 'hidden',
-      maxHeight: '95vh',
-      maxWidth: '96vw',
-    }}>
+    <div
+      className="modal-inner"
+      style={{
+        background: 'var(--bg-card)',
+        borderRadius: '16px',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
+        overflowY: 'auto',
+        maxHeight: '95vh',
+        maxWidth: '96vw',
+      }}
+    >
       {children}
     </div>
   </div>

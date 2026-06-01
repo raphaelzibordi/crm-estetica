@@ -380,6 +380,7 @@ export const Salas: React.FC<SalasProps> = ({ userId, userRole }) => {
       {/* Modal criar / editar */}
       {modal.open && (
         <div
+          className="modal-overlay"
           onClick={closeModal}
           style={{
             position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
@@ -388,6 +389,7 @@ export const Salas: React.FC<SalasProps> = ({ userId, userRole }) => {
           }}
         >
           <div
+            className="modal-inner"
             onClick={e => e.stopPropagation()}
             style={{
               background: 'var(--bg-card)', borderRadius: 14,
@@ -485,6 +487,7 @@ export const Salas: React.FC<SalasProps> = ({ userId, userRole }) => {
       {/* Modal confirmar deleção */}
       {deleteTarget && (
         <div
+          className="modal-overlay"
           onClick={() => { if (!deleting) setDeleteTarget(null); }}
           style={{
             position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
@@ -493,6 +496,7 @@ export const Salas: React.FC<SalasProps> = ({ userId, userRole }) => {
           }}
         >
           <div
+            className="modal-inner"
             onClick={e => e.stopPropagation()}
             style={{
               background: 'var(--bg-card)', borderRadius: 14,

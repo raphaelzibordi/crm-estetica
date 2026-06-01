@@ -112,6 +112,7 @@ const UnidadeModal: React.FC<UnidadeModalProps> = ({ redeId, unidade, defaultVal
 
   return (
     <div
+      className="modal-overlay"
       style={{
         position: 'fixed', inset: 0, zIndex: 1000,
         background: 'rgba(0,0,0,0.45)',
@@ -121,6 +122,7 @@ const UnidadeModal: React.FC<UnidadeModalProps> = ({ redeId, unidade, defaultVal
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
+        className="modal-inner"
         style={{
           background: 'var(--bg-card)',
           borderRadius: 'var(--border-radius-lg)',
@@ -263,6 +265,7 @@ const RedeModal: React.FC<RedeModalProps> = ({ clinicaAtual, onSave, onClose }) 
 
   return (
     <div
+      className="modal-overlay"
       style={{
         position: 'fixed', inset: 0, zIndex: 1000,
         background: 'rgba(0,0,0,0.45)',
@@ -272,6 +275,7 @@ const RedeModal: React.FC<RedeModalProps> = ({ clinicaAtual, onSave, onClose }) 
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
+        className="modal-inner"
         style={{
           background: 'var(--bg-card)',
           borderRadius: 'var(--border-radius-lg)',

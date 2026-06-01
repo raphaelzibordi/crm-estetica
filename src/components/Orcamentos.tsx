@@ -1169,11 +1169,13 @@ function Modal({ title, onClose, children, width = 500 }: { title: string; onClo
   }, [onClose]);
   return (
     <div
+      className="modal-overlay"
       style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
         ref={ref}
+        className="modal-inner"
         style={{
           background: 'var(--bg-card)', borderRadius: 'var(--border-radius-lg)',
           boxShadow: '0 20px 60px rgba(0,0,0,.15)', width: '100%', maxWidth: width,

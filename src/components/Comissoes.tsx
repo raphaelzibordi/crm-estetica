@@ -848,13 +848,14 @@ const GrupoComissao: React.FC<{ grupo: RelatorioComissaoProfissional }> = ({ gru
 
 const ModalOverlay: React.FC<{ children: React.ReactNode; onClose: () => void }> = ({ children, onClose }) => (
   <div
+    className="modal-overlay"
     onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     style={{
       position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
     }}
   >
-    <div style={{ background: '#FFF', borderRadius: 12, boxShadow: '0 8px 40px rgba(0,0,0,0.15)', maxWidth: '95vw' }}>
+    <div className="modal-inner" style={{ background: '#FFF', borderRadius: 12, boxShadow: '0 8px 40px rgba(0,0,0,0.15)', maxWidth: '95vw' }}>
       {children}
     </div>
   </div>

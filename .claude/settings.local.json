@@ -42,7 +42,11 @@
       "Bash(Start-Sleep -Seconds 4)",
       "mcp__claude_ai_Supabase__execute_sql",
       "Bash(git commit *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\rapha\\\\OneDrive\\\\Documents\\\\GitHub\\\\CRM Estética\\\\crm-estetica\" -Recurse -Filter \"package.json\")",
+      "Bash(Select-Object -First 1)",
+      "Bash(Get-Content)",
+      "Bash(xargs cat)"
     ]
   }
 }
