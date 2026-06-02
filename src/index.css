@@ -1070,10 +1070,34 @@ select {
   box-sizing: border-box;
 }
 
+/* ── Gestão Financeiro: date pickers "Personalizado" empilhados em mobile ── */
+@media (max-width: 480px) {
+  .financeiro-custom-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ── Toast de agendamento online: posicionamento responsivo ──────── */
+.online-booking-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9000;
+  max-width: 340px;
+}
+@media (max-width: 480px) {
+  .online-booking-toast {
+    right: 16px;
+    left: 16px;
+    max-width: calc(100vw - 32px);
+  }
+}
+
 /* ── h1 páginas: reduz no mobile para não quebrar layout ──────────── */
+/* !important necessário pois os componentes usam inline style fontSize:'28px' */
 @media (max-width: 480px) {
   .main-content h1 {
-    font-size: 22px;
+    font-size: 22px !important;
   }
 }
 

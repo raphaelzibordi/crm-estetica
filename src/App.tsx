@@ -604,15 +604,14 @@ function AppMain() {
       {/* Toast: novo agendamento online */}
       {onlineBookingAlert && (
         <div
+          className="online-booking-toast"
           style={{
-            position: 'fixed', bottom: 24, right: 24, zIndex: 9000,
             background: '#2C302E', color: '#fff',
             padding: '14px 20px', borderRadius: '12px',
             fontSize: '14px', fontWeight: 500,
             boxShadow: '0 8px 30px rgba(0,0,0,0.2)',
             display: 'flex', alignItems: 'center', gap: '10px',
             animation: 'fadeIn 0.3s ease-out',
-            maxWidth: 340,
           }}
         >
           <span style={{ fontSize: '20px' }}>📅</span>
