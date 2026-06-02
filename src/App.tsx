@@ -83,6 +83,7 @@ function AppMain() {
   // acessar aba bloqueada (inclusive via setCurrentTab direto).
   const setCurrentTabSafe = useCallback((tab: string) => {
     if (userRole === 'equipe' && TABS_BLOQUEADAS_EQUIPE.has(tab)) return;
+    if (tab === 'prontuario') setSelectedClienteId(null);
     setCurrentTab(tab);
   }, [userRole]);
 

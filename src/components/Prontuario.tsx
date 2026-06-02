@@ -109,6 +109,11 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
       .catch(() => {});
   }, [userId, unidadeId]);
 
+  // Sync selectedClienteId prop → state (handles navigation while component is already mounted)
+  useEffect(() => {
+    setActiveClienteId(selectedClienteId || '');
+  }, [selectedClienteId]);
+
   const loadProcedimentos = async () => {
     try {
       await api.ensureSeedData(userId).catch(() => {});
@@ -565,9 +570,6 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
     try {
       const data = await api.getClientes(userId, pacienteCompartilhado ? undefined : unidadeId ?? undefined);
       setClientes(data);
-      if (data.length > 0 && !activeClienteId) {
-        setActiveClienteId(data[0].id);
-      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -686,10 +688,10 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
         )}
       </div>
 
-      <div className="prontuario-grid" style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '32px', alignItems: 'start' }}>
-        
+      <div className={`prontuario-grid${activeClienteId ? ' prontuario-grid--selected' : ''}`} style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '32px', alignItems: 'start' }}>
+
         {/* Left Side: Client Selector */}
-        <div className="card" style={{ padding: '20px' }}>
+        <div className="card prontuario-left-panel" style={{ padding: '20px' }}>
           <h4 style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '16px', textTransform: 'uppercase' }}>
             Selecione a Cliente
           </h4>
@@ -736,8 +738,23 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
         </div>
 
         {/* Right Side: Prontuário Details */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-          
+        <div className="prontuario-right-panel" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+          <button
+            className="prontuario-back-btn btn btn-outline"
+            onClick={() => setActiveClienteId('')}
+          >
+            <ChevronLeft size={16} />
+            <span>Lista de Pacientes</span>
+          </button>
+
+          {!currentCliente && (
+            <div className="card" style={{ padding: '48px 32px', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+              <FileText size={48} style={{ margin: '0 auto 16px', display: 'block', opacity: 0.2 }} />
+              <p style={{ fontSize: '15px', fontWeight: 500, marginBottom: '8px' }}>Nenhuma paciente selecionada</p>
+              <p style={{ fontSize: '13px' }}>Selecione uma paciente na lista para ver o prontuário.</p>
+            </div>
+          )}
+
           {currentCliente && (
             <div className="card" style={{ padding: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '20px', width: '100%' }}>

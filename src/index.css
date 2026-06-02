@@ -725,6 +725,11 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
+/* Prontuario back button: hidden on desktop, shown by mobile rule below */
+.prontuario-back-btn {
+  display: none;
+}
+
 /* ── Mobile (≤ 640px) ───────────────────────────────────────────────── */
 @media (max-width: 640px) {
   .main-content {
@@ -796,6 +801,24 @@ h1, h2, h3, h4, h5, h6 {
   /* Prontuario: client list above details */
   .prontuario-grid {
     grid-template-columns: 1fr !important;
+  }
+
+  /* Prontuario mobile master-detail: hide list when patient is selected */
+  .prontuario-grid--selected .prontuario-left-panel {
+    display: none !important;
+  }
+
+  /* Prontuario mobile master-detail: hide details when no patient is selected */
+  .prontuario-grid:not(.prontuario-grid--selected) .prontuario-right-panel {
+    display: none !important;
+  }
+
+  /* Back-to-list button: visible only on mobile */
+  .prontuario-back-btn {
+    display: flex !important;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
   }
 
   /* Prontuario: patient header stacks vertically */
