@@ -490,7 +490,6 @@ export const AgendamentoPublico: React.FC<Props> = ({ slug }) => {
                     Nenhum horário disponível nesta data. Selecione outro dia.
                   </p>
                 ) : (
-                  {/* RESP-014: minWidth 80px e padding 8px horizontal garantem área de toque ≥ 44px (Apple HIG) em mobile */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: '8px' }}>
                     {slots.map(t => (
                       <button
