@@ -774,7 +774,8 @@ export const RedeClinicas: React.FC<RedeClinicasProps> = ({ userId, onRedeUpdate
                     Nenhuma métrica disponível para o período selecionado.
                   </div>
                 ) : (
-                  <div>
+                  <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                    <div style={{ minWidth: '540px' }}>
                     {/* Header da tabela */}
                     <div style={{
                       display: 'grid',
@@ -850,6 +851,7 @@ export const RedeClinicas: React.FC<RedeClinicasProps> = ({ userId, onRedeUpdate
                         </div>
                       );
                     })}
+                  </div>
                   </div>
                 )}
               </div>

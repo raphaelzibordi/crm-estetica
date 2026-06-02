@@ -490,7 +490,7 @@ export const AgendamentoPublico: React.FC<Props> = ({ slug }) => {
                     Nenhum horário disponível nesta data. Selecione outro dia.
                   </p>
                 ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))', gap: '8px' }}>
                     {slots.map(t => (
                       <button
                         key={t}

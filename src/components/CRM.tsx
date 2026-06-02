@@ -283,6 +283,7 @@ export const CRM: React.FC<CRMProps> = ({ userId, userName, onConvertidoAgendar 
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '20px 24px 16px', flexShrink: 0,
         borderBottom: '1px solid var(--color-border)',
+        flexWrap: 'wrap', gap: '12px',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <div>

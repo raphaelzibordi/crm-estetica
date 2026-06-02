@@ -504,7 +504,7 @@ export const Repassos: React.FC<RepassosProps> = ({ userId, nomeGestor, unidadeI
               )}
 
               {/* KPIs */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
                 {[
                   { label: 'Total de Atendimentos', value: String(preview.totalAtendimentos), accent: false },
                   { label: 'Faturamento Bruto', value: fmtBRL(preview.faturamentoBruto), accent: false },
@@ -642,7 +642,7 @@ export const Repassos: React.FC<RepassosProps> = ({ userId, nomeGestor, unidadeI
                 {expandedFechId === f.id && (
                   <div style={{ borderTop: '1px solid var(--color-border)', padding: '20px' }}>
                     {/* KPIs */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '16px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', marginBottom: '16px' }}>
                       {[
                         { label: 'Atendimentos', value: String(f.totalAtendimentos) },
                         { label: 'Faturamento Bruto', value: fmtBRL(f.faturamentoBruto) },

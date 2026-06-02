@@ -552,6 +552,24 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--color-primary);
 }
 
+/* ── Gestão: header sempre em coluna + tabs sempre scroll horizontal ── */
+.gestao-header {
+  flex-wrap: wrap;
+  row-gap: 16px;
+}
+
+.gestao-tabs {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+.gestao-tabs::-webkit-scrollbar {
+  display: none;
+}
+
 /* ── Gestão Financeiro: Filtro Global de Período ───────────────────── */
 .financeiro-filter-card {
   border: 1px solid var(--color-border);
@@ -799,23 +817,15 @@ h1, h2, h3, h4, h5, h6 {
   }
 
   /* Gestao: header wraps */
+  /* Gestao: header alinha verticalmente */
   .gestao-header {
-    flex-direction: column !important;
     align-items: flex-start !important;
     gap: 12px !important;
   }
 
-  /* Gestao: tabs scrollable row */
+  /* Gestao: tabs — width 100% no mobile (já tem scroll global) */
   .gestao-tabs {
-    overflow-x: auto;
     width: 100%;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    flex-shrink: 0;
-  }
-
-  .gestao-tabs::-webkit-scrollbar {
-    display: none;
   }
 
   /* Gestao: KPI 4-col → 2-col */
@@ -989,6 +999,13 @@ textarea,
 select {
   max-width: 100%;
   box-sizing: border-box;
+}
+
+/* ── h1 páginas: reduz no mobile para não quebrar layout ──────────── */
+@media (max-width: 480px) {
+  .main-content h1 {
+    font-size: 22px;
+  }
 }
 
 /* ── iOS Safe Area (Dynamic Island / notch / home indicator) ──────── */

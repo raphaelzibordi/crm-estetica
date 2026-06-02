@@ -421,7 +421,7 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
                 <Building2 size={16} style={{ color: 'var(--color-primary)' }} />
                 <h3 style={{ fontSize: '16px', fontWeight: 600 }}>Dados da Clínica</h3>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
                 <div className="form-group">
                   <label className="form-label">Nome da Clínica</label>
                   <input className="form-input" value={nomeClinica} onChange={e => setNomeClinica(e.target.value)} placeholder="Ex: Lumina Estética Avançada" />
@@ -493,7 +493,7 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
               <div className="form-group">
                 <label className="form-label">Seu Nome</label>
                 <input className="form-input" value={nomePerfil} onChange={e => setNomePerfil(e.target.value)} placeholder="Dra. Helena Martins" />

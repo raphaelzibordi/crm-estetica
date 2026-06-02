@@ -808,16 +808,20 @@ export const Agenda: React.FC<AgendaProps> = ({
               Carregando semana...
             </div>
           )}
-          <WeekGrid
-            weekStart={startOfWeek(cursor)}
-            agendamentos={weekData}
-            today={today}
-            onDayClick={(d) => {
-              setCursor(d);
-              setView('hoje');
-            }}
-            onAgendamentoClick={(a) => onOpenProntuario?.(a.clienteId)}
-          />
+          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            <div style={{ minWidth: '580px' }}>
+              <WeekGrid
+                weekStart={startOfWeek(cursor)}
+                agendamentos={weekData}
+                today={today}
+                onDayClick={(d) => {
+                  setCursor(d);
+                  setView('hoje');
+                }}
+                onAgendamentoClick={(a) => onOpenProntuario?.(a.clienteId)}
+              />
+            </div>
+          </div>
         </div>
       )}
 

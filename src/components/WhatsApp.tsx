@@ -278,7 +278,7 @@ export const WhatsApp: React.FC<WhatsAppProps> = ({ userId, userName }) => {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--color-border)', marginBottom: 24 }}>
+      <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--color-border)', marginBottom: 24, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', flexShrink: 0 }}>
         {([
           { id: 'enviar',       label: 'Enviar',        icon: Send },
           { id: 'historico',    label: 'Histórico',     icon: History,   count: mensagens.length },
@@ -302,7 +302,7 @@ export const WhatsApp: React.FC<WhatsAppProps> = ({ userId, userName }) => {
 
       {/* ── TAB: ENVIAR ── */}
       {tab === 'enviar' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24 }}>
           {/* Composição */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Nova mensagem</h3>
