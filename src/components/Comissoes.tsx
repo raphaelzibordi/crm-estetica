@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
-  AlertTriangle, Plus, Edit2, Trash2, X, Check, ChevronDown,
+  AlertTriangle, Plus, Edit2, Trash2, X, Check, ChevronDown, ChevronRight,
   DollarSign, Percent, Users, Lock, Download, TrendingUp,
 } from 'lucide-react';
 import { api } from '../lib/api';
@@ -606,7 +606,7 @@ export const Comissoes: React.FC<ComissoesProps> = ({ userId, nomeGestor, unidad
       {/* ── MODAL: REGRA ─────────────────────────────────────────────── */}
       {showRegraModal && (
         <ModalOverlay onClose={() => setShowRegraModal(false)}>
-          <div style={{ padding: 24, minWidth: 440 }}>
+          <div style={{ padding: 24 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
                 {editingRegra ? 'Editar Regra' : 'Nova Regra de Comissão'}
@@ -695,7 +695,7 @@ export const Comissoes: React.FC<ComissoesProps> = ({ userId, nomeGestor, unidad
       {/* ── MODAL: FECHAR PERÍODO ─────────────────────────────────────── */}
       {showFechamentoModal && (
         <ModalOverlay onClose={() => setShowFechamentoModal(false)}>
-          <div style={{ padding: 24, minWidth: 440 }}>
+          <div style={{ padding: 24 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Fechar Período de Comissões</h3>
               <button onClick={() => setShowFechamentoModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
@@ -800,19 +800,20 @@ const GrupoComissao: React.FC<{ grupo: RelatorioComissaoProfissional }> = ({ gru
 
       {/* Tabela de itens */}
       {expanded && (
-        <div style={{ borderTop: '1px solid #F0EDE8', overflowX: 'auto' }}>
+        <div style={{ borderTop: '1px solid #F0EDE8' }}>
+          <ScrollTableWrapper>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: '#F5F3F0' }}>
-                {['Data', 'Procedimento', 'Base', 'Regra', 'Comissão', 'Status'].map(h => (
-                  <th key={h} style={{ padding: '8px 14px', textAlign: 'left', fontWeight: 600, color: '#6B6B7E', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
+                {['Data', 'Procedimento', 'Base', 'Regra', 'Comissão', 'Status'].map((h, i) => (
+                  <th key={h} style={{ padding: '8px 14px', textAlign: 'left', fontWeight: 600, color: '#6B6B7E', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', ...(i === 0 ? { position: 'sticky', left: 0, background: '#F5F3F0', zIndex: 1 } : {}) }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {grupo.itens.map(item => (
                 <tr key={item.id} style={{ borderTop: '1px solid #F0EDE8' }}>
-                  <td style={{ padding: '10px 14px', color: '#4A4A5E' }}>{fmtDate(item.dataAtendimento)}</td>
+                  <td style={{ padding: '10px 14px', color: '#4A4A5E', position: 'sticky', left: 0, background: '#FFF', zIndex: 1 }}>{fmtDate(item.dataAtendimento)}</td>
                   <td style={{ padding: '10px 14px', color: '#1A1A2E', fontWeight: 500 }}>{item.procedimentoNome}</td>
                   <td style={{ padding: '10px 14px', color: '#4A4A5E' }}>{fmtBRL(item.valorBase)}</td>
                   <td style={{ padding: '10px 14px' }}>
@@ -838,6 +839,7 @@ const GrupoComissao: React.FC<{ grupo: RelatorioComissaoProfissional }> = ({ gru
               ))}
             </tbody>
           </table>
+          </ScrollTableWrapper>
         </div>
       )}
     </div>
@@ -876,4 +878,36 @@ const inputStyle: React.CSSProperties = {
 
 const selectStyle: React.CSSProperties = {
   ...inputStyle, appearance: 'auto',
+};
+
+// ─── ScrollTableWrapper ───────────────────────────────────────────────────────
+
+const ScrollTableWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [showFade, setShowFade] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const check = () => setShowFade(el.scrollLeft < el.scrollWidth - el.clientWidth - 2);
+    check();
+    el.addEventListener('scroll', check, { passive: true });
+    window.addEventListener('resize', check, { passive: true });
+    return () => { el.removeEventListener('scroll', check); window.removeEventListener('resize', check); };
+  }, []);
+  return (
+    <div style={{ position: 'relative' }}>
+      <div ref={ref} style={{ overflowX: 'auto' }}>
+        {children}
+      </div>
+      {showFade && (
+        <div style={{
+          position: 'absolute', top: 0, right: 0, bottom: 0, width: 56,
+          background: 'linear-gradient(to right, transparent, rgba(255,255,255,0.92))',
+          pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 10,
+        }}>
+          <ChevronRight size={16} style={{ color: 'var(--color-text-muted)', opacity: 0.7 }} />
+        </div>
+      )}
+    </div>
+  );
 };

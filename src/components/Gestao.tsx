@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { Agendamento, FechamentoFinanceiro, ItemEstoque, Procedimento } from '../types';
 import {
   AlertTriangle, DollarSign, Wallet, LayoutDashboard,
@@ -83,6 +83,16 @@ function diasNoIntervalo(start: string, end: string): number {
 
 export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor', unidadeId }) => {
   const [tab, setTab] = useState<ActiveTab>('dashboard');
+
+  // Tabs scroll fade indicator
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const [tabsShowFade, setTabsShowFade] = useState(true);
+  const handleTabsScroll = () => {
+    const el = tabsRef.current;
+    if (!el) return;
+    setTabsShowFade(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  };
+
   const [estoque, setEstoque] = useState<ItemEstoque[]>([]);
   const [financeiro, setFinanceiro] = useState<FechamentoFinanceiro>(EMPTY_FECHAMENTO);
   const [realizadosNoPeriodo, setRealizadosNoPeriodo] = useState<Agendamento[]>([]);
@@ -113,6 +123,18 @@ export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor', uni
 
   // Recarrega financeiro sempre que o range mudar (filtro temporal global)
   useEffect(() => { loadFinanceiro(rangeStart, rangeEnd); }, [userId, rangeStart, rangeEnd]);
+
+  // Auto-scroll da aba ativa para o centro do container ao trocar de tab
+  const TAB_ORDER: ActiveTab[] = ['dashboard', 'financeiro', 'contas', 'estoque', 'procedimentos', 'faltas', 'comissoes', 'repassos', 'ocupacao', 'salas', 'rentabilidade'];
+  useEffect(() => {
+    const el = tabsRef.current;
+    if (!el) return;
+    const idx = TAB_ORDER.indexOf(tab);
+    const btn = el.children[idx] as HTMLElement;
+    if (!btn) return;
+    const left = btn.offsetLeft - el.clientWidth / 2 + btn.offsetWidth / 2;
+    el.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
+  }, [tab]);
 
   const loadFinanceiro = async (inicio: string, fim: string) => {
     try {
@@ -226,7 +248,8 @@ export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor', uni
           <h1 style={{ fontSize: '28px', color: 'var(--color-text-main)', marginBottom: '6px' }}>Gestão & Back-Office</h1>
           <p style={{ color: 'var(--color-text-muted)', fontSize: '14px' }}>Financeiro, estoque e catálogo de procedimentos da clínica.</p>
         </div>
-        <div className="gestao-tabs" style={{ display: 'flex', gap: '4px', background: '#f8f8f6', border: '1px solid var(--color-border)', borderRadius: '10px', padding: '4px' }}>
+        <div style={{ position: 'relative' }}>
+        <div className="gestao-tabs" ref={tabsRef} onScroll={handleTabsScroll} style={{ display: 'flex', gap: '4px', background: '#f8f8f6', border: '1px solid var(--color-border)', borderRadius: '10px', padding: '4px' }}>
           <button style={tabStyle('dashboard')} onClick={() => setTab('dashboard')}>
             <LayoutDashboard size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Dashboard
           </button>
@@ -261,6 +284,22 @@ export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor', uni
           <button style={tabStyle('rentabilidade')} onClick={() => setTab('rentabilidade')}>
             <TrendingUp size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Rentabilidade
           </button>
+        </div>
+        {tabsShowFade && (
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              top: 0,
+              right: 0,
+              bottom: 0,
+              width: '56px',
+              background: 'linear-gradient(to right, transparent, #f8f8f6)',
+              pointerEvents: 'none',
+              borderRadius: '0 10px 10px 0',
+            }}
+          />
+        )}
         </div>
       </div>
 

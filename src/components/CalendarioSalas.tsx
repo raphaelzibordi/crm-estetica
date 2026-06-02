@@ -58,7 +58,9 @@ export const CalendarioSalas: React.FC<CalendarioSalasProps> = ({
   const [loading, setLoading] = useState(false);
   const [filterSala, setFilterSala] = useState<string>('todas');
   const [detail, setDetail] = useState<Agendamento | null>(null);
+  const [canScrollRight, setCanScrollRight] = useState(false);
   const colorMapRef = useRef(new Map<string, number>());
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
   const today = useMemo(() => toISO(new Date()), []);
@@ -78,6 +80,19 @@ export const CalendarioSalas: React.FC<CalendarioSalasProps> = ({
   }, [userId, weekStart]);
 
   useEffect(() => { fetchWeek(); }, [fetchWeek]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const check = () => setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 2);
+    check();
+    el.addEventListener('scroll', check, { passive: true });
+    window.addEventListener('resize', check, { passive: true });
+    return () => {
+      el.removeEventListener('scroll', check);
+      window.removeEventListener('resize', check);
+    };
+  }, [salasFiltradas]);
 
   // Merge today's live agendamentos into the loaded set for same-day accuracy
   const allAgendamentos = useMemo(() => {
@@ -195,11 +210,12 @@ export const CalendarioSalas: React.FC<CalendarioSalasProps> = ({
             </p>
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
+          <div style={{ position: 'relative' }}>
+          <div ref={scrollRef} style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '720px' }}>
               <thead>
                 <tr style={{ background: 'var(--color-primary-light)' }}>
-                  <th style={{ width: '140px', padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)', borderRight: '1px solid var(--color-border)' }}>
+                  <th style={{ width: '140px', padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)', borderRight: '1px solid var(--color-border)', position: 'sticky', left: 0, zIndex: 2, background: 'var(--color-primary-light)' }}>
                     Sala
                   </th>
                   {weekDays.map((d, i) => (
@@ -224,7 +240,7 @@ export const CalendarioSalas: React.FC<CalendarioSalasProps> = ({
               <tbody>
                 {salasFiltradas.map((sala, ri) => (
                   <tr key={sala} style={{ borderTop: ri === 0 ? '2px solid var(--color-border)' : '1px solid var(--color-border)' }}>
-                    <td style={{ padding: '12px 16px', fontWeight: 600, fontSize: '13px', color: 'var(--color-text-main)', borderRight: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-primary-light)', whiteSpace: 'nowrap' }}>
+                    <td style={{ padding: '12px 16px', fontWeight: 600, fontSize: '13px', color: 'var(--color-text-main)', borderRight: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-primary-light)', whiteSpace: 'nowrap', position: 'sticky', left: 0, zIndex: 1 }}>
                       {sala}
                     </td>
                     {weekDays.map((d, di) => {
@@ -287,6 +303,17 @@ export const CalendarioSalas: React.FC<CalendarioSalasProps> = ({
                 ))}
               </tbody>
             </table>
+          </div>
+          {canScrollRight && (
+            <div style={{
+              position: 'absolute', top: 0, right: 0, bottom: 0, width: '56px',
+              background: 'linear-gradient(to right, transparent, rgba(255,255,255,0.92))',
+              pointerEvents: 'none', display: 'flex', alignItems: 'center',
+              justifyContent: 'flex-end', paddingRight: '10px',
+            }}>
+              <ChevronRight size={16} style={{ color: 'var(--color-text-muted)', opacity: 0.7 }} />
+            </div>
+          )}
           </div>
         )}
       </div>

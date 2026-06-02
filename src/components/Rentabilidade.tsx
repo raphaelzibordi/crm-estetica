@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   TrendingUp, Users, DollarSign, Activity, Award,
   Download, BarChart2, User, Calendar,
-  Settings, Star, Filter,
+  Settings, Star, Filter, ChevronRight,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import type { Agendamento } from '../types';
@@ -244,6 +244,38 @@ const FaixaBadge: React.FC<{ faixa: FaixaLTV }> = ({ faixa }) => {
 };
 
 // ─── Main Component ───────────────────────────────────────────────────────────
+
+// ─── ScrollTableWrapper ───────────────────────────────────────────────────────
+
+const ScrollTableWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [showFade, setShowFade] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const check = () => setShowFade(el.scrollLeft < el.scrollWidth - el.clientWidth - 2);
+    check();
+    el.addEventListener('scroll', check, { passive: true });
+    window.addEventListener('resize', check, { passive: true });
+    return () => { el.removeEventListener('scroll', check); window.removeEventListener('resize', check); };
+  }, []);
+  return (
+    <div style={{ position: 'relative' }}>
+      <div ref={ref} style={{ overflowX: 'auto' }}>
+        {children}
+      </div>
+      {showFade && (
+        <div style={{
+          position: 'absolute', top: 0, right: 0, bottom: 0, width: 56,
+          background: 'linear-gradient(to right, transparent, rgba(255,255,255,0.92))',
+          pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 10,
+        }}>
+          <ChevronRight size={16} style={{ color: 'var(--color-text-muted)', opacity: 0.7 }} />
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const Rentabilidade: React.FC<RentabilidadeProps> = ({ userId }) => {
   const [loading, setLoading] = useState(true);
@@ -630,7 +662,7 @@ export const Rentabilidade: React.FC<RentabilidadeProps> = ({ userId }) => {
                 ))}
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '24px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px', marginBottom: '24px' }}>
                 {/* Bar chart: top 10 procedimentos */}
                 <div className="card" style={{ padding: '24px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
@@ -706,19 +738,19 @@ export const Rentabilidade: React.FC<RentabilidadeProps> = ({ userId }) => {
                     Nenhum procedimento encontrado para o período e filtros selecionados.
                   </p>
                 ) : (
-                  <div style={{ overflowX: 'auto' }}>
+                  <ScrollTableWrapper>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                       <thead>
                         <tr style={{ borderBottom: '2px solid var(--color-border)' }}>
-                          {['#', 'Procedimento', 'Receita Total', 'Atendimentos', 'Ticket Médio'].map(h => (
-                            <th key={h} style={{ padding: '10px 12px', textAlign: h === '#' || h === 'Atendimentos' ? 'center' : 'left', fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{h}</th>
+                          {['#', 'Procedimento', 'Receita Total', 'Atendimentos', 'Ticket Médio'].map((h, i) => (
+                            <th key={h} style={{ padding: '10px 12px', textAlign: h === '#' || h === 'Atendimentos' ? 'center' : 'left', fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', ...(i === 0 ? { position: 'sticky', left: 0, background: '#F5F3F0', zIndex: 1 } : {}) }}>{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
                         {rankingProcedimentos.map((p, i) => (
                           <tr key={p.procedimento} style={{ borderBottom: '1px solid var(--color-border)', background: i % 2 === 0 ? 'transparent' : '#fafaf8' }}>
-                            <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: i < 3 ? '#e67e22' : 'var(--color-text-muted)' }}>{i + 1}</td>
+                            <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: i < 3 ? '#e67e22' : 'var(--color-text-muted)', position: 'sticky', left: 0, background: i % 2 === 0 ? '#fff' : '#fafaf8', zIndex: 1 }}>{i + 1}</td>
                             <td style={{ padding: '10px 12px', fontWeight: 600 }}>{p.procedimento}</td>
                             <td style={{ padding: '10px 12px', fontWeight: 700, color: 'var(--color-success)' }}>{fmtBRL(p.receitaTotal)}</td>
                             <td style={{ padding: '10px 12px', textAlign: 'center' }}>{p.atendimentos}</td>
@@ -727,7 +759,7 @@ export const Rentabilidade: React.FC<RentabilidadeProps> = ({ userId }) => {
                         ))}
                       </tbody>
                     </table>
-                  </div>
+                  </ScrollTableWrapper>
                 )}
               </div>
             </>
@@ -761,19 +793,19 @@ export const Rentabilidade: React.FC<RentabilidadeProps> = ({ userId }) => {
                   Nenhum paciente com atendimentos finalizados no período selecionado.
                 </p>
               ) : (
-                <div style={{ overflowX: 'auto' }}>
+                <ScrollTableWrapper>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                     <thead>
                       <tr style={{ borderBottom: '2px solid var(--color-border)' }}>
-                        {['#', 'Paciente', 'LTV Total', 'Atendimentos', 'Ticket Médio', 'Última Visita', 'Faixa'].map(h => (
-                          <th key={h} style={{ padding: '10px 12px', textAlign: h === '#' || h === 'Atendimentos' ? 'center' : 'left', fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{h}</th>
+                        {['#', 'Paciente', 'LTV Total', 'Atendimentos', 'Ticket Médio', 'Última Visita', 'Faixa'].map((h, i) => (
+                          <th key={h} style={{ padding: '10px 12px', textAlign: h === '#' || h === 'Atendimentos' ? 'center' : 'left', fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', ...(i === 0 ? { position: 'sticky', left: 0, background: '#F5F3F0', zIndex: 1 } : {}) }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {ltvPorPaciente.slice(0, topLTVCount).map((p, i) => (
                         <tr key={p.clienteId} style={{ borderBottom: '1px solid var(--color-border)', background: i % 2 === 0 ? 'transparent' : '#fafaf8' }}>
-                          <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: i < 3 ? '#6b9e78' : 'var(--color-text-muted)' }}>{i + 1}</td>
+                          <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: i < 3 ? '#6b9e78' : 'var(--color-text-muted)', position: 'sticky', left: 0, background: i % 2 === 0 ? '#fff' : '#fafaf8', zIndex: 1 }}>{i + 1}</td>
                           <td style={{ padding: '10px 12px', fontWeight: 600 }}>{p.clienteNome}</td>
                           <td style={{ padding: '10px 12px', fontWeight: 700, color: 'var(--color-success)' }}>{fmtBRL(p.total)}</td>
                           <td style={{ padding: '10px 12px', textAlign: 'center' }}>{p.atendimentos}</td>
@@ -786,7 +818,7 @@ export const Rentabilidade: React.FC<RentabilidadeProps> = ({ userId }) => {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </ScrollTableWrapper>
               )}
             </div>
           )}

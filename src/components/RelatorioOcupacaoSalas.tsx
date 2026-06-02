@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Download, Printer, DoorOpen, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import { Download, Printer, DoorOpen, TrendingUp, TrendingDown, Minus, ChevronRight } from 'lucide-react';
 import { api } from '../lib/api';
 import type { Agendamento, Sala } from '../types';
 
@@ -394,12 +394,12 @@ export const RelatorioOcupacaoSalas: React.FC<Props> = ({ userId }) => {
                 Detalhes por Sala
               </h3>
             </div>
-            <div style={{ overflowX: 'auto' }}>
+            <ScrollTableWrapper>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: 'var(--color-bg)' }}>
-                    {['SALA', 'OCUPAÇÃO', 'AGENDAMENTOS', 'HRS OCUPADAS', 'HRS DISPONÍVEIS', 'RANKING'].map(h => (
-                      <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border)' }}>
+                    {['SALA', 'OCUPAÇÃO', 'AGENDAMENTOS', 'HRS OCUPADAS', 'HRS DISPONÍVEIS', 'RANKING'].map((h, i) => (
+                      <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border)', ...(i === 0 ? { position: 'sticky', left: 0, background: 'var(--color-bg)', zIndex: 1 } : {}) }}>
                         {h}
                       </th>
                     ))}
@@ -410,7 +410,7 @@ export const RelatorioOcupacaoSalas: React.FC<Props> = ({ userId }) => {
                     const col = rankColor(m.ranking);
                     return (
                       <tr key={m.sala.id} style={{ borderBottom: idx < metricas.length - 1 ? '1px solid var(--color-border)' : 'none' }}>
-                        <td style={{ padding: '14px 16px', fontSize: 14, fontWeight: 600, color: 'var(--color-text-main)' }}>
+                        <td style={{ padding: '14px 16px', fontSize: 14, fontWeight: 600, color: 'var(--color-text-main)', position: 'sticky', left: 0, background: 'var(--bg-card)', zIndex: 1 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                             <DoorOpen size={14} style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
                             {m.sala.nome}
@@ -445,7 +445,7 @@ export const RelatorioOcupacaoSalas: React.FC<Props> = ({ userId }) => {
                   })}
                 </tbody>
               </table>
-            </div>
+            </ScrollTableWrapper>
           </div>
 
           {/* Legenda */}
@@ -501,4 +501,36 @@ const inputDate: React.CSSProperties = {
   padding: '6px 10px', borderRadius: 8, fontSize: 13,
   border: '1px solid var(--color-border)',
   background: 'var(--bg-card)', color: 'var(--color-text-main)',
+};
+
+// ─── ScrollTableWrapper ───────────────────────────────────────────────────────
+
+const ScrollTableWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [showFade, setShowFade] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const check = () => setShowFade(el.scrollLeft < el.scrollWidth - el.clientWidth - 2);
+    check();
+    el.addEventListener('scroll', check, { passive: true });
+    window.addEventListener('resize', check, { passive: true });
+    return () => { el.removeEventListener('scroll', check); window.removeEventListener('resize', check); };
+  }, []);
+  return (
+    <div style={{ position: 'relative' }}>
+      <div ref={ref} style={{ overflowX: 'auto' }}>
+        {children}
+      </div>
+      {showFade && (
+        <div style={{
+          position: 'absolute', top: 0, right: 0, bottom: 0, width: 56,
+          background: 'linear-gradient(to right, transparent, rgba(255,255,255,0.92))',
+          pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 10,
+        }}>
+          <ChevronRight size={16} style={{ color: 'var(--color-text-muted)', opacity: 0.7 }} />
+        </div>
+      )}
+    </div>
+  );
 };

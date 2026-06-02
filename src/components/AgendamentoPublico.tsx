@@ -490,13 +490,15 @@ export const AgendamentoPublico: React.FC<Props> = ({ slug }) => {
                     Nenhum horário disponível nesta data. Selecione outro dia.
                   </p>
                 ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))', gap: '8px' }}>
+                  {/* RESP-014: minWidth 80px e padding 8px horizontal garantem área de toque ≥ 44px (Apple HIG) em mobile */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: '8px' }}>
                     {slots.map(t => (
                       <button
                         key={t}
                         onClick={() => setSelTime(t)}
                         style={{
-                          padding: '10px 4px',
+                          padding: '10px 8px',
+                          minHeight: '44px',
                           borderRadius: '8px',
                           border: selTime === t ? `2px solid ${PRIMARY}` : `1px solid ${BORDER}`,
                           background: selTime === t ? PRIMARY : '#fff',

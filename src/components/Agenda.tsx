@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { Agendamento, Procedimento, Profissional } from '../types';
 import { Users, Clock, Sparkles, ChevronLeft, ChevronRight, CalendarRange, AlertTriangle } from 'lucide-react';
 import { api } from '../lib/api';
@@ -89,6 +89,7 @@ export const Agenda: React.FC<AgendaProps> = ({
   const [sugestoes, setSugestoes] = useState<EncaixeSugestao[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
   const [loadingEncaixe, setLoadingEncaixe] = useState(false);
+  const [mobileHojeTab, setMobileHojeTab] = useState<'grade' | 'encaixe'>('grade');
 
   // ============================================================
   // STATES E HANDLERS DE ACOLHIMENTO E CANCELAMENTO
@@ -106,6 +107,15 @@ export const Agenda: React.FC<AgendaProps> = ({
   const [newSala, setNewSala] = useState('');
   const [modalAgendamentos, setModalAgendamentos] = useState<Agendamento[]>([]);
   const [salaOptions, setSalaOptions] = useState<SalaStatus[]>([]);
+
+  // WeekGrid scroll indicator
+  const weekScrollRef = useRef<HTMLDivElement>(null);
+  const [weekShowFade, setWeekShowFade] = useState(true);
+  const handleWeekScroll = () => {
+    const el = weekScrollRef.current;
+    if (!el) return;
+    setWeekShowFade(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  };
 
   // Carrega procedimentos + equipe ativa do banco (com fallback de seed)
   useEffect(() => {
@@ -506,7 +516,7 @@ export const Agenda: React.FC<AgendaProps> = ({
         </div>
 
         {/* Navegação */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <button onClick={goPrev} className="btn btn-outline" style={{ padding: '8px 10px' }} title="Anterior">
             <ChevronLeft size={16} />
           </button>
@@ -517,11 +527,11 @@ export const Agenda: React.FC<AgendaProps> = ({
             <ChevronRight size={16} />
           </button>
           <span style={{
-            marginLeft: '12px',
             fontSize: '14px',
             fontWeight: 600,
             color: 'var(--color-text-main)',
             textTransform: 'capitalize',
+            whiteSpace: 'nowrap',
           }}>
             {headerLabel}
           </span>
@@ -532,8 +542,26 @@ export const Agenda: React.FC<AgendaProps> = ({
           VISÃO HOJE (formato listagem original — não alterar)
           ========================================================== */}
       {view === 'hoje' && (
-        <div className="agenda-hoje-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '32px' }}>
-          <div className="card" style={{ padding: '32px' }}>
+        <>
+          {/* Tab bar: visível apenas em mobile (≤767px) */}
+          <div className="agenda-hoje-tab-bar">
+            <button
+              className={`agenda-hoje-tab${mobileHojeTab === 'grade' ? ' agenda-hoje-tab--active' : ''}`}
+              onClick={() => setMobileHojeTab('grade')}
+            >
+              Grade do Dia
+            </button>
+            <button
+              className={`agenda-hoje-tab${mobileHojeTab === 'encaixe' ? ' agenda-hoje-tab--active' : ''}`}
+              onClick={() => setMobileHojeTab('encaixe')}
+            >
+              <Sparkles size={14} />
+              Encaixe Inteligente
+            </button>
+          </div>
+
+          <div className={`agenda-hoje-grid agenda-hoje-grid--tab-${mobileHojeTab}`} style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '32px' }}>
+          <div className="card agenda-hoje-col--grade" style={{ padding: '32px' }}>
             <div style={{
               display: 'flex',
               justifyContent: 'space-between',
@@ -687,7 +715,7 @@ export const Agenda: React.FC<AgendaProps> = ({
           </div>
 
           {/* Encaixe ideal panel */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          <div className="agenda-hoje-col--encaixe" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <div className="card" style={{ padding: '24px', borderColor: 'var(--color-primary)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
                 <Sparkles size={18} style={{ color: 'var(--color-primary)' }} />
@@ -796,6 +824,7 @@ export const Agenda: React.FC<AgendaProps> = ({
             )}
           </div>
         </div>
+        </>
       )}
 
       {/* ==========================================================
@@ -808,19 +837,57 @@ export const Agenda: React.FC<AgendaProps> = ({
               Carregando semana...
             </div>
           )}
-          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-            <div style={{ minWidth: '580px' }}>
-              <WeekGrid
-                weekStart={startOfWeek(cursor)}
-                agendamentos={weekData}
-                today={today}
-                onDayClick={(d) => {
-                  setCursor(d);
-                  setView('hoje');
-                }}
-                onAgendamentoClick={(a) => onOpenProntuario?.(a.clienteId)}
-              />
+          <div style={{ position: 'relative' }}>
+            <div
+              ref={weekScrollRef}
+              onScroll={handleWeekScroll}
+              style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}
+            >
+              <div style={{ minWidth: '580px' }}>
+                <WeekGrid
+                  weekStart={startOfWeek(cursor)}
+                  agendamentos={weekData}
+                  today={today}
+                  onDayClick={(d) => {
+                    setCursor(d);
+                    setView('hoje');
+                  }}
+                  onAgendamentoClick={(a) => onOpenProntuario?.(a.clienteId)}
+                />
+              </div>
             </div>
+            {weekShowFade && (
+              <div
+                aria-hidden="true"
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  right: 0,
+                  bottom: 0,
+                  width: '56px',
+                  background: 'linear-gradient(to right, transparent, rgba(255,255,255,0.95))',
+                  pointerEvents: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'flex-end',
+                  paddingRight: '6px',
+                }}
+              >
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '24px',
+                  height: '24px',
+                  borderRadius: '50%',
+                  background: 'var(--color-primary)',
+                  color: '#fff',
+                  opacity: 0.85,
+                }}>
+                  <ChevronRight size={14} />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1118,7 +1185,7 @@ const WeekGrid: React.FC<WeekGridProps> = ({
       </div>
 
       {/* Grid de horários */}
-      <div style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+      <div>
         {HOUR_LIST.map((slot) => (
           <div
             key={slot}
@@ -1222,8 +1289,9 @@ interface YearGridProps {
   onDayClick: (d: Date) => void;
 }
 
+const MESES_ABREV = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
 const YearGrid: React.FC<YearGridProps> = ({ year, agendamentos, today, onDayClick }) => {
-  // Conta agendamentos por data
   const countByDate = useMemo(() => {
     const map: Record<string, number> = {};
     for (const a of agendamentos) {
@@ -1232,24 +1300,73 @@ const YearGrid: React.FC<YearGridProps> = ({ year, agendamentos, today, onDayCli
     return map;
   }, [agendamentos]);
 
+  const monthRefs = useRef<(HTMLDivElement | null)[]>([]);
+
   return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-        gap: '20px',
-      }}
-    >
-      {Array.from({ length: 12 }, (_, m) => (
-        <MiniMonth
-          key={m}
-          year={year}
-          month={m}
-          countByDate={countByDate}
-          today={today}
-          onDayClick={onDayClick}
-        />
-      ))}
+    <div>
+      {/* Jump-to-month bar — sticky, útil especialmente em mobile onde os 12 cards empilham */}
+      <div style={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 10,
+        background: 'var(--color-bg)',
+        display: 'flex',
+        gap: '6px',
+        overflowX: 'auto',
+        scrollbarWidth: 'none',
+        padding: '8px 0 10px',
+        marginBottom: '12px',
+        borderBottom: '1px solid var(--color-border)',
+      }}>
+        {MESES_ABREV.map((label, m) => {
+          const isCurrentMonth = today.getFullYear() === year && today.getMonth() === m;
+          return (
+            <button
+              key={m}
+              onClick={() => monthRefs.current[m]?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              style={{
+                flexShrink: 0,
+                padding: '4px 10px',
+                fontSize: '12px',
+                fontWeight: isCurrentMonth ? 700 : 500,
+                background: isCurrentMonth ? 'var(--color-primary)' : 'transparent',
+                border: `1px solid ${isCurrentMonth ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                borderRadius: '20px',
+                cursor: 'pointer',
+                color: isCurrentMonth ? '#FFFFFF' : 'var(--color-text-main)',
+                transition: 'var(--transition-smooth)',
+              }}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Grid de 12 mini-calendários */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+          gap: '20px',
+        }}
+      >
+        {Array.from({ length: 12 }, (_, m) => (
+          <div
+            key={m}
+            ref={(el) => { monthRefs.current[m] = el; }}
+            style={{ scrollMarginTop: '50px' }}
+          >
+            <MiniMonth
+              year={year}
+              month={m}
+              countByDate={countByDate}
+              today={today}
+              onDayClick={onDayClick}
+            />
+          </div>
+        ))}
+      </div>
     </div>
   );
 };

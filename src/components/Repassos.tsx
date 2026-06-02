@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   AlertTriangle, Plus, Edit2, X, Check,
-  Percent, Users, Lock, Download, FileText, ChevronDown, ChevronUp,
+  Percent, Users, Lock, Download, FileText, ChevronDown, ChevronUp, ChevronRight,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import type {
@@ -443,7 +443,7 @@ export const Repassos: React.FC<RepassosProps> = ({ userId, nomeGestor, unidadeI
           <div className="card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Parâmetros do cálculo</h3>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
               <div>
                 <label style={{ fontSize: '12px', color: 'var(--color-text-muted)', display: 'block', marginBottom: '6px' }}>Profissional</label>
                 <select
@@ -542,10 +542,11 @@ export const Repassos: React.FC<RepassosProps> = ({ userId, nomeGestor, unidadeI
                   </button>
                   {expandedPreview && (
                     <div style={{ border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
+                      <ScrollTableWrapper>
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                         <thead>
                           <tr style={{ background: 'var(--color-bg-alt)' }}>
-                            <th style={{ padding: '8px 12px', textAlign: 'left', color: 'var(--color-text-muted)', fontWeight: 600 }}>Data</th>
+                            <th style={{ padding: '8px 12px', textAlign: 'left', color: 'var(--color-text-muted)', fontWeight: 600, position: 'sticky', left: 0, background: 'var(--color-bg-alt)', zIndex: 1 }}>Data</th>
                             <th style={{ padding: '8px 12px', textAlign: 'left', color: 'var(--color-text-muted)', fontWeight: 600 }}>Procedimento</th>
                             <th style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--color-text-muted)', fontWeight: 600 }}>Valor Líquido</th>
                             <th style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--color-text-muted)', fontWeight: 600 }}>Repasse / Taxa</th>
@@ -554,7 +555,7 @@ export const Repassos: React.FC<RepassosProps> = ({ userId, nomeGestor, unidadeI
                         <tbody>
                           {preview.itens.map((item, idx) => (
                             <tr key={item.agendamentoId} style={{ borderTop: '1px solid var(--color-border)', background: idx % 2 === 0 ? 'transparent' : 'var(--color-bg-alt)' }}>
-                              <td style={{ padding: '8px 12px' }}>{fmtDate(item.data)}</td>
+                              <td style={{ padding: '8px 12px', position: 'sticky', left: 0, background: '#fff', zIndex: 1 }}>{fmtDate(item.data)}</td>
                               <td style={{ padding: '8px 12px' }}>{item.procedimento}</td>
                               <td style={{ padding: '8px 12px', textAlign: 'right' }}>{fmtBRL(item.valorLiquido)}</td>
                               <td style={{ padding: '8px 12px', textAlign: 'right', color: item.valorRepasse > 0 ? 'var(--color-accent)' : 'var(--color-text-muted)' }}>{item.valorRepasse > 0 ? fmtBRL(item.valorRepasse) : '—'}</td>
@@ -562,6 +563,7 @@ export const Repassos: React.FC<RepassosProps> = ({ userId, nomeGestor, unidadeI
                           ))}
                         </tbody>
                       </table>
+                      </ScrollTableWrapper>
                     </div>
                   )}
                 </div>
@@ -665,10 +667,11 @@ export const Repassos: React.FC<RepassosProps> = ({ userId, nomeGestor, unidadeI
                     {/* Tabela de itens */}
                     {f.itensSnapshot.length > 0 && (
                       <div style={{ border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden', marginBottom: '16px' }}>
+                        <ScrollTableWrapper>
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                           <thead>
                             <tr style={{ background: 'var(--color-bg-alt)' }}>
-                              <th style={{ padding: '8px 12px', textAlign: 'left', color: 'var(--color-text-muted)', fontWeight: 600 }}>Data</th>
+                              <th style={{ padding: '8px 12px', textAlign: 'left', color: 'var(--color-text-muted)', fontWeight: 600, position: 'sticky', left: 0, background: 'var(--color-bg-alt)', zIndex: 1 }}>Data</th>
                               <th style={{ padding: '8px 12px', textAlign: 'left', color: 'var(--color-text-muted)', fontWeight: 600 }}>Procedimento</th>
                               <th style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--color-text-muted)', fontWeight: 600 }}>Valor Líquido</th>
                               <th style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--color-text-muted)', fontWeight: 600 }}>Repasse / Taxa</th>
@@ -677,7 +680,7 @@ export const Repassos: React.FC<RepassosProps> = ({ userId, nomeGestor, unidadeI
                           <tbody>
                             {f.itensSnapshot.map((item, idx) => (
                               <tr key={item.agendamentoId} style={{ borderTop: '1px solid var(--color-border)', background: idx % 2 === 0 ? 'transparent' : 'var(--color-bg-alt)' }}>
-                                <td style={{ padding: '7px 12px' }}>{fmtDate(item.data)}</td>
+                                <td style={{ padding: '7px 12px', position: 'sticky', left: 0, background: '#fff', zIndex: 1 }}>{fmtDate(item.data)}</td>
                                 <td style={{ padding: '7px 12px' }}>{item.procedimento}</td>
                                 <td style={{ padding: '7px 12px', textAlign: 'right' }}>{fmtBRL(item.valorLiquido)}</td>
                                 <td style={{ padding: '7px 12px', textAlign: 'right', color: item.valorRepasse > 0 ? 'var(--color-accent)' : 'var(--color-text-muted)' }}>
@@ -687,6 +690,7 @@ export const Repassos: React.FC<RepassosProps> = ({ userId, nomeGestor, unidadeI
                             ))}
                           </tbody>
                         </table>
+                        </ScrollTableWrapper>
                       </div>
                     )}
 
@@ -838,6 +842,38 @@ export const Repassos: React.FC<RepassosProps> = ({ userId, nomeGestor, unidadeI
               </div>
             </form>
           </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── ScrollTableWrapper ───────────────────────────────────────────────────────
+
+const ScrollTableWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [showFade, setShowFade] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const check = () => setShowFade(el.scrollLeft < el.scrollWidth - el.clientWidth - 2);
+    check();
+    el.addEventListener('scroll', check, { passive: true });
+    window.addEventListener('resize', check, { passive: true });
+    return () => { el.removeEventListener('scroll', check); window.removeEventListener('resize', check); };
+  }, []);
+  return (
+    <div style={{ position: 'relative' }}>
+      <div ref={ref} style={{ overflowX: 'auto' }}>
+        {children}
+      </div>
+      {showFade && (
+        <div style={{
+          position: 'absolute', top: 0, right: 0, bottom: 0, width: 56,
+          background: 'linear-gradient(to right, transparent, rgba(255,255,255,0.92))',
+          pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 10,
+        }}>
+          <ChevronRight size={16} style={{ color: 'var(--color-text-muted)', opacity: 0.7 }} />
         </div>
       )}
     </div>

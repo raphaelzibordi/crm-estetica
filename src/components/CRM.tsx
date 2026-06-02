@@ -71,6 +71,12 @@ export const CRM: React.FC<CRMProps> = ({ userId, userName, onConvertidoAgendar 
   const [dragLeadId, setDragLeadId]       = useState<string | null>(null);
   const [dragOverEtapa, setDragOverEtapa] = useState<string | null>(null);
 
+  // Touch DnD
+  const touchLeadGhostRef   = useRef<HTMLDivElement>(null);
+  const touchActiveLeadRef  = useRef<{ id: string } | null>(null);
+  const [touchLeadGhostPos, setTouchLeadGhostPos]     = useState<{ x: number; y: number } | null>(null);
+  const [touchLeadGhostLabel, setTouchLeadGhostLabel] = useState('');
+
   // Modais
   const [leadModal, setLeadModal]         = useState<{ open: boolean; lead?: Lead; etapaId?: string }>({ open: false });
   const [detalheModal, setDetalheModal]   = useState<Lead | null>(null);
@@ -141,6 +147,60 @@ export const CRM: React.FC<CRMProps> = ({ userId, userName, onConvertidoAgendar 
       await api.dispararAutomacoesEtapa(dragLeadId, etapaId, userName, userId);
     } catch (err) {
       console.error('[CRM] Erro ao mover lead:', err);
+      load();
+    }
+  };
+
+  // ── Touch DnD handlers ─────────────────────────────────────────────
+  const handleTouchStartLead = (
+    e: React.TouchEvent<HTMLDivElement>,
+    leadId: string,
+    nome: string
+  ) => {
+    const touch = e.touches[0];
+    touchActiveLeadRef.current = { id: leadId };
+    setTouchLeadGhostLabel(nome);
+    setTouchLeadGhostPos({ x: touch.clientX, y: touch.clientY });
+    setDragLeadId(leadId);
+  };
+
+  const handleTouchMoveLead = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!touchActiveLeadRef.current) return;
+    const touch = e.touches[0];
+    setTouchLeadGhostPos({ x: touch.clientX, y: touch.clientY });
+    const ghostEl = touchLeadGhostRef.current;
+    if (ghostEl) ghostEl.style.display = 'none';
+    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (ghostEl) ghostEl.style.display = '';
+    const col = el?.closest('[data-dnd-col]');
+    const colId = col?.getAttribute('data-dnd-col') ?? null;
+    setDragOverEtapa(colId);
+  };
+
+  const handleTouchEndLead = async () => {
+    if (!touchActiveLeadRef.current) return;
+    const leadId = touchActiveLeadRef.current.id;
+    const etapaId = dragOverEtapa;
+    touchActiveLeadRef.current = null;
+    setTouchLeadGhostPos(null);
+    setDragLeadId(null);
+    setDragOverEtapa(null);
+    if (!leadId || !etapaId) return;
+    const lead = leads.find((l) => l.id === leadId);
+    if (!lead || lead.etapaId === etapaId) return;
+    const etapaDestino = etapas.find((et) => et.id === etapaId);
+    if (etapaDestino?.tipo === 'convertido') {
+      setConvertDialog(lead);
+      return;
+    }
+    setLeads((prev) => prev.map((l) =>
+      l.id === leadId ? { ...l, etapaId, etapaEntradaEm: new Date().toISOString() } : l
+    ));
+    try {
+      await api.moverLead(leadId, etapaId, userName, userId);
+      await api.dispararAutomacoesEtapa(leadId, etapaId, userName, userId);
+    } catch (err) {
+      console.error('[CRM] Erro ao mover lead (touch):', err);
       load();
     }
   };
@@ -339,6 +399,7 @@ export const CRM: React.FC<CRMProps> = ({ userId, userName, onConvertidoAgendar 
           return (
             <div
               key={etapa.id}
+              data-dnd-col={etapa.id}
               onDragOver={(e) => handleDragOver(e, etapa.id)}
               onDrop={(e) => handleDrop(e, etapa.id)}
               onDragLeave={() => setDragOverEtapa(null)}
@@ -403,6 +464,9 @@ export const CRM: React.FC<CRMProps> = ({ userId, userName, onConvertidoAgendar 
                     isDragging={dragLeadId === lead.id}
                     onDragStart={() => handleDragStart(lead.id)}
                     onDragEnd={handleDragEnd}
+                    onTouchStart={(e) => handleTouchStartLead(e, lead.id, lead.nome)}
+                    onTouchMove={handleTouchMoveLead}
+                    onTouchEnd={handleTouchEndLead}
                     onDetalhes={() => abrirDetalhe(lead)}
                     onEditar={() => abrirEditarLead(lead)}
                     onExcluir={() => excluirLead(lead)}
@@ -737,6 +801,34 @@ export const CRM: React.FC<CRMProps> = ({ userId, userName, onConvertidoAgendar 
           onClose={() => setAutomacoesModal(null)}
         />
       )}
+
+      {/* Touch drag ghost */}
+      {touchLeadGhostPos && (
+        <div
+          ref={touchLeadGhostRef}
+          style={{
+            position: 'fixed',
+            left: touchLeadGhostPos.x - 80,
+            top: touchLeadGhostPos.y - 20,
+            background: 'var(--color-primary)',
+            color: '#fff',
+            borderRadius: '8px',
+            padding: '8px 14px',
+            fontSize: '13px',
+            fontWeight: 600,
+            pointerEvents: 'none',
+            zIndex: 9999,
+            boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+            opacity: 0.9,
+            maxWidth: '160px',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {touchLeadGhostLabel}
+        </div>
+      )}
     </div>
   );
 };
@@ -751,6 +843,9 @@ interface LeadCardProps {
   isDragging: boolean;
   onDragStart: () => void;
   onDragEnd: () => void;
+  onTouchStart: (e: React.TouchEvent<HTMLDivElement>) => void;
+  onTouchMove: (e: React.TouchEvent<HTMLDivElement>) => void;
+  onTouchEnd: () => void;
   onDetalhes: () => void;
   onEditar: () => void;
   onExcluir: () => void;
@@ -758,7 +853,8 @@ interface LeadCardProps {
 }
 
 const LeadCard: React.FC<LeadCardProps> = ({
-  lead, etapa, isDragging, onDragStart, onDragEnd, onDetalhes, onEditar, onExcluir, onConverter,
+  lead, etapa, isDragging, onDragStart, onDragEnd, onTouchStart, onTouchMove, onTouchEnd,
+  onDetalhes, onEditar, onExcluir, onConverter,
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -779,6 +875,9 @@ const LeadCard: React.FC<LeadCardProps> = ({
       draggable={etapa.tipo !== 'perdido'}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
+      onTouchStart={etapa.tipo !== 'perdido' ? onTouchStart : undefined}
+      onTouchMove={etapa.tipo !== 'perdido' ? onTouchMove : undefined}
+      onTouchEnd={etapa.tipo !== 'perdido' ? onTouchEnd : undefined}
       onClick={onDetalhes}
       style={{
         background: 'var(--bg-card)',
@@ -786,6 +885,7 @@ const LeadCard: React.FC<LeadCardProps> = ({
         borderRadius: '10px',
         padding: '12px',
         cursor: etapa.tipo !== 'perdido' ? 'grab' : 'pointer',
+        touchAction: etapa.tipo !== 'perdido' ? 'none' : undefined,
         opacity: isDragging ? 0.4 : 1,
         transition: 'box-shadow 0.15s',
         position: 'relative',

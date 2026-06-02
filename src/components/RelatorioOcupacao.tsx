@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   BarChart3,
   Users,
@@ -8,6 +8,7 @@ import {
   Download,
   Printer,
   Calendar,
+  ChevronRight,
 } from 'lucide-react';
 import type { Agendamento, Procedimento } from '../types';
 import { api } from '../lib/api';
@@ -445,7 +446,7 @@ export const RelatorioOcupacao: React.FC<Props> = ({ userId }) => {
               ))}
             </div>
 
-            <div style={{ overflowX: 'auto' }}>
+            <ScrollTableWrapper>
               <table style={{ borderCollapse: 'separate', borderSpacing: '3px', minWidth: '500px' }}>
                 <thead>
                   <tr>
@@ -486,7 +487,7 @@ export const RelatorioOcupacao: React.FC<Props> = ({ userId }) => {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </ScrollTableWrapper>
           </div>
 
           {/* ── Occupancy by Professional + Room (2 col) ────────────────── */}
@@ -568,12 +569,12 @@ export const RelatorioOcupacao: React.FC<Props> = ({ userId }) => {
                   </div>
 
                   {/* Detail table */}
-                  <div style={{ overflowX: 'auto' }}>
+                  <ScrollTableWrapper>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                       <thead>
                         <tr style={{ borderBottom: '2px solid var(--color-border)' }}>
-                          {['Sala', 'Ocupação', 'Agendamentos', 'H. Ocupadas', 'H. Disponíveis', 'Ranking'].map(h => (
-                            <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>{h}</th>
+                          {['Sala', 'Ocupação', 'Agendamentos', 'H. Ocupadas', 'H. Disponíveis', 'Ranking'].map((h, i) => (
+                            <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--color-text-muted)', whiteSpace: 'nowrap', ...(i === 0 ? { position: 'sticky', left: 0, background: '#F5F3F0', zIndex: 1 } : {}) }}>{h}</th>
                           ))}
                         </tr>
                       </thead>
@@ -584,7 +585,7 @@ export const RelatorioOcupacao: React.FC<Props> = ({ userId }) => {
                             : { bg: '#fee2e2', text: '#991b1b', label: '<50%' };
                           return (
                             <tr key={m.sala} style={{ borderBottom: '1px solid var(--color-border)', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                              <td style={{ padding: '8px 10px', fontWeight: 600 }}>{m.sala}</td>
+                              <td style={{ padding: '8px 10px', fontWeight: 600, position: 'sticky', left: 0, background: i % 2 === 0 ? '#fff' : '#fafafa', zIndex: 1 }}>{m.sala}</td>
                               <td style={{ padding: '8px 10px' }}>{m.occupancyPct.toFixed(1)}%</td>
                               <td style={{ padding: '8px 10px', color: 'var(--color-text-muted)' }}>{m.totalAppointments}</td>
                               <td style={{ padding: '8px 10px' }}>{fmtMinutes(m.totalMin)}</td>
@@ -599,7 +600,7 @@ export const RelatorioOcupacao: React.FC<Props> = ({ userId }) => {
                         })}
                       </tbody>
                     </table>
-                  </div>
+                  </ScrollTableWrapper>
                 </>
               )}
             </div>
@@ -614,12 +615,12 @@ export const RelatorioOcupacao: React.FC<Props> = ({ userId }) => {
             {produtividadeProc.length === 0 ? (
               <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', textAlign: 'center', padding: '20px' }}>Sem dados no período.</p>
             ) : (
-              <div style={{ overflowX: 'auto' }}>
+              <ScrollTableWrapper>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                   <thead>
                     <tr style={{ borderBottom: '2px solid var(--color-border)' }}>
-                      {['Procedimento', 'Qtd', 'Duração Real (avg)', 'Duração Config.', 'Δ Duração', 'Ticket Médio'].map(h => (
-                        <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>{h}</th>
+                      {['Procedimento', 'Qtd', 'Duração Real (avg)', 'Duração Config.', 'Δ Duração', 'Ticket Médio'].map((h, i) => (
+                        <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', whiteSpace: 'nowrap', ...(i === 0 ? { position: 'sticky', left: 0, background: '#F5F3F0', zIndex: 1 } : {}) }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -628,7 +629,7 @@ export const RelatorioOcupacao: React.FC<Props> = ({ userId }) => {
                       const delta = p.configured !== null ? p.avgReal - p.configured : null;
                       return (
                         <tr key={p.nome} style={{ borderBottom: '1px solid var(--color-border)', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                          <td style={{ padding: '10px 12px', fontWeight: 500 }}>{p.nome}</td>
+                          <td style={{ padding: '10px 12px', fontWeight: 500, position: 'sticky', left: 0, background: i % 2 === 0 ? '#fff' : '#fafafa', zIndex: 1 }}>{p.nome}</td>
                           <td style={{ padding: '10px 12px', color: 'var(--color-text-muted)' }}>{p.count}</td>
                           <td style={{ padding: '10px 12px' }}>{fmtMinutes(Math.round(p.avgReal))}</td>
                           <td style={{ padding: '10px 12px', color: 'var(--color-text-muted)' }}>
@@ -647,7 +648,7 @@ export const RelatorioOcupacao: React.FC<Props> = ({ userId }) => {
                     })}
                   </tbody>
                 </table>
-              </div>
+              </ScrollTableWrapper>
             )}
           </div>
 
@@ -683,6 +684,38 @@ export const RelatorioOcupacao: React.FC<Props> = ({ userId }) => {
             </div>
           )}
         </>
+      )}
+    </div>
+  );
+};
+
+// ─── ScrollTableWrapper ───────────────────────────────────────────────────────
+
+const ScrollTableWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [showFade, setShowFade] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const check = () => setShowFade(el.scrollLeft < el.scrollWidth - el.clientWidth - 2);
+    check();
+    el.addEventListener('scroll', check, { passive: true });
+    window.addEventListener('resize', check, { passive: true });
+    return () => { el.removeEventListener('scroll', check); window.removeEventListener('resize', check); };
+  }, []);
+  return (
+    <div style={{ position: 'relative' }}>
+      <div ref={ref} style={{ overflowX: 'auto' }}>
+        {children}
+      </div>
+      {showFade && (
+        <div style={{
+          position: 'absolute', top: 0, right: 0, bottom: 0, width: 56,
+          background: 'linear-gradient(to right, transparent, rgba(255,255,255,0.92))',
+          pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 10,
+        }}>
+          <ChevronRight size={16} style={{ color: 'var(--color-text-muted)', opacity: 0.7 }} />
+        </div>
       )}
     </div>
   );

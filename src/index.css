@@ -730,6 +730,11 @@ h1, h2, h3, h4, h5, h6 {
   display: none;
 }
 
+/* Agenda hoje: tab bar hidden on desktop, shown only on mobile */
+.agenda-hoje-tab-bar {
+  display: none;
+}
+
 /* ── Mobile (≤ 640px) ───────────────────────────────────────────────── */
 @media (max-width: 640px) {
   .main-content {
@@ -773,6 +778,49 @@ h1, h2, h3, h4, h5, h6 {
   /* Agenda: today view single column */
   .agenda-hoje-grid {
     grid-template-columns: 1fr !important;
+  }
+
+  /* Agenda: tab bar visible on mobile */
+  .agenda-hoje-tab-bar {
+    display: flex;
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    padding: 4px;
+    gap: 4px;
+    margin-bottom: 16px;
+  }
+
+  .agenda-hoje-tab {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 9px 10px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+  }
+
+  .agenda-hoje-tab--active {
+    background: var(--color-primary);
+    color: #fff;
+  }
+
+  /* Hide inactive column based on selected tab */
+  .agenda-hoje-grid--tab-grade .agenda-hoje-col--encaixe {
+    display: none !important;
+  }
+
+  .agenda-hoje-grid--tab-encaixe .agenda-hoje-col--grade {
+    display: none !important;
   }
 
   /* Agenda: each slot stacks vertically on mobile (time anchor on top) */

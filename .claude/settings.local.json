@@ -46,7 +46,8 @@
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\rapha\\\\OneDrive\\\\Documents\\\\GitHub\\\\CRM Estética\\\\crm-estetica\" -Recurse -Filter \"package.json\")",
       "Bash(Select-Object -First 1)",
       "Bash(Get-Content)",
-      "Bash(xargs cat)"
+      "Bash(xargs cat)",
+      "mcp__claude_ai_Notion__notion-get-comments"
     ]
   }
 }

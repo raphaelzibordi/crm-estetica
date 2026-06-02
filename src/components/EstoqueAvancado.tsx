@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { ItemEstoque, EstoqueVinculo, EstoqueMovimento } from '../types';
 import {
   Package, Plus, Edit2, Trash2, X, Check, AlertTriangle,
   ArrowUp, ArrowDown, RefreshCw,
-  Link, History, BarChart3, FileDown,
+  Link, History, BarChart3, FileDown, ChevronRight,
 } from 'lucide-react';
 import { api } from '../lib/api';
 
@@ -365,12 +365,12 @@ export const EstoqueAvancado: React.FC<Props> = ({ userId, onDataChange }) => {
               </button>
             </div>
           </div>
-          <div style={{ overflowX: 'auto' }}>
+          <ScrollTableWrapper>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-muted)' }}>
-                  {['Insumo', 'Qtd Atual', 'Qtd Mín', 'Un.', 'C. Médio', 'Fornecedor', 'Validade', 'Status', 'Ações'].map(h => (
-                    <th key={h} style={{ padding: '10px 8px', fontWeight: 500, textAlign: h === 'Ações' ? 'right' : 'left', whiteSpace: 'nowrap' }}>{h}</th>
+                  {['Insumo', 'Qtd Atual', 'Qtd Mín', 'Un.', 'C. Médio', 'Fornecedor', 'Validade', 'Status', 'Ações'].map((h, i) => (
+                    <th key={h} style={{ padding: '10px 8px', fontWeight: 500, textAlign: h === 'Ações' ? 'right' : 'left', whiteSpace: 'nowrap', ...(i === 0 ? { position: 'sticky', left: 0, background: '#F5F3F0', zIndex: 1 } : {}) }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -382,7 +382,7 @@ export const EstoqueAvancado: React.FC<Props> = ({ userId, onDataChange }) => {
                 )}
                 {produtos.map(item => (
                   <tr key={item.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                    <td style={{ padding: '12px 8px', fontWeight: 600 }}>{item.produto}</td>
+                    <td style={{ padding: '12px 8px', fontWeight: 600, position: 'sticky', left: 0, background: '#fff', zIndex: 1 }}>{item.produto}</td>
                     <td style={{ padding: '12px 8px', fontWeight: 700, color: item.status === 'critico' ? '#dc2626' : 'var(--color-text-main)' }}>
                       {fmtNum(item.quantidade)} {item.unidade}
                     </td>
@@ -412,7 +412,7 @@ export const EstoqueAvancado: React.FC<Props> = ({ userId, onDataChange }) => {
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollTableWrapper>
         </div>
       )}
 
@@ -430,12 +430,13 @@ export const EstoqueAvancado: React.FC<Props> = ({ userId, onDataChange }) => {
               <Plus size={14} />Novo Vínculo
             </button>
           </div>
-          <div style={{ overflowX: 'auto', marginTop: '16px' }}>
+          <div style={{ marginTop: '16px' }}>
+          <ScrollTableWrapper>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-muted)' }}>
-                  {['Insumo', 'Procedimento', 'Qtd consumida', 'Ações'].map(h => (
-                    <th key={h} style={{ padding: '10px 8px', fontWeight: 500, textAlign: h === 'Ações' ? 'right' : 'left' }}>{h}</th>
+                  {['Insumo', 'Procedimento', 'Qtd consumida', 'Ações'].map((h, i) => (
+                    <th key={h} style={{ padding: '10px 8px', fontWeight: 500, textAlign: h === 'Ações' ? 'right' : 'left', ...(i === 0 ? { position: 'sticky', left: 0, background: '#F5F3F0', zIndex: 1 } : {}) }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -447,7 +448,7 @@ export const EstoqueAvancado: React.FC<Props> = ({ userId, onDataChange }) => {
                 )}
                 {vinculos.map(v => (
                   <tr key={v.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                    <td style={{ padding: '12px 8px', fontWeight: 600 }}>{v.produtoNome}</td>
+                    <td style={{ padding: '12px 8px', fontWeight: 600, position: 'sticky', left: 0, background: '#fff', zIndex: 1 }}>{v.produtoNome}</td>
                     <td style={{ padding: '12px 8px' }}>{v.procedimentoNome}</td>
                     <td style={{ padding: '12px 8px', color: 'var(--color-text-muted)' }}>
                       {fmtNum(v.quantidade)} {produtos.find(p => p.id === v.produtoId)?.unidade ?? ''}
@@ -459,6 +460,7 @@ export const EstoqueAvancado: React.FC<Props> = ({ userId, onDataChange }) => {
                 ))}
               </tbody>
             </table>
+          </ScrollTableWrapper>
           </div>
         </div>
       )}
@@ -480,12 +482,12 @@ export const EstoqueAvancado: React.FC<Props> = ({ userId, onDataChange }) => {
               </select>
             </div>
           </div>
-          <div style={{ overflowX: 'auto' }}>
+          <ScrollTableWrapper>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-muted)' }}>
-                  {['Data', 'Insumo', 'Tipo', 'Qtd', 'Custo Unit.', 'Referência', 'Profissional', 'Justificativa'].map(h => (
-                    <th key={h} style={{ padding: '10px 8px', fontWeight: 500, whiteSpace: 'nowrap' }}>{h}</th>
+                  {['Data', 'Insumo', 'Tipo', 'Qtd', 'Custo Unit.', 'Referência', 'Profissional', 'Justificativa'].map((h, i) => (
+                    <th key={h} style={{ padding: '10px 8px', fontWeight: 500, whiteSpace: 'nowrap', ...(i === 0 ? { position: 'sticky', left: 0, background: '#F5F3F0', zIndex: 1 } : {}) }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -497,7 +499,7 @@ export const EstoqueAvancado: React.FC<Props> = ({ userId, onDataChange }) => {
                 )}
                 {histFiltrado.map(m => (
                   <tr key={m.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                    <td style={{ padding: '10px 8px', whiteSpace: 'nowrap', color: 'var(--color-text-muted)' }}>
+                    <td style={{ padding: '10px 8px', whiteSpace: 'nowrap', color: 'var(--color-text-muted)', position: 'sticky', left: 0, background: '#fff', zIndex: 1 }}>
                       {new Date(m.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                     </td>
                     <td style={{ padding: '10px 8px', fontWeight: 600 }}>{m.produtoNome}</td>
@@ -515,7 +517,7 @@ export const EstoqueAvancado: React.FC<Props> = ({ userId, onDataChange }) => {
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollTableWrapper>
         </div>
       )}
 
@@ -781,3 +783,35 @@ export const EstoqueAvancado: React.FC<Props> = ({ userId, onDataChange }) => {
 };
 
 export default EstoqueAvancado;
+
+// ─── ScrollTableWrapper ───────────────────────────────────────────────────────
+
+const ScrollTableWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [showFade, setShowFade] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const check = () => setShowFade(el.scrollLeft < el.scrollWidth - el.clientWidth - 2);
+    check();
+    el.addEventListener('scroll', check, { passive: true });
+    window.addEventListener('resize', check, { passive: true });
+    return () => { el.removeEventListener('scroll', check); window.removeEventListener('resize', check); };
+  }, []);
+  return (
+    <div style={{ position: 'relative' }}>
+      <div ref={ref} style={{ overflowX: 'auto' }}>
+        {children}
+      </div>
+      {showFade && (
+        <div style={{
+          position: 'absolute', top: 0, right: 0, bottom: 0, width: 56,
+          background: 'linear-gradient(to right, transparent, rgba(255,255,255,0.92))',
+          pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 10,
+        }}>
+          <ChevronRight size={16} style={{ color: 'var(--color-text-muted)', opacity: 0.7 }} />
+        </div>
+      )}
+    </div>
+  );
+};

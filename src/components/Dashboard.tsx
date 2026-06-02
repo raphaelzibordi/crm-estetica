@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { Agendamento, Procedimento, Profissional, StatusJornada } from '../types';
 import { Clock, UserCheck, UserPlus, CheckCircle, User, Pencil, AlertTriangle } from 'lucide-react';
 import { api } from '../lib/api';
@@ -235,6 +235,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<StatusJornada | null>(null);
 
+  // Touch DnD
+  const touchGhostRef = useRef<HTMLDivElement>(null);
+  const touchActiveRef = useRef<{ id: string } | null>(null);
+  const [touchGhostPos, setTouchGhostPos] = useState<{ x: number; y: number } | null>(null);
+  const [touchGhostLabel, setTouchGhostLabel] = useState('');
+
   const colunas: { id: StatusJornada; label: string; desc: string }[] = [
     { id: 'agendada', label: 'Confirmadas para Hoje', desc: 'Próximos agendamentos' },
     { id: 'chegou', label: 'Chegaram na Clínica', desc: 'Em recepção / aguardando' },
@@ -332,6 +338,46 @@ export const Dashboard: React.FC<DashboardProps> = ({
     onUpdateStatus(id, colId);
   };
 
+  // ── Touch DnD handlers ──────────────────────────────────────────────
+  const handleTouchStartCard = (
+    e: React.TouchEvent<HTMLDivElement>,
+    id: string,
+    nome: string
+  ) => {
+    const touch = e.touches[0];
+    touchActiveRef.current = { id };
+    setTouchGhostLabel(nome);
+    setTouchGhostPos({ x: touch.clientX, y: touch.clientY });
+    setDragId(id);
+  };
+
+  const handleTouchMoveCard = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!touchActiveRef.current) return;
+    const touch = e.touches[0];
+    setTouchGhostPos({ x: touch.clientX, y: touch.clientY });
+    const ghostEl = touchGhostRef.current;
+    if (ghostEl) ghostEl.style.display = 'none';
+    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (ghostEl) ghostEl.style.display = '';
+    const col = el?.closest('[data-dnd-col]');
+    const colId = (col?.getAttribute('data-dnd-col') ?? null) as StatusJornada | null;
+    setDragOverCol(colId);
+  };
+
+  const handleTouchEndCard = () => {
+    if (!touchActiveRef.current) return;
+    const id = touchActiveRef.current.id;
+    const colId = dragOverCol;
+    touchActiveRef.current = null;
+    setTouchGhostPos(null);
+    setDragId(null);
+    setDragOverCol(null);
+    if (!id || !colId) return;
+    const item = agendamentos.find((a) => a.id === id);
+    if (!item || item.status === colId) return;
+    onUpdateStatus(id, colId);
+  };
+
   /**
    * UX Design Decision: Humanized Pace & Waiting alerts
    * Clients in the aesthetics industry pay for custom time and deep presence.
@@ -396,6 +442,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <div
               key={col.id}
               className="esteira-coluna"
+              data-dnd-col={col.id}
               onDragOver={(e) => handleDragOverColumn(e, col.id)}
               onDragLeave={() => setDragOverCol((prev) => (prev === col.id ? null : prev))}
               onDrop={(e) => handleDropOnColumn(e, col.id)}
@@ -446,8 +493,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         draggable={!isFinalizada}
                         onDragStart={(e) => handleDragStart(e, item.id)}
                         onDragEnd={handleDragEnd}
+                        onTouchStart={!isFinalizada ? (e) => handleTouchStartCard(e, item.id, item.clienteNome) : undefined}
+                        onTouchMove={!isFinalizada ? handleTouchMoveCard : undefined}
+                        onTouchEnd={!isFinalizada ? handleTouchEndCard : undefined}
                         style={{
                           cursor: isFinalizada ? 'default' : (isDragging ? 'grabbing' : 'grab'),
+                          touchAction: isFinalizada ? undefined : 'none',
                           opacity: isFinalizada ? 0.78 : 1,
                           ...(isFinalizada
                             ? { backgroundColor: 'var(--color-success-light)', borderColor: 'var(--color-success)' }
@@ -1020,6 +1071,34 @@ export const Dashboard: React.FC<DashboardProps> = ({
             window.location.reload();
           }}
         />
+      )}
+
+      {/* Touch drag ghost */}
+      {touchGhostPos && (
+        <div
+          ref={touchGhostRef}
+          style={{
+            position: 'fixed',
+            left: touchGhostPos.x - 80,
+            top: touchGhostPos.y - 20,
+            background: 'var(--color-primary)',
+            color: '#fff',
+            borderRadius: '8px',
+            padding: '8px 14px',
+            fontSize: '13px',
+            fontWeight: 600,
+            pointerEvents: 'none',
+            zIndex: 9999,
+            boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+            opacity: 0.9,
+            maxWidth: '160px',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {touchGhostLabel}
+        </div>
       )}
     </div>
   );

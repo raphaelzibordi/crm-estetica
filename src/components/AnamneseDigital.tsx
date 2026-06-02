@@ -551,11 +551,12 @@ export const AnamneseDigital: React.FC<AnamneseDigitalProps> = ({
       </div>
 
       {/* Abas */}
-      <div style={{ display: 'flex', gap: '4px', marginBottom: '24px', borderBottom: '1px solid var(--color-border)', paddingBottom: '0' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '24px', borderBottom: '1px solid var(--color-border)', paddingBottom: '0' }}>
         {(['historico', 'formularios'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
+            title={tab === 'historico' ? clienteNome : undefined}
             style={{
               padding: '8px 16px',
               fontSize: '13px',
@@ -567,6 +568,12 @@ export const AnamneseDigital: React.FC<AnamneseDigitalProps> = ({
               borderBottomStyle: 'solid',
               cursor: 'pointer',
               marginBottom: '-1px',
+              flex: '1 1 auto',
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              maxWidth: '100%',
             }}
           >
             {tab === 'historico' ? `Anamneses de ${clienteNome.split(' ')[0]}` : 'Modelos de Formulário'}

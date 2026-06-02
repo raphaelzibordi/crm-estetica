@@ -862,7 +862,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
                         <input
                           type="text"
                           className="form-input"
-                          style={{ fontSize: '20px', fontWeight: 600, padding: '4px 8px', margin: 0, width: '100%', maxWidth: '300px' }}
+                          style={{ fontSize: '20px', fontWeight: 600, padding: '4px 8px', margin: 0, flex: 1, minWidth: 0 }}
                           value={editNome}
                           onChange={(e) => setEditNome(e.target.value)}
                           placeholder="Nome da paciente"
@@ -1159,17 +1159,17 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
 
           {/* Galeria de Evolução por Imagem */}
           <div className="card" style={{ padding: '32px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Camera size={18} style={{ color: 'var(--color-primary)' }} />
                 <h3 style={{ fontSize: '18px', fontWeight: 600 }}>Galeria Antes / Depois</h3>
               </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
                 <button
                   onClick={handleShareGaleria}
                   disabled={generatingLink || galeriaItems.length === 0}
                   className="btn btn-outline"
-                  style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', opacity: (generatingLink || galeriaItems.length === 0) ? 0.5 : 1 }}
+                  style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', opacity: (generatingLink || galeriaItems.length === 0) ? 0.5 : 1, minHeight: '36px' }}
                   title={galeriaItems.length === 0 ? 'Adicione fotos para compartilhar' : 'Gerar link temporário (24h)'}
                 >
                   <span>{generatingLink ? 'Gerando...' : 'Compartilhar'}</span>
@@ -1177,7 +1177,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
                 <button
                   onClick={() => setShowAddPhoto(!showAddPhoto)}
                   className="btn btn-outline"
-                  style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', minHeight: '36px' }}
                 >
                   <Plus size={14} />
                   <span>Adicionar Comparação</span>
