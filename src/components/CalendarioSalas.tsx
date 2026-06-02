@@ -92,7 +92,7 @@ export const CalendarioSalas: React.FC<CalendarioSalasProps> = ({
       el.removeEventListener('scroll', check);
       window.removeEventListener('resize', check);
     };
-  }, [salasFiltradas]);
+  }, [salas, filterSala]);
 
   // Merge today's live agendamentos into the loaded set for same-day accuracy
   const allAgendamentos = useMemo(() => {
