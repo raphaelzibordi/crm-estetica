@@ -81,19 +81,6 @@ export const CalendarioSalas: React.FC<CalendarioSalasProps> = ({
 
   useEffect(() => { fetchWeek(); }, [fetchWeek]);
 
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const check = () => setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 2);
-    check();
-    el.addEventListener('scroll', check, { passive: true });
-    window.addEventListener('resize', check, { passive: true });
-    return () => {
-      el.removeEventListener('scroll', check);
-      window.removeEventListener('resize', check);
-    };
-  }, [salas, filterSala]);
-
   // Merge today's live agendamentos into the loaded set for same-day accuracy
   const allAgendamentos = useMemo(() => {
     const todayStr = today;
@@ -110,6 +97,19 @@ export const CalendarioSalas: React.FC<CalendarioSalasProps> = ({
     const set = new Set(visible.map((a) => a.sala).filter(Boolean));
     return [...set].sort();
   }, [visible]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const check = () => setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 2);
+    check();
+    el.addEventListener('scroll', check, { passive: true });
+    window.addEventListener('resize', check, { passive: true });
+    return () => {
+      el.removeEventListener('scroll', check);
+      window.removeEventListener('resize', check);
+    };
+  }, [salas, filterSala]);
 
   const salasFiltradas = useMemo(
     () => (filterSala === 'todas' ? salas : salas.filter((s) => s === filterSala)),
