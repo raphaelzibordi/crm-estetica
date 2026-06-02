@@ -813,12 +813,58 @@ h1, h2, h3, h4, h5, h6 {
     display: none !important;
   }
 
+  /* Fix min-width: auto inflation — prevents grid item from blowing up the 1fr track */
+  .prontuario-left-panel,
+  .prontuario-right-panel {
+    min-width: 0;
+    overflow-x: hidden;
+  }
+
+  /* Reduce card padding on mobile so content has room to breathe */
+  .prontuario-right-panel > .card {
+    padding: 16px !important;
+  }
+
   /* Back-to-list button: visible only on mobile */
   .prontuario-back-btn {
     display: flex !important;
     align-items: center;
     gap: 8px;
     margin-bottom: 8px;
+  }
+
+  /* Fix overflow in patient info column (flex: 1 items must have min-width: 0) */
+  .prontuario-patient-info {
+    min-width: 0;
+    padding-right: 0 !important;
+  }
+
+  /* Prontuario: histórico + evolução → 1 coluna */
+  .prontuario-hist-grid {
+    grid-template-columns: 1fr !important;
+    gap: 20px !important;
+  }
+
+  /* Prontuario: upload de fotos antes/depois → 1 coluna */
+  .prontuario-foto-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Prontuario: campos de edição → empilhados, largura total */
+  .prontuario-edit-fields {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+
+  .prontuario-edit-field {
+    width: 100% !important;
+  }
+
+  .prontuario-edit-field input {
+    flex: 1 !important;
+    width: auto !important;
+    min-width: 0 !important;
   }
 
   /* Prontuario: patient header stacks vertically */

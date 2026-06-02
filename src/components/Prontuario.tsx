@@ -796,7 +796,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
                     </>
                   )}
                 </div>
-                <div style={{ flex: 1, paddingRight: '20px' }}>
+                <div className="prontuario-patient-info" style={{ flex: 1, paddingRight: '20px' }}>
                   {!isEditing ? (
                     <div className="prontuario-patient-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', gap: '16px' }}>
                       <div style={{ minWidth: 0 }}>
@@ -869,40 +869,40 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
                         />
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
-                        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-main)' }}>Nasc:</span>
-                            <input 
-                              type="text" 
-                              className="form-input" 
-                              style={{ width: '120px', padding: '6px 10px', fontSize: '12px', borderRadius: '4px' }} 
-                              value={editNasc} 
-                              onChange={(e) => setEditNasc(formatDataNascimento(e.target.value))} 
-                              placeholder="DD/MM/AAAA" 
-                            />
-                          </div>
-                          
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-main)' }}>Contato:</span>
-                            <input 
-                              type="text" 
-                              className="form-input" 
-                              style={{ width: '140px', padding: '6px 10px', fontSize: '12px', borderRadius: '4px' }} 
-                              value={editTelefone} 
-                              onChange={(e) => setEditTelefone(formatTelefone(e.target.value))} 
-                              placeholder="(XX) 9XXXX-XXXX" 
+                        <div className="prontuario-edit-fields" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+                          <div className="prontuario-edit-field" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-main)', whiteSpace: 'nowrap' }}>Nasc:</span>
+                            <input
+                              type="text"
+                              className="form-input"
+                              style={{ width: '120px', padding: '6px 10px', fontSize: '12px', borderRadius: '4px' }}
+                              value={editNasc}
+                              onChange={(e) => setEditNasc(formatDataNascimento(e.target.value))}
+                              placeholder="DD/MM/AAAA"
                             />
                           </div>
 
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-main)' }}>E-mail:</span>
-                            <input 
-                              type="text" 
-                              className="form-input" 
-                              style={{ width: '180px', padding: '6px 10px', fontSize: '12px', borderRadius: '4px' }} 
-                              value={editEmail} 
-                              onChange={(e) => setEditEmail(e.target.value)} 
-                              placeholder="exemplo@email.com" 
+                          <div className="prontuario-edit-field" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-main)', whiteSpace: 'nowrap' }}>Contato:</span>
+                            <input
+                              type="text"
+                              className="form-input"
+                              style={{ width: '140px', padding: '6px 10px', fontSize: '12px', borderRadius: '4px' }}
+                              value={editTelefone}
+                              onChange={(e) => setEditTelefone(formatTelefone(e.target.value))}
+                              placeholder="(XX) 9XXXX-XXXX"
+                            />
+                          </div>
+
+                          <div className="prontuario-edit-field" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-main)', whiteSpace: 'nowrap' }}>E-mail:</span>
+                            <input
+                              type="text"
+                              className="form-input"
+                              style={{ width: '180px', padding: '6px 10px', fontSize: '12px', borderRadius: '4px' }}
+                              value={editEmail}
+                              onChange={(e) => setEditEmail(e.target.value)}
+                              placeholder="exemplo@email.com"
                             />
                           </div>
                         </div>
@@ -1218,7 +1218,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
               <form onSubmit={handleSavePhotos} className="card" style={{ padding: '20px', border: '1px solid var(--color-border)', backgroundColor: '#FAFBFB', marginBottom: '24px', animation: 'fadeIn 0.3s ease-out' }}>
                 <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text-main)' }}>Nova Comparação Antes / Depois</h4>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '16px' }}>
+                <div className="prontuario-foto-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '16px' }}>
                   {/* Foto Antes */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <label className="form-label" style={{ fontSize: '12px' }}>
@@ -1381,7 +1381,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
           )}
 
           {/* Histórico e Nova Evolução */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px', alignItems: 'start' }}>
+          <div className="prontuario-hist-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px', alignItems: 'start' }}>
 
             {/* Timeline of Evolutions */}
             <div className="card" style={{ padding: '32px' }}>
