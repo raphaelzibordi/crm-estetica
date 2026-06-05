@@ -68,7 +68,9 @@ function App() {
 function AppMain() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [recoveryMode, setRecoveryMode] = useState(isDefinirSenhaPath);
+  // Inicia como true apenas para /definir-senha direto.
+  // Quando vem do link (hash tokens), aguarda setSession concluir antes de ativar.
+  const [recoveryMode, setRecoveryMode] = useState(() => isDefinirSenhaPath());
 
   // Perfil do usuário logado (resolvido após sessão).
   const [userRole, setUserRole]     = useState<UserRole>('dono');
@@ -99,6 +101,30 @@ function AppMain() {
 
   // Evita loop: só busca perfil quando session.user.id muda.
   const lastProfileUid = useRef<string | null>(null);
+
+  // ============================================================
+  // RECOVERY VIA HASH (implicit flow do Admin API vs PKCE do SDK)
+  // O generateLink da Admin API sempre emite tokens no hash (#access_token=...).
+  // Com flowType:'pkce' o SDK ignora esses tokens — precisamos chamar setSession
+  // manualmente para que DefinirSenha encontre a sessão via getSession().
+  // ============================================================
+  useEffect(() => {
+    const hash = window.location.hash.substring(1);
+    const params = new URLSearchParams(hash);
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+    const type = params.get('type');
+
+    if (type === 'recovery' && accessToken && refreshToken) {
+      supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+        .then(({ error }) => {
+          if (!error) {
+            window.history.replaceState(null, '', window.location.pathname);
+            setRecoveryMode(true);
+          }
+        });
+    }
+  }, []);
 
   // ============================================================
   // GUARDA DE ROTA: bloqueio de acesso sem token válido
@@ -471,12 +497,9 @@ function AppMain() {
   }
 
   // Primeiro acesso via link de recovery: exibe tela de definição de senha.
+  // A sessão pode ainda estar sendo processada pelo SDK — DefinirSenha verifica
+  // internamente via getSession() e redireciona caso o token seja inválido.
   if (recoveryMode) {
-    if (!session) {
-      // Token inválido ou expirado: redireciona para login.
-      window.history.replaceState(null, '', '/');
-      return <Auth onLogin={(s) => setSession(s)} />;
-    }
     return (
       <DefinirSenha
         onSuccess={() => {
@@ -487,8 +510,25 @@ function AppMain() {
     );
   }
 
-  // GUARDA DE ROTA: sem sessão válida → tela de login obrigatória
+  // GUARDA DE ROTA: sem sessão válida → tela de login obrigatória.
+  // Verifica o hash antes de redirecionar para não descartar um token de recovery
+  // que o SDK ainda não terminou de processar.
   if (!session || !session.user) {
+    if (window.location.hash.includes('type=recovery')) {
+      return (
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            height: '100vh',
+            backgroundColor: 'var(--color-bg)',
+          }}
+        >
+          Carregando Lumina...
+        </div>
+      );
+    }
     return <Auth onLogin={(s) => setSession(s)} />;
   }
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
 interface Props {
@@ -11,6 +11,19 @@ export function DefinirSenha({ onSuccess }: Props) {
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState('');
   const [sucesso, setSucesso] = useState(false);
+  // null = verificando, true = sessão ativa, false = token inválido/expirado
+  const [sessionValida, setSessionValida] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        // Token expirado ou link já usado — volta para o login.
+        onSuccess();
+      } else {
+        setSessionValida(true);
+      }
+    });
+  }, [onSuccess]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -37,6 +50,22 @@ export function DefinirSenha({ onSuccess }: Props) {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (sessionValida === null) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '100vh',
+          backgroundColor: 'var(--color-bg)',
+        }}
+      >
+        Carregando Lumina...
+      </div>
+    );
   }
 
   return (
