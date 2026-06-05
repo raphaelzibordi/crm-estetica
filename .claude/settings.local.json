@@ -47,7 +47,8 @@
       "Bash(Select-Object -First 1)",
       "Bash(Get-Content)",
       "Bash(xargs cat)",
-      "mcp__claude_ai_Notion__notion-get-comments"
+      "mcp__claude_ai_Notion__notion-get-comments",
+      "Bash(node_modules\\\\.bin\\\\tsc --noEmit)"
     ]
   }
 }

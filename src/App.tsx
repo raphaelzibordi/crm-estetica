@@ -19,6 +19,7 @@ import { GaleriaPublica } from './components/GaleriaPublica';
 import { LGPD } from './components/LGPD';
 import { GerenciamentoSalas } from './components/GerenciamentoSalas';
 import { CalendarioSalas } from './components/CalendarioSalas';
+import { DefinirSenha } from './components/DefinirSenha';
 import type { Agendamento, StatusJornada, UserRole, Unidade } from './types';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { api } from './lib/api';
@@ -42,6 +43,11 @@ function getPublicGaleriaToken(): string | null {
   return match ? match[1] : null;
 }
 
+// Detecta se a URL atual é a rota de definição de senha (/definir-senha)
+function isDefinirSenhaPath(): boolean {
+  return window.location.pathname === '/definir-senha';
+}
+
 // Abas que membros da equipe NÃO podem acessar.
 const TABS_BLOQUEADAS_EQUIPE = new Set(['comunicacao', 'gestao', 'configuracoes', 'lgpd']);
 
@@ -56,9 +62,13 @@ function App() {
   return <AppMain />;
 }
 
+// Rota pública de primeiro acesso: renderizada dentro de AppMain via estado recoveryMode.
+// O componente DefinirSenha é exibido quando o Supabase detecta um token de recovery na URL.
+
 function AppMain() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [recoveryMode, setRecoveryMode] = useState(isDefinirSenhaPath);
 
   // Perfil do usuário logado (resolvido após sessão).
   const [userRole, setUserRole]     = useState<UserRole>('dono');
@@ -114,6 +124,13 @@ function AppMain() {
       }
 
       const { data } = supabase.auth.onAuthStateChange((event, nextSession) => {
+        if (event === 'PASSWORD_RECOVERY') {
+          setSession(nextSession);
+          setRecoveryMode(true);
+          window.history.replaceState(null, '', '/definir-senha');
+          return;
+        }
+
         setSession(nextSession);
 
         if (event === 'SIGNED_OUT' || (!nextSession && event !== 'INITIAL_SESSION')) {
@@ -450,6 +467,23 @@ function AppMain() {
       >
         Carregando Lumina...
       </div>
+    );
+  }
+
+  // Primeiro acesso via link de recovery: exibe tela de definição de senha.
+  if (recoveryMode) {
+    if (!session) {
+      // Token inválido ou expirado: redireciona para login.
+      window.history.replaceState(null, '', '/');
+      return <Auth onLogin={(s) => setSession(s)} />;
+    }
+    return (
+      <DefinirSenha
+        onSuccess={() => {
+          setRecoveryMode(false);
+          window.history.replaceState(null, '', '/');
+        }}
+      />
     );
   }
 
