@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Lock, Sparkles, ArrowRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface Props {
@@ -11,13 +12,11 @@ export function DefinirSenha({ onSuccess }: Props) {
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState('');
   const [sucesso, setSucesso] = useState(false);
-  // null = verificando, true = sessão ativa, false = token inválido/expirado
   const [sessionValida, setSessionValida] = useState<boolean | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) {
-        // Token expirado ou link já usado — volta para o login.
         onSuccess();
       } else {
         setSessionValida(true);
@@ -54,156 +53,113 @@ export function DefinirSenha({ onSuccess }: Props) {
 
   if (sessionValida === null) {
     return (
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          height: '100vh',
-          backgroundColor: 'var(--color-bg)',
-        }}
-      >
+      <div style={{
+        position: 'fixed', inset: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        backgroundColor: 'var(--bg-primary)',
+      }}>
         Carregando Lumina...
       </div>
     );
   }
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        height: '100vh',
-        backgroundColor: 'var(--color-bg)',
-      }}
-    >
-      <div
-        style={{
-          background: 'var(--color-surface)',
-          borderRadius: '12px',
-          padding: '40px',
-          width: '100%',
-          maxWidth: '400px',
-          boxShadow: '0 4px 24px rgba(0,0,0,0.12)',
-        }}
-      >
-        <h2
-          style={{
-            margin: '0 0 8px',
-            fontSize: '1.4rem',
-            color: 'var(--color-text)',
-          }}
-        >
-          Defina sua senha
-        </h2>
-        <p
-          style={{
-            margin: '0 0 24px',
-            fontSize: '0.9rem',
-            color: 'var(--color-text-muted)',
-          }}
-        >
-          Crie uma senha segura para acessar o sistema.
-        </p>
+    <div style={{
+      position: 'fixed',
+      inset: 0,
+      width: '100vw',
+      height: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'var(--bg-primary)',
+      padding: '24px',
+      overflow: 'auto',
+      zIndex: 1,
+    }}>
+      <div className="card" style={{
+        width: '100%',
+        maxWidth: '480px',
+        padding: '48px',
+        animation: 'fadeIn 0.6s ease-out',
+        boxShadow: '0 20px 40px rgba(0,0,0,0.08)',
+      }}>
+
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            width: '56px', height: '56px', borderRadius: '50%',
+            backgroundColor: 'var(--color-primary-light)', color: 'var(--color-primary)',
+            marginBottom: '16px',
+          }}>
+            <Sparkles size={28} />
+          </div>
+          <h1 style={{ fontSize: '28px', color: 'var(--color-text-main)', marginBottom: '8px', fontWeight: 600 }}>
+            Lumina
+          </h1>
+          <p style={{ color: 'var(--color-text-muted)', fontSize: '15px' }}>
+            Defina sua senha para acessar o sistema.
+          </p>
+        </div>
+
+        {erro && (
+          <div style={{
+            padding: '12px', backgroundColor: '#FEE2E2', color: '#991B1B',
+            borderRadius: '6px', fontSize: '13px', marginBottom: '24px', textAlign: 'center',
+          }}>
+            {erro}
+          </div>
+        )}
 
         {sucesso ? (
-          <div
-            style={{
-              padding: '12px 16px',
-              borderRadius: '8px',
-              background: 'var(--color-success-bg, #d1fae5)',
-              color: 'var(--color-success, #065f46)',
-              fontSize: '0.9rem',
-              textAlign: 'center',
-            }}
-          >
+          <div style={{
+            padding: '12px', backgroundColor: '#ECFDF5', color: '#065F46',
+            borderRadius: '6px', fontSize: '13px', textAlign: 'center',
+          }}>
             Senha definida com sucesso! Redirecionando...
           </div>
         ) : (
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label
-                htmlFor="nova-senha"
-                style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--color-text)' }}
-              >
-                Nova senha
-              </label>
-              <input
-                id="nova-senha"
-                type="password"
-                value={novaSenha}
-                onChange={(e) => setNovaSenha(e.target.value)}
-                placeholder="Mínimo 8 caracteres"
-                required
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid var(--color-border)',
-                  background: 'var(--color-input-bg, var(--color-bg))',
-                  color: 'var(--color-text)',
-                  fontSize: '0.95rem',
-                  outline: 'none',
-                }}
-              />
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label
-                htmlFor="confirma-senha"
-                style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--color-text)' }}
-              >
-                Confirmar senha
-              </label>
-              <input
-                id="confirma-senha"
-                type="password"
-                value={confirmaSenha}
-                onChange={(e) => setConfirmaSenha(e.target.value)}
-                placeholder="Repita a nova senha"
-                required
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid var(--color-border)',
-                  background: 'var(--color-input-bg, var(--color-bg))',
-                  color: 'var(--color-text)',
-                  fontSize: '0.95rem',
-                  outline: 'none',
-                }}
-              />
-            </div>
-
-            {erro && (
-              <div
-                style={{
-                  padding: '10px 14px',
-                  borderRadius: '8px',
-                  background: 'var(--color-error-bg, #fee2e2)',
-                  color: 'var(--color-error, #991b1b)',
-                  fontSize: '0.85rem',
-                }}
-              >
-                {erro}
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Nova senha</label>
+              <div style={{ position: 'relative' }}>
+                <Lock size={16} style={{ position: 'absolute', left: '12px', top: '14px', color: 'var(--color-text-muted)' }} />
+                <input
+                  type="password"
+                  className="form-input"
+                  style={{ paddingLeft: '40px' }}
+                  placeholder="Mínimo 8 caracteres"
+                  value={novaSenha}
+                  onChange={(e) => setNovaSenha(e.target.value)}
+                  required
+                />
               </div>
-            )}
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Confirmar senha</label>
+              <div style={{ position: 'relative' }}>
+                <Lock size={16} style={{ position: 'absolute', left: '12px', top: '14px', color: 'var(--color-text-muted)' }} />
+                <input
+                  type="password"
+                  className="form-input"
+                  style={{ paddingLeft: '40px' }}
+                  placeholder="Repita a nova senha"
+                  value={confirmaSenha}
+                  onChange={(e) => setConfirmaSenha(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
 
             <button
               type="submit"
+              className="btn btn-primary"
+              style={{ width: '100%', marginTop: '16px', padding: '14px', fontSize: '15px' }}
               disabled={loading}
-              style={{
-                padding: '12px',
-                borderRadius: '8px',
-                border: 'none',
-                background: loading ? 'var(--color-primary-muted, #a78bfa)' : 'var(--color-primary, #7c3aed)',
-                color: '#fff',
-                fontSize: '0.95rem',
-                fontWeight: 600,
-                cursor: loading ? 'not-allowed' : 'pointer',
-                transition: 'opacity 0.2s',
-              }}
             >
               {loading ? 'Salvando...' : 'Confirmar senha'}
+              {!loading && <ArrowRight size={18} style={{ marginLeft: '8px' }} />}
             </button>
           </form>
         )}
