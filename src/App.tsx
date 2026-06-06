@@ -13,7 +13,8 @@ import { Gestao } from './components/Gestao';
 import { Auth } from './components/Auth';
 import { Configuracoes } from './components/Configuracoes';
 import { WelcomeModal } from './components/WelcomeModal';
-import { PlanoModal } from './components/PlanoModal';
+import { PlanoModal, type PlanoBilling, type PeriodicidadeBilling } from './components/PlanoModal';
+import { PagamentoPendenteModal } from './components/PagamentoPendenteModal';
 import { AgendamentoPublico } from './components/AgendamentoPublico';
 import { AssinaturaPublica } from './components/AssinaturaPublica';
 import { GaleriaPublica } from './components/GaleriaPublica';
@@ -86,6 +87,17 @@ function AppMain() {
   const [billingModalMotivo, setBillingModalMotivo] = useState<'trial_expirado' | 'renovacao_anual' | null>(null);
   const [billingDiasRestantes, setBillingDiasRestantes] = useState<number | null>(null);
   const [billingModalDismissed, setBillingModalDismissed] = useState(false);
+
+  // Cobrança: modal de pagamento em atraso / assinatura suspensa (T1.6)
+  const [paymentIssue, setPaymentIssue] = useState<{
+    status: 'past_due' | 'suspended';
+    diasAtraso: number | null;
+    tentativas: number;
+    suspensoEm: Date | null;
+    plano: PlanoBilling;
+    periodicidade: PeriodicidadeBilling;
+  } | null>(null);
+  const [paymentIssueDismissed, setPaymentIssueDismissed] = useState(false);
 
   // US-048: Multiclínicas
   const [redeUnidades, setRedeUnidades]       = useState<Unidade[]>([]);
@@ -255,16 +267,31 @@ function AppMain() {
       try {
         const { data } = await supabase
           .from('usuarios')
-          .select('abacatepay_subscription_status, plano_periodicidade, acesso_expira_em, created_at')
+          .select('abacatepay_subscription_status, plano, plano_periodicidade, acesso_expira_em, created_at, payment_overdue_since, payment_retry_count, suspended_at')
           .eq('id', tenantId)
           .maybeSingle();
         if (!data) return;
 
         const status = data.abacatepay_subscription_status as string | null;
-        const periodicidade = data.plano_periodicidade as string | null;
+        const periodicidade = (data.plano_periodicidade as string | null) ?? 'mensal';
         const expiraEm = data.acesso_expira_em ? new Date(data.acesso_expira_em as string) : null;
         const createdAt = data.created_at ? new Date(data.created_at as string) : null;
         const now = new Date();
+
+        // Pagamento em atraso ou assinatura suspensa: prioridade máxima (T1.6)
+        if (status === 'past_due' || status === 'suspended') {
+          const overdueSince = data.payment_overdue_since ? new Date(data.payment_overdue_since as string) : null;
+          const suspendedAt = data.suspended_at ? new Date(data.suspended_at as string) : null;
+          setPaymentIssue({
+            status,
+            diasAtraso: overdueSince ? Math.floor((now.getTime() - overdueSince.getTime()) / 86400000) : null,
+            tentativas: (data.payment_retry_count as number | null) ?? 0,
+            suspensoEm: suspendedAt,
+            plano: ((data.plano as string | null) ?? 'basico') as PlanoBilling,
+            periodicidade: periodicidade as PeriodicidadeBilling,
+          });
+          return;
+        }
 
         if (status === 'pending' && createdAt) {
           const diasDesdeCadastro = Math.floor((now.getTime() - createdAt.getTime()) / 86400000);
@@ -734,6 +761,19 @@ function AppMain() {
           clinicName={clinicName}
           diasRestantes={billingDiasRestantes}
           onClose={() => setBillingModalDismissed(true)}
+        />
+      )}
+
+      {paymentIssue && (paymentIssue.status === 'suspended' || !paymentIssueDismissed) && (
+        <PagamentoPendenteModal
+          status={paymentIssue.status}
+          clinicName={clinicName}
+          diasAtraso={paymentIssue.diasAtraso}
+          tentativas={paymentIssue.tentativas}
+          suspensoEm={paymentIssue.suspensoEm}
+          plano={paymentIssue.plano}
+          periodicidade={paymentIssue.periodicidade}
+          onClose={paymentIssue.status === 'past_due' ? () => setPaymentIssueDismissed(true) : undefined}
         />
       )}
 
