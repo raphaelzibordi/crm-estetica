@@ -48,7 +48,19 @@
       "Bash(Get-Content)",
       "Bash(xargs cat)",
       "mcp__claude_ai_Notion__notion-get-comments",
-      "Bash(node_modules\\\\.bin\\\\tsc --noEmit)"
+      "Bash(node_modules\\\\.bin\\\\tsc --noEmit)",
+      "mcp__07964978-6f8f-4bcc-8f4a-23b14d3ae84c__notion-search",
+      "mcp__07964978-6f8f-4bcc-8f4a-23b14d3ae84c__notion-fetch",
+      "Bash(sed -n '1085,1140p' \"C:\\\\Users\\\\rapha\\\\OneDrive\\\\Documents\\\\GitHub\\\\crm-estetica\\\\src\\\\lib\\\\api.ts\")",
+      "Bash(sed -n '4980,5040p' \"C:\\\\Users\\\\rapha\\\\OneDrive\\\\Documents\\\\GitHub\\\\crm-estetica\\\\src\\\\lib\\\\api.ts\")",
+      "mcp__84ef42a8-55c6-42bb-9150-d4040d81915a__list_projects",
+      "mcp__84ef42a8-55c6-42bb-9150-d4040d81915a__apply_migration",
+      "mcp__84ef42a8-55c6-42bb-9150-d4040d81915a__execute_sql",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(awk 'NR==1490{print NR\": \"$0} NR>=1470 && NR<=1490{print NR\": \"$0}' src/components/Prontuario.tsx)",
+      "Bash(grep -n \"/\\\\* Anamnese\\\\|/\\\\* Plano de Tratamento\\\\|AnamneseDigital\\\\|PlanoTratamento\\\\|/\\\\* Carrossel\\\\|carouselRef\" src/components/Prontuario.tsx)",
+      "Bash(node -e \"const r = require\\('lucide-react'\\); console.log\\('Trash:', typeof r.Trash, 'Trash2:', typeof r.Trash2, 'Mic:', typeof r.Mic, 'Square:', typeof r.Square, 'Sparkles:', typeof r.Sparkles\\)\")",
+      "mcp__07964978-6f8f-4bcc-8f4a-23b14d3ae84c__notion-create-comment"
     ]
   }
 }

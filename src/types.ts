@@ -34,6 +34,9 @@ export interface Cliente {
   dataUltimaVisita: string;
   statusRetencao: 'em_dia' | 'alerta_retencao' | 'ausente';
   tags: string[]; // ex: ['Pele Seca', 'Premium', 'Indicação']
+  // Resumo do histórico clínico gerado por IA (US-028 / CA-03)
+  resumoClinicoIA: string | null;
+  resumoClinicoIAGeradoEm: string | null;
 }
 
 export interface EvolucaoClinica {
@@ -43,6 +46,44 @@ export interface EvolucaoClinica {
   procedimento: string;
   relatoNatural: string; // Ex: "Paciente apresentou excelente receptividade ao Lavieen. Leve eritema pós-procedimento já atenuado com máscara calmante."
   observacoesTecnicas: string;
+  // Assinatura digital e imutabilidade (US-021 / CFM 1.638/2002)
+  assinadoEm: string | null;       // timestamp da assinatura — registro torna-se imutável a partir daqui
+  assinadoPor: string | null;      // nome do profissional que assinou
+  assinaturaHash: string | null;   // hash SHA-256 do conteúdo + identidade + timestamp
+  aditamentoDe: string | null;     // id do registro original quando esta entrada é uma correção/aditamento
+}
+
+// ── IA no Prontuário: gravação, transcrição e estruturação (US-028) ──
+export type StatusGravacaoConsulta =
+  | 'aguardando_consentimento'
+  | 'gravando'
+  | 'transcrevendo'
+  | 'em_revisao'
+  | 'aprovada'
+  | 'descartada';
+
+export interface GravacaoConsulta {
+  id: string;
+  clienteId: string;
+  profissional: string;
+  // Consentimento explícito do paciente (CA-04) — obrigatório antes de gravar
+  consentimentoAceito: boolean;
+  consentimentoEm: string | null;
+  status: StatusGravacaoConsulta;
+  // Transcrição bruta (editável pelo profissional antes da aprovação) — CA-01
+  transcricaoBruta: string | null;
+  // Estruturação automática nas seções do prontuário — CA-02
+  estruturaQueixa: string | null;
+  estruturaHistorico: string | null;
+  estruturaExame: string | null;
+  estruturaConduta: string | null;
+  estruturaPrescricao: string | null;
+  cid10Sugestoes: string[];
+  // Vínculo com a evolução clínica gerada após aprovação (US-021)
+  evolucaoId: string | null;
+  // Privacidade dos dados de IA (CA-05)
+  audioExcluidoEm: string | null;
+  createdAt: string;
 }
 
 export interface AntesDepois {

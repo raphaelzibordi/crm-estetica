@@ -1,6 +1,7 @@
 ﻿import { supabase } from './supabase';
 import { ApiError, humanizeError } from './errors';
 import { findAgendamentoConflict, getSalasStatus } from './agendaConflict';
+import { chamarLLMEstruturacao, chamarLLMResumoClinico } from './ia';
 import type {
   Agendamento,
   AnamneseCampo,
@@ -35,6 +36,7 @@ import type {
   DocumentoModelo,
   DocumentoSignatureLink,
   EvolucaoClinica,
+  GravacaoConsulta,
   FechamentoComissao,
   FechamentoFinanceiro,
   FechamentoRepasse,
@@ -123,6 +125,29 @@ function mapCliente(row: any): Cliente {
     dataUltimaVisita: row.data_ultima_visita ?? '',
     statusRetencao: (row.status_retencao as Cliente['statusRetencao']) ?? 'em_dia',
     tags: Array.isArray(row.tags) ? row.tags : [],
+    resumoClinicoIA: row.resumo_clinico_ia ?? null,
+    resumoClinicoIAGeradoEm: row.resumo_clinico_ia_gerado_em ?? null,
+  };
+}
+
+function mapGravacaoConsulta(row: any): GravacaoConsulta {
+  return {
+    id: row.id,
+    clienteId: row.cliente_id,
+    profissional: row.profissional ?? '',
+    consentimentoAceito: row.consentimento_aceito ?? false,
+    consentimentoEm: row.consentimento_em ?? null,
+    status: (row.status as GravacaoConsulta['status']) ?? 'aguardando_consentimento',
+    transcricaoBruta: row.transcricao_bruta ?? null,
+    estruturaQueixa: row.estrutura_queixa ?? null,
+    estruturaHistorico: row.estrutura_historico ?? null,
+    estruturaExame: row.estrutura_exame ?? null,
+    estruturaConduta: row.estrutura_conduta ?? null,
+    estruturaPrescricao: row.estrutura_prescricao ?? null,
+    cid10Sugestoes: Array.isArray(row.cid10_sugestoes) ? row.cid10_sugestoes : [],
+    evolucaoId: row.evolucao_id ?? null,
+    audioExcluidoEm: row.audio_excluido_em ?? null,
+    createdAt: row.created_at ?? '',
   };
 }
 
@@ -168,6 +193,11 @@ function mapAgendamento(row: any): Agendamento {
   };
 }
 
+async function sha256Hex(text: string): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 function mapEvolucao(row: any): EvolucaoClinica {
   return {
     id: row.id,
@@ -176,6 +206,10 @@ function mapEvolucao(row: any): EvolucaoClinica {
     procedimento: row.procedimento ?? '',
     relatoNatural: row.relato_natural ?? '',
     observacoesTecnicas: row.observacoes_tecnicas ?? '',
+    assinadoEm: row.assinado_em ?? null,
+    assinadoPor: row.assinado_por ?? null,
+    assinaturaHash: row.assinatura_hash ?? null,
+    aditamentoDe: row.aditamento_de ?? null,
   };
 }
 
@@ -1098,7 +1132,7 @@ export const api = {
 
   async createEvolucao(
     clienteId: string,
-    evolucao: Omit<EvolucaoClinica, 'id'>,
+    evolucao: Omit<EvolucaoClinica, 'id' | 'assinadoEm' | 'assinadoPor' | 'assinaturaHash' | 'aditamentoDe'> & { aditamentoDe?: string | null },
     userId?: string
   ): Promise<EvolucaoClinica> {
     return run(async () => {
@@ -1120,12 +1154,308 @@ export const api = {
             procedimento: evolucao.procedimento,
             relato_natural: evolucao.relatoNatural,
             observacoes_tecnicas: evolucao.observacoesTecnicas,
+            aditamento_de: evolucao.aditamentoDe ?? null,
           },
         ])
         .select()
         .single();
       if (error) throw error;
       return mapEvolucao(data);
+    });
+  },
+
+  /**
+   * Assina digitalmente um registro de evolução clínica (CA-03/CFM 1.638/2002).
+   * Reautentica o profissional por senha antes de tornar o registro imutável.
+   */
+  async assinarEvolucao(
+    evolucaoId: string,
+    senha: string,
+    userId?: string
+  ): Promise<EvolucaoClinica> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+
+      const { data: authData, error: authErr } = await supabase.auth.getUser();
+      if (authErr || !authData?.user?.email) {
+        throw new ApiError('Não foi possível confirmar sua identidade. Faça login novamente.', 401);
+      }
+      const email = authData.user.email;
+
+      const { error: reauthErr } = await supabase.auth.signInWithPassword({ email, password: senha });
+      if (reauthErr) {
+        throw new ApiError('Senha incorreta. A assinatura digital requer confirmação de senha.', 401);
+      }
+
+      const { data: row, error: fetchErr } = await supabase
+        .from('prontuarios_evolucoes')
+        .select('*')
+        .eq('id', evolucaoId)
+        .eq('user_id', uid)
+        .single();
+      if (fetchErr || !row) throw new ApiError('Registro não encontrado.', 404);
+      if (row.assinado_em) {
+        throw new ApiError('Este registro já está assinado e é imutável.', 409);
+      }
+
+      const nomeProfissional: string = row.profissional || email;
+      const assinadoEm = new Date().toISOString();
+      const assinaturaHash = await sha256Hex(
+        `${row.id}|${row.relato_natural}|${row.observacoes_tecnicas}|${nomeProfissional}|${assinadoEm}`
+      );
+
+      const { data, error } = await supabase
+        .from('prontuarios_evolucoes')
+        .update({
+          assinado_em: assinadoEm,
+          assinado_por: nomeProfissional,
+          assinatura_hash: assinaturaHash,
+        })
+        .eq('id', evolucaoId)
+        .eq('user_id', uid)
+        .select()
+        .single();
+      if (error) throw error;
+      return mapEvolucao(data);
+    });
+  },
+
+  // ============================================================
+  // US-028 — IA no Prontuário: gravação, transcrição, resumo
+  // ============================================================
+
+  async getGravacoes(userId: string | undefined, clienteId: string): Promise<GravacaoConsulta[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('prontuarios_gravacoes')
+        .select('*')
+        .eq('user_id', uid)
+        .eq('cliente_id', clienteId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map(mapGravacaoConsulta);
+    });
+  },
+
+  /**
+   * Inicia o ciclo de uma gravação de consulta. Cria o registro já com o
+   * status correspondente ao consentimento informado (CA-04): sem
+   * consentimento explícito do paciente, a transcrição não é ativada.
+   */
+  async criarGravacao(
+    clienteId: string,
+    dados: { profissional: string; consentimentoAceito: boolean },
+    userId?: string
+  ): Promise<GravacaoConsulta> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      if (!clienteId) throw new ApiError('Selecione um cliente para iniciar a gravação.', 400);
+
+      const consentimentoEm = dados.consentimentoAceito ? new Date().toISOString() : null;
+      const { data, error } = await supabase
+        .from('prontuarios_gravacoes')
+        .insert([
+          {
+            user_id: uid,
+            cliente_id: clienteId,
+            profissional: dados.profissional,
+            consentimento_aceito: dados.consentimentoAceito,
+            consentimento_em: consentimentoEm,
+            status: dados.consentimentoAceito ? 'gravando' : 'aguardando_consentimento',
+          },
+        ])
+        .select()
+        .single();
+      if (error) throw error;
+      return mapGravacaoConsulta(data);
+    });
+  },
+
+  /**
+   * Salva a transcrição revisada/editada pelo profissional e dispara a
+   * estruturação automática por IA (CA-01 + CA-02). O resultado fica em
+   * status 'em_revisao' — nada é gravado no prontuário sem aprovação
+   * explícita do profissional.
+   */
+  async processarTranscricao(
+    gravacaoId: string,
+    transcricaoBruta: string,
+    userId?: string
+  ): Promise<GravacaoConsulta> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      if (!transcricaoBruta?.trim()) {
+        throw new ApiError('A transcrição está vazia — grave novamente ou digite manualmente.', 400);
+      }
+
+      const estrutura = await chamarLLMEstruturacao(transcricaoBruta);
+
+      const { data, error } = await supabase
+        .from('prontuarios_gravacoes')
+        .update({
+          status: 'em_revisao',
+          transcricao_bruta: transcricaoBruta,
+          estrutura_queixa: estrutura.queixaPrincipal,
+          estrutura_historico: estrutura.historico,
+          estrutura_exame: estrutura.exame,
+          estrutura_conduta: estrutura.conduta,
+          estrutura_prescricao: estrutura.prescricao,
+          cid10_sugestoes: estrutura.cid10Sugestoes,
+        })
+        .eq('id', gravacaoId)
+        .eq('user_id', uid)
+        .select()
+        .single();
+      if (error) throw error;
+      return mapGravacaoConsulta(data);
+    });
+  },
+
+  /**
+   * Aprova a gravação revisada: cria a evolução clínica correspondente no
+   * prontuário (US-021) com o conteúdo final editado pelo profissional, e
+   * vincula a gravação a essa evolução. "A IA sugere — o profissional
+   * decide": nada chega ao prontuário sem este passo explícito.
+   */
+  async aprovarGravacao(
+    gravacaoId: string,
+    conteudoFinal: {
+      procedimento: string;
+      relatoNatural: string;
+      observacoesTecnicas: string;
+      data: string;
+      profissional: string;
+    },
+    userId?: string
+  ): Promise<{ gravacao: GravacaoConsulta; evolucao: EvolucaoClinica }> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+
+      const { data: row, error: fetchErr } = await supabase
+        .from('prontuarios_gravacoes')
+        .select('*')
+        .eq('id', gravacaoId)
+        .eq('user_id', uid)
+        .single();
+      if (fetchErr || !row) throw new ApiError('Gravação não encontrada.', 404);
+      if (row.status === 'aprovada') throw new ApiError('Esta gravação já foi aprovada.', 409);
+
+      const evolucao = await api.createEvolucao(
+        row.cliente_id,
+        {
+          data: conteudoFinal.data,
+          profissional: conteudoFinal.profissional,
+          procedimento: conteudoFinal.procedimento,
+          relatoNatural: conteudoFinal.relatoNatural,
+          observacoesTecnicas: conteudoFinal.observacoesTecnicas,
+        },
+        uid
+      );
+
+      const { data, error } = await supabase
+        .from('prontuarios_gravacoes')
+        .update({ status: 'aprovada', evolucao_id: evolucao.id })
+        .eq('id', gravacaoId)
+        .eq('user_id', uid)
+        .select()
+        .single();
+      if (error) throw error;
+      return { gravacao: mapGravacaoConsulta(data), evolucao };
+    });
+  },
+
+  async descartarGravacao(gravacaoId: string, userId?: string): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { error } = await supabase
+        .from('prontuarios_gravacoes')
+        .update({ status: 'descartada' })
+        .eq('id', gravacaoId)
+        .eq('user_id', uid);
+      if (error) throw error;
+    });
+  },
+
+  /**
+   * Privacidade dos dados de IA (CA-05): permite ao profissional excluir
+   * o áudio original após aprovar a transcrição. Como a transcrição já
+   * roda inteiramente no navegador (Web Speech API) nenhum arquivo de
+   * áudio é armazenado no backend — este método registra o timestamp da
+   * exclusão para fins de trilha de auditoria/conformidade.
+   */
+  async excluirAudioOriginal(gravacaoId: string, userId?: string): Promise<GravacaoConsulta> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('prontuarios_gravacoes')
+        .update({ audio_excluido_em: new Date().toISOString() })
+        .eq('id', gravacaoId)
+        .eq('user_id', uid)
+        .select()
+        .single();
+      if (error) throw error;
+      return mapGravacaoConsulta(data);
+    });
+  },
+
+  /**
+   * Gera (ou atualiza) o resumo do histórico clínico do paciente por IA
+   * e o persiste em `clientes.resumo_clinico_ia` para exibição no topo
+   * do prontuário (CA-03).
+   */
+  async gerarResumoClinico(clienteId: string, userId?: string): Promise<Cliente> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+
+      const { data: clienteRow, error: clienteErr } = await supabase
+        .from('clientes')
+        .select('*')
+        .eq('id', clienteId)
+        .eq('user_id', uid)
+        .single();
+      if (clienteErr || !clienteRow) throw new ApiError('Cliente não encontrado.', 404);
+
+      const { data: evolucoesRows, error: evoErr } = await supabase
+        .from('prontuarios_evolucoes')
+        .select('data, procedimento')
+        .eq('user_id', uid)
+        .eq('cliente_id', clienteId)
+        .order('data', { ascending: true });
+      if (evoErr) throw evoErr;
+
+      const evolucoes = evolucoesRows ?? [];
+      const contagemProcedimentos = new Map<string, number>();
+      for (const ev of evolucoes) {
+        const nome = (ev.procedimento || '').trim();
+        if (!nome) continue;
+        contagemProcedimentos.set(nome, (contagemProcedimentos.get(nome) ?? 0) + 1);
+      }
+      const procedimentosFrequentes = [...contagemProcedimentos.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([nome]) => nome);
+
+      const resumo = await chamarLLMResumoClinico({
+        nomeCliente: clienteRow.nome ?? 'paciente',
+        idade: clienteRow.data_nascimento
+          ? Math.floor((Date.now() - new Date(clienteRow.data_nascimento).getTime()) / (365.25 * 24 * 3600 * 1000))
+          : null,
+        totalAtendimentos: evolucoes.length,
+        primeiraVisita: evolucoes[0]?.data ?? null,
+        ultimaVisita: evolucoes[evolucoes.length - 1]?.data ?? null,
+        procedimentosFrequentes,
+      });
+
+      const geradoEm = new Date().toISOString();
+      const { data, error } = await supabase
+        .from('clientes')
+        .update({ resumo_clinico_ia: resumo, resumo_clinico_ia_gerado_em: geradoEm })
+        .eq('id', clienteId)
+        .eq('user_id', uid)
+        .select()
+        .single();
+      if (error) throw error;
+      return mapCliente(data);
     });
   },
 

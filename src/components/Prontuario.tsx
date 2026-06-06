@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { Agendamento, Cliente, EvolucaoClinica, GaleriaItem, Procedimento, Profissional, PrescricaoTemplate } from '../types';
-import { FileText, Camera, Plus, Trash2, Edit2, User, CalendarPlus, UserPlus, AlertTriangle, Calendar, ChevronLeft, ChevronRight, LayoutTemplate, Search, ShieldCheck, ShieldAlert } from 'lucide-react';
+import type { Agendamento, Cliente, EvolucaoClinica, GaleriaItem, GravacaoConsulta, Procedimento, Profissional, PrescricaoTemplate } from '../types';
+import { FileText, Camera, Plus, Trash2, Edit2, User, CalendarPlus, UserPlus, AlertTriangle, Calendar, ChevronLeft, ChevronRight, LayoutTemplate, Search, ShieldCheck, ShieldAlert, Mic, Square, Sparkles, Trash } from 'lucide-react';
 import { api } from '../lib/api';
+import { criarMotorTranscricao } from '../lib/ia';
 import { HistoricoPresenca } from './HistoricoPresenca';
 import { AnamneseDigital } from './AnamneseDigital';
 import { AssinaturaDigital } from './AssinaturaDigital';
@@ -40,6 +41,29 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
   const [newEvolucaoProc, setNewEvolucaoProc] = useState('');
   const [newEvolucaoObs, setNewEvolucaoObs] = useState('');
   const [procedimentos, setProcedimentos] = useState<Procedimento[]>([]);
+  const [aditandoEvolucaoId, setAditandoEvolucaoId] = useState<string | null>(null);
+
+  // US-021: Assinatura digital de evoluções clínicas (CFM 1.638/2002)
+  const [assinandoEvolucao, setAssinandoEvolucao] = useState<EvolucaoClinica | null>(null);
+  const [assinaturaSenha, setAssinaturaSenha] = useState('');
+  const [assinaturaErro, setAssinaturaErro] = useState<string | null>(null);
+  const [assinaturaSalvando, setAssinaturaSalvando] = useState(false);
+
+  // US-028: IA no prontuário — gravação, transcrição e resumo clínico
+  const [showConsentimentoGravacao, setShowConsentimentoGravacao] = useState(false);
+  const [gravacaoAtual, setGravacaoAtual] = useState<GravacaoConsulta | null>(null);
+  const [gravando, setGravando] = useState(false);
+  const [transcricaoTexto, setTranscricaoTexto] = useState('');
+  const [transcricaoInterim, setTranscricaoInterim] = useState('');
+  const [transcricaoErro, setTranscricaoErro] = useState<string | null>(null);
+  const [transcricaoIndisponivel, setTranscricaoIndisponivel] = useState(false);
+  const [processandoTranscricao, setProcessandoTranscricao] = useState(false);
+  const [revisaoEstrutura, setRevisaoEstrutura] = useState<{
+    procedimento: string; queixa: string; historico: string; exame: string; conduta: string; prescricao: string; cid10: string[];
+  } | null>(null);
+  const [aprovandoGravacao, setAprovandoGravacao] = useState(false);
+  const [gerandoResumoIA, setGerandoResumoIA] = useState(false);
+  const motorTranscricaoRef = React.useRef<ReturnType<typeof criarMotorTranscricao> | null>(null);
 
   // States for patient details editing
   const [isEditing, setIsEditing] = useState(false);
@@ -631,20 +655,316 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
     try {
       await api.createEvolucao(activeClienteId, {
         data: new Date().toISOString().split('T')[0],
-        profissional: 'Profissional Logado', // could fetch from session
+        profissional: userName || 'Profissional',
         procedimento: newEvolucaoProc,
         relatoNatural: newEvolucaoText,
-        observacoesTecnicas: newEvolucaoObs || 'Sem intercorrências técnicas.'
+        observacoesTecnicas: newEvolucaoObs || 'Sem intercorrências técnicas.',
+        aditamentoDe: aditandoEvolucaoId,
       }, userId);
 
       setNewEvolucaoText('');
       setNewEvolucaoObs('');
-      alert('Evolução clínica registrada com sucesso no prontuário.');
+      setAditandoEvolucaoId(null);
+      alert(aditandoEvolucaoId ? 'Aditamento registrado com sucesso no prontuário.' : 'Evolução clínica registrada com sucesso no prontuário.');
       loadEvolucoes(activeClienteId);
     } catch (err) {
       console.error(err);
       alert('Erro ao registrar evolução.');
     }
+  };
+
+  // US-021 — Aditamento: correção de registro assinado por meio de nova entrada
+  // (registros assinados são imutáveis; correções referenciam o original)
+  const handleAditarEvolucao = (ev: EvolucaoClinica) => {
+    setAditandoEvolucaoId(ev.id);
+    setNewEvolucaoProc(ev.procedimento);
+    setNewEvolucaoObs('');
+    setNewEvolucaoText(`Correção do registro de ${new Date(ev.data + 'T12:00:00').toLocaleDateString('pt-BR')}: `);
+    document.getElementById('form-nova-evolucao')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const handleCancelarAditamento = () => {
+    setAditandoEvolucaoId(null);
+    setNewEvolucaoText('');
+    setNewEvolucaoObs('');
+  };
+
+  // US-021 — Assinatura digital: requer confirmação de senha; torna o registro imutável
+  const handleAbrirAssinatura = (ev: EvolucaoClinica) => {
+    setAssinandoEvolucao(ev);
+    setAssinaturaSenha('');
+    setAssinaturaErro(null);
+  };
+
+  const handleConfirmarAssinatura = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!assinandoEvolucao || !assinaturaSenha.trim()) return;
+    setAssinaturaSalvando(true);
+    setAssinaturaErro(null);
+    try {
+      await api.assinarEvolucao(assinandoEvolucao.id, assinaturaSenha, userId);
+      setAssinandoEvolucao(null);
+      setAssinaturaSenha('');
+      if (activeClienteId) loadEvolucoes(activeClienteId);
+    } catch (err: any) {
+      setAssinaturaErro(err?.message || 'Não foi possível assinar o registro. Verifique sua senha.');
+    } finally {
+      setAssinaturaSalvando(false);
+    }
+  };
+
+  // ── US-028: IA no prontuário — gravação, transcrição, estruturação, resumo ──
+
+  // Abre o modal de consentimento explícito do paciente — passo obrigatório
+  // antes de qualquer gravação (CA-04 / CFM-LGPD).
+  const handleAbrirGravacao = () => {
+    if (!activeClienteId) return;
+    setShowConsentimentoGravacao(true);
+  };
+
+  // Paciente concorda em ser gravado: registra consentimento com timestamp
+  // e inicia a captura de áudio/transcrição imediatamente (CA-01 + CA-04).
+  const handleAceitarConsentimentoGravacao = async () => {
+    if (!activeClienteId) return;
+    try {
+      const gravacao = await api.criarGravacao(activeClienteId, {
+        profissional: userName || 'Profissional',
+        consentimentoAceito: true,
+      }, userId);
+      setGravacaoAtual(gravacao);
+      setShowConsentimentoGravacao(false);
+      setTranscricaoTexto('');
+      setTranscricaoInterim('');
+      setTranscricaoErro(null);
+      iniciarCapturaTranscricao();
+    } catch (err: any) {
+      alert(err?.message || 'Não foi possível iniciar a gravação.');
+    }
+  };
+
+  // Paciente recusa: a gravação NÃO é ativada — fica documentado que o
+  // profissional deverá registrar manualmente (CA-04).
+  const handleRecusarConsentimentoGravacao = async () => {
+    if (!activeClienteId) return;
+    try {
+      await api.criarGravacao(activeClienteId, {
+        profissional: userName || 'Profissional',
+        consentimentoAceito: false,
+      }, userId);
+    } catch (err) {
+      console.error(err);
+    }
+    setShowConsentimentoGravacao(false);
+    alert('Consentimento não concedido. A transcrição não foi ativada — registre a evolução manualmente no formulário ao lado.');
+  };
+
+  // Liga o motor de transcrição (Web Speech API). Quando indisponível no
+  // navegador, permite digitação manual da transcrição como alternativa.
+  const iniciarCapturaTranscricao = () => {
+    const motor = criarMotorTranscricao('pt-BR');
+    motorTranscricaoRef.current = motor;
+    if (!motor.disponivel) {
+      setTranscricaoIndisponivel(true);
+      setGravando(true);
+      return;
+    }
+    setTranscricaoIndisponivel(false);
+    setGravando(true);
+    motor.iniciar({
+      onInterimResult: (texto) => setTranscricaoInterim(texto),
+      onFinalResult: (trecho) => {
+        setTranscricaoInterim('');
+        setTranscricaoTexto((atual) => (atual ? `${atual} ${trecho}` : trecho));
+      },
+      onError: (mensagem) => setTranscricaoErro(mensagem),
+      onEnd: () => setGravando(false),
+    });
+  };
+
+  const handlePararGravacao = () => {
+    motorTranscricaoRef.current?.parar();
+    setGravando(false);
+    setTranscricaoInterim('');
+  };
+
+  // Encerra a captura, envia a transcrição (revisada/editável) para
+  // estruturação automática por IA e abre a tela de revisão (CA-01 + CA-02).
+  const handleProcessarTranscricao = async () => {
+    if (!gravacaoAtual || !transcricaoTexto.trim()) {
+      alert('A transcrição está vazia. Grave novamente ou digite o relato manualmente.');
+      return;
+    }
+    handlePararGravacao();
+    setProcessandoTranscricao(true);
+    try {
+      const atualizada = await api.processarTranscricao(gravacaoAtual.id, transcricaoTexto.trim(), userId);
+      setGravacaoAtual(atualizada);
+      setRevisaoEstrutura({
+        procedimento: '',
+        queixa: atualizada.estruturaQueixa || '',
+        historico: atualizada.estruturaHistorico || '',
+        exame: atualizada.estruturaExame || '',
+        conduta: atualizada.estruturaConduta || '',
+        prescricao: atualizada.estruturaPrescricao || '',
+        cid10: atualizada.cid10Sugestoes || [],
+      });
+    } catch (err: any) {
+      alert(err?.message || 'Não foi possível processar a transcrição.');
+    } finally {
+      setProcessandoTranscricao(false);
+    }
+  };
+
+  // Aprovação final: "a IA sugere — o profissional decide". Só a partir
+  // deste clique explícito o conteúdo é gravado no prontuário (US-021),
+  // já passando pelo ciclo normal de evolução (rascunho -> assinatura).
+  const handleAprovarGravacao = async () => {
+    if (!gravacaoAtual || !revisaoEstrutura) return;
+    const relatoFinal = [
+      revisaoEstrutura.queixa && `Queixa principal: ${revisaoEstrutura.queixa}`,
+      revisaoEstrutura.historico && `Histórico: ${revisaoEstrutura.historico}`,
+      revisaoEstrutura.exame && `Exame: ${revisaoEstrutura.exame}`,
+    ].filter(Boolean).join('\n');
+    const obsFinal = [
+      revisaoEstrutura.conduta && `Conduta: ${revisaoEstrutura.conduta}`,
+      revisaoEstrutura.prescricao && `Prescrição: ${revisaoEstrutura.prescricao}`,
+      revisaoEstrutura.cid10.length > 0 && `CID-10 sugerido (revisar): ${revisaoEstrutura.cid10.join('; ')}`,
+    ].filter(Boolean).join('\n');
+
+    setAprovandoGravacao(true);
+    try {
+      await api.aprovarGravacao(gravacaoAtual.id, {
+        procedimento: revisaoEstrutura.procedimento || 'Consulta / Avaliação',
+        relatoNatural: relatoFinal || transcricaoTexto,
+        observacoesTecnicas: obsFinal || 'Sem intercorrências técnicas.',
+        data: new Date().toISOString().split('T')[0],
+        profissional: userName || 'Profissional',
+      }, userId);
+      alert('Resumo aprovado e registrado no prontuário como nova evolução clínica (rascunho — assine digitalmente para validá-la).');
+      setGravacaoAtual(null);
+      setRevisaoEstrutura(null);
+      setTranscricaoTexto('');
+      setTranscricaoIndisponivel(false);
+      loadEvolucoes(activeClienteId);
+    } catch (err: any) {
+      alert(err?.message || 'Não foi possível salvar a evolução no prontuário.');
+    } finally {
+      setAprovandoGravacao(false);
+    }
+  };
+
+  const handleDescartarGravacao = async () => {
+    if (!gravacaoAtual) return;
+    if (!window.confirm('Descartar esta transcrição? O conteúdo não será salvo no prontuário.')) return;
+    try {
+      await api.descartarGravacao(gravacaoAtual.id, userId);
+    } catch (err) {
+      console.error(err);
+    }
+    setGravacaoAtual(null);
+    setRevisaoEstrutura(null);
+    setTranscricaoTexto('');
+    setTranscricaoInterim('');
+    setTranscricaoIndisponivel(false);
+  };
+
+  // Privacidade dos dados de IA (CA-05): permite excluir o áudio original
+  // após a transcrição já ter sido aprovada — nada é retido além do
+  // necessário para o prontuário.
+  const handleExcluirAudioOriginal = async () => {
+    if (!gravacaoAtual) return;
+    if (!window.confirm('Excluir definitivamente o áudio original desta consulta? Esta ação não pode ser desfeita.')) return;
+    try {
+      const atualizada = await api.excluirAudioOriginal(gravacaoAtual.id, userId);
+      setGravacaoAtual(atualizada);
+      alert('Áudio original excluído. Nenhum dado de voz é retido após o processamento (CA-05).');
+    } catch (err: any) {
+      alert(err?.message || 'Não foi possível excluir o áudio.');
+    }
+  };
+
+  // CA-03 — Gera (ou atualiza) o resumo de histórico clínico exibido no
+  // topo do prontuário, a partir das evoluções já registradas.
+  const handleGerarResumoClinicoIA = async () => {
+    if (!activeClienteId) return;
+    setGerandoResumoIA(true);
+    try {
+      const clienteAtualizado = await api.gerarResumoClinico(activeClienteId, userId);
+      setClientes((atual) => atual.map((c) => (c.id === clienteAtualizado.id ? clienteAtualizado : c)));
+    } catch (err: any) {
+      alert(err?.message || 'Não foi possível gerar o resumo clínico.');
+    } finally {
+      setGerandoResumoIA(false);
+    }
+  };
+
+  // US-021 (CA-06) — Exportação em PDF com layout CFM (cabeçalho da clínica + identificação do profissional)
+  const handleExportarProntuarioPDF = () => {
+    if (!currentCliente) return;
+    const win = window.open('', '_blank');
+    if (!win) {
+      alert('Permita pop-ups para exportar o prontuário em PDF.');
+      return;
+    }
+    const dataEmissao = new Date().toLocaleString('pt-BR');
+    const linhas = currentProntuario.evolucoes.map((ev) => `
+      <div class="registro ${ev.assinadoEm ? 'assinado' : 'rascunho'}">
+        <div class="registro-cabecalho">
+          <span class="registro-data">${new Date(ev.data + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
+          <span class="registro-procedimento">${ev.procedimento || '—'}</span>
+          <span class="registro-profissional">${ev.profissional || '—'}</span>
+        </div>
+        ${ev.aditamentoDe ? '<p class="aditamento-tag">Aditamento / correção de registro anterior</p>' : ''}
+        <p class="registro-relato">${ev.relatoNatural}</p>
+        <p class="registro-obs"><strong>Dados técnicos:</strong> ${ev.observacoesTecnicas}</p>
+        <p class="registro-assinatura">
+          ${ev.assinadoEm
+            ? `✔ Assinado digitalmente por <strong>${ev.assinadoPor}</strong> em ${new Date(ev.assinadoEm).toLocaleString('pt-BR')} — registro imutável (CFM 1.638/2002). Hash: ${ev.assinaturaHash?.slice(0, 16)}…`
+            : '⚠ Rascunho — registro ainda não assinado digitalmente, sem validade legal (CFM 1.638/2002).'}
+        </p>
+      </div>
+    `).join('');
+
+    win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8" />
+      <title>Prontuário — ${currentCliente.nome}</title>
+      <style>
+        body { font-family: Georgia, 'Times New Roman', serif; color: #1f2933; padding: 32px; max-width: 820px; margin: 0 auto; }
+        header { border-bottom: 2px solid #5F7D75; padding-bottom: 12px; margin-bottom: 20px; }
+        header h1 { font-size: 20px; margin: 0 0 4px; color: #5F7D75; }
+        header p { margin: 2px 0; font-size: 12px; color: #555; }
+        .paciente { background: #F8F9F8; border: 1px solid #ECECEC; border-radius: 6px; padding: 12px 16px; margin-bottom: 24px; font-size: 13px; }
+        .paciente strong { color: #5F7D75; }
+        h2 { font-size: 15px; color: #5F7D75; border-bottom: 1px solid #ECECEC; padding-bottom: 6px; }
+        .registro { border-left: 3px solid #5F7D75; padding: 10px 16px; margin-bottom: 16px; page-break-inside: avoid; }
+        .registro.rascunho { border-left-color: #c2410c; }
+        .registro-cabecalho { display: flex; gap: 16px; font-size: 12px; font-weight: bold; margin-bottom: 6px; }
+        .registro-procedimento { color: #5F7D75; }
+        .registro-relato, .registro-obs { font-size: 13px; line-height: 1.5; margin: 4px 0; }
+        .aditamento-tag { font-size: 11px; font-style: italic; color: #b45309; margin: 0 0 4px; }
+        .registro-assinatura { font-size: 11px; margin-top: 6px; color: #1f6f4a; }
+        .registro.rascunho .registro-assinatura { color: #c2410c; }
+        footer { margin-top: 32px; font-size: 10px; color: #888; border-top: 1px solid #ECECEC; padding-top: 8px; }
+        @media print { body { padding: 0; } }
+      </style>
+      </head><body>
+        <header>
+          <h1>Prontuário Eletrônico — Conformidade CFM (Resolução 1.638/2002 e 2.299/2021)</h1>
+          <p>Documento gerado em ${dataEmissao} · Profissional responsável: ${userName || '—'}</p>
+        </header>
+        <div class="paciente">
+          <strong>Paciente:</strong> ${currentCliente.nome} &nbsp;|&nbsp;
+          <strong>Telefone:</strong> ${currentCliente.telefone || '—'} &nbsp;|&nbsp;
+          <strong>E-mail:</strong> ${currentCliente.email || '—'}
+        </div>
+        <h2>Linha do tempo de evoluções clínicas</h2>
+        ${linhas || '<p>Sem evoluções registradas.</p>'}
+        <footer>
+          Este documento é uma cópia para fins de continuidade de cuidado e arquivamento.
+          Registros assinados digitalmente são imutáveis e mantidos pelo prazo mínimo legal de 20 anos (CFM).
+        </footer>
+        <script>window.onload = () => window.print();</script>
+      </body></html>`);
+    win.document.close();
   };
 
   if (loadingClientes) {
@@ -937,6 +1257,221 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
                   <span key={tag} className="badge badge-sage">{tag}</span>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* US-028 (CA-03): Resumo do histórico clínico gerado por IA — exibido no topo do prontuário */}
+          {currentCliente && (
+            <div className="card" style={{ padding: '24px', background: 'linear-gradient(135deg, #f5f3ff 0%, #ffffff 100%)', border: '1px solid #ddd6fe' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                  <Sparkles size={18} style={{ color: '#7c3aed', marginTop: '2px', flexShrink: 0 }} />
+                  <div>
+                    <h3 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '4px', color: '#5b21b6' }}>Resumo do histórico clínico (IA)</h3>
+                    {currentCliente.resumoClinicoIA ? (
+                      <>
+                        <p style={{ fontSize: '13px', color: 'var(--color-text-main)', lineHeight: '1.6', margin: 0 }}>
+                          {currentCliente.resumoClinicoIA}
+                        </p>
+                        {currentCliente.resumoClinicoIAGeradoEm && (
+                          <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '6px' }}>
+                            Gerado por IA em {new Date(currentCliente.resumoClinicoIAGeradoEm).toLocaleString('pt-BR')} — sugestão automática; não substitui a avaliação clínica do profissional.
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>
+                        Nenhum resumo gerado ainda. Clique em "Gerar resumo" para que a IA monte uma síntese do histórico clínico a partir das evoluções registradas.
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleGerarResumoClinicoIA}
+                  disabled={gerandoResumoIA}
+                  style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', background: '#7c3aed', border: 'none', borderRadius: '6px', padding: '8px 14px', cursor: gerandoResumoIA ? 'default' : 'pointer', color: '#fff', fontWeight: 500, opacity: gerandoResumoIA ? 0.7 : 1, flexShrink: 0 }}
+                >
+                  <Sparkles size={13} />
+                  {gerandoResumoIA ? 'Gerando…' : currentCliente.resumoClinicoIA ? 'Atualizar resumo' : 'Gerar resumo'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* US-028 (CA-01/CA-02/CA-04/CA-05): Gravação de consulta com transcrição e estruturação por IA */}
+          {currentCliente && (
+            <div className="card" style={{ padding: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                <Mic size={18} style={{ color: 'var(--color-primary)' }} />
+                <h3 style={{ fontSize: '16px', fontWeight: 600 }}>IA na consulta: gravação e transcrição automática</h3>
+              </div>
+
+              {/* Estado inicial: nenhuma gravação em andamento */}
+              {!gravacaoAtual && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+                  <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0, maxWidth: '480px' }}>
+                    Grave a consulta para que a IA transcreva o áudio e estruture automaticamente o relato em
+                    Queixa principal, Histórico, Exame, Conduta e Prescrição — você revisa e aprova tudo antes de salvar no prontuário.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleAbrirGravacao}
+                    style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '6px', padding: '8px 16px', cursor: 'pointer', color: '#1f6f4a', fontWeight: 600, flexShrink: 0 }}
+                  >
+                    <Mic size={14} /> Gravar consulta
+                  </button>
+                </div>
+              )}
+
+              {/* Gravando / transcrevendo ao vivo (CA-01) */}
+              {gravacaoAtual && gravacaoAtual.status !== 'aprovada' && !revisaoEstrutura && (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                    {gravando && (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: '#dc2626' }}>
+                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#dc2626', display: 'inline-block', animation: 'pulse 1.4s infinite' }} />
+                        Gravando e transcrevendo em tempo real…
+                      </span>
+                    )}
+                    {!gravando && (
+                      <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)' }}>Gravação pausada — revise o texto abaixo</span>
+                    )}
+                    <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                      Consentimento registrado em {gravacaoAtual.consentimentoEm ? new Date(gravacaoAtual.consentimentoEm).toLocaleString('pt-BR') : '—'}
+                    </span>
+                  </div>
+
+                  {transcricaoIndisponivel && (
+                    <div style={{ fontSize: '12px', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '6px', padding: '10px 14px', marginBottom: '12px', color: '#9a3412' }}>
+                      <AlertTriangle size={13} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'text-bottom' }} />
+                      Transcrição automática indisponível neste navegador. Digite o relato da consulta manualmente abaixo — ele ainda será estruturado pela IA.
+                    </div>
+                  )}
+                  {transcricaoErro && (
+                    <div style={{ fontSize: '12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', padding: '8px 12px', marginBottom: '12px', color: '#b91c1c' }}>
+                      {transcricaoErro}
+                    </div>
+                  )}
+
+                  <textarea
+                    className="form-input"
+                    value={transcricaoTexto + (transcricaoInterim ? ` ${transcricaoInterim}` : '')}
+                    onChange={(e) => setTranscricaoTexto(e.target.value)}
+                    placeholder="A transcrição aparecerá aqui em tempo real. Você pode editar livremente antes de continuar."
+                    rows={6}
+                    style={{ width: '100%', padding: '12px', fontSize: '13px', borderRadius: '6px', resize: 'vertical', marginBottom: '12px' }}
+                  />
+
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    {gravando ? (
+                      <button type="button" onClick={handlePararGravacao} style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', padding: '8px 14px', cursor: 'pointer', color: '#b91c1c', fontWeight: 600 }}>
+                        <Square size={13} /> Parar gravação
+                      </button>
+                    ) : (
+                      <button type="button" onClick={iniciarCapturaTranscricao} style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '6px', padding: '8px 14px', cursor: 'pointer', color: '#1f6f4a', fontWeight: 600 }}>
+                        <Mic size={13} /> Retomar gravação
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleProcessarTranscricao}
+                      disabled={processandoTranscricao || !transcricaoTexto.trim()}
+                      style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', background: '#7c3aed', border: 'none', borderRadius: '6px', padding: '8px 14px', cursor: processandoTranscricao ? 'default' : 'pointer', color: '#fff', fontWeight: 600, opacity: processandoTranscricao || !transcricaoTexto.trim() ? 0.6 : 1 }}
+                    >
+                      <Sparkles size={13} /> {processandoTranscricao ? 'Estruturando com IA…' : 'Concluir e estruturar com IA'}
+                    </button>
+                    <button type="button" onClick={handleDescartarGravacao} style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent', border: '1px solid #e5e7eb', borderRadius: '6px', padding: '8px 14px', cursor: 'pointer', color: 'var(--color-text-muted)', fontWeight: 500 }}>
+                      <Trash size={13} /> Descartar
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Revisão e estruturação (CA-02): "a IA sugere — o profissional decide" */}
+              {gravacaoAtual && revisaoEstrutura && (
+                <div>
+                  <div style={{ fontSize: '12px', background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '6px', padding: '10px 14px', marginBottom: '16px', color: '#5b21b6' }}>
+                    <Sparkles size={13} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'text-bottom' }} />
+                    A IA estruturou o relato abaixo a partir da transcrição. Revise, edite o que precisar e aprove — nada é salvo no prontuário sem sua confirmação explícita.
+                  </div>
+
+                  <div style={{ display: 'grid', gap: '12px', marginBottom: '12px' }}>
+                    <div>
+                      <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', display: 'block', marginBottom: '4px' }}>Procedimento realizado</label>
+                      <select
+                        className="form-input"
+                        value={revisaoEstrutura.procedimento}
+                        onChange={(e) => setRevisaoEstrutura((r) => r && { ...r, procedimento: e.target.value })}
+                        style={{ width: '100%', padding: '8px 10px', fontSize: '13px', borderRadius: '6px' }}
+                      >
+                        <option value="">Selecione um procedimento…</option>
+                        {procedimentos.map((p) => (
+                          <option key={p.id} value={p.nome}>{p.nome}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {([
+                      ['queixa', 'Queixa principal'],
+                      ['historico', 'Histórico'],
+                      ['exame', 'Exame'],
+                      ['conduta', 'Conduta'],
+                      ['prescricao', 'Prescrição'],
+                    ] as const).map(([campo, rotulo]) => (
+                      <div key={campo}>
+                        <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', display: 'block', marginBottom: '4px' }}>{rotulo}</label>
+                        <textarea
+                          className="form-input"
+                          value={revisaoEstrutura[campo]}
+                          onChange={(e) => setRevisaoEstrutura((r) => r && { ...r, [campo]: e.target.value })}
+                          rows={2}
+                          style={{ width: '100%', padding: '8px 10px', fontSize: '13px', borderRadius: '6px', resize: 'vertical' }}
+                        />
+                      </div>
+                    ))}
+
+                    <div>
+                      <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', display: 'block', marginBottom: '4px' }}>
+                        Sugestões de CID-10 (apenas sugestão — confirme antes de utilizar)
+                      </label>
+                      {revisaoEstrutura.cid10.length > 0 ? (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                          {revisaoEstrutura.cid10.map((c) => (
+                            <span key={c} style={{ fontSize: '11px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '100px', padding: '3px 10px', color: '#1d4ed8', fontWeight: 500 }}>{c}</span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Nenhuma sugestão identificada automaticamente.</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={handleAprovarGravacao}
+                      disabled={aprovandoGravacao}
+                      style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', background: '#1f6f4a', border: 'none', borderRadius: '6px', padding: '9px 16px', cursor: aprovandoGravacao ? 'default' : 'pointer', color: '#fff', fontWeight: 600, opacity: aprovandoGravacao ? 0.7 : 1 }}
+                    >
+                      <ShieldCheck size={14} /> {aprovandoGravacao ? 'Salvando…' : 'Aprovar e registrar no prontuário'}
+                    </button>
+                    {!gravacaoAtual.audioExcluidoEm && (
+                      <button type="button" onClick={handleExcluirAudioOriginal} style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent', border: '1px solid #fecaca', borderRadius: '6px', padding: '9px 16px', cursor: 'pointer', color: '#b91c1c', fontWeight: 500 }}>
+                        <Trash2 size={13} /> Excluir áudio original
+                      </button>
+                    )}
+                    {gravacaoAtual.audioExcluidoEm && (
+                      <span style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '5px', color: '#1f6f4a', fontWeight: 500 }}>
+                        <ShieldCheck size={12} /> Áudio original excluído em {new Date(gravacaoAtual.audioExcluidoEm).toLocaleString('pt-BR')}
+                      </span>
+                    )}
+                    <button type="button" onClick={handleDescartarGravacao} style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent', border: '1px solid #e5e7eb', borderRadius: '6px', padding: '9px 16px', cursor: 'pointer', color: 'var(--color-text-muted)', fontWeight: 500 }}>
+                      <Trash size={13} /> Descartar
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1385,9 +1920,21 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
 
             {/* Timeline of Evolutions */}
             <div className="card" style={{ padding: '32px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '24px' }}>
-                <FileText size={18} style={{ color: 'var(--color-primary)' }} />
-                <h3 style={{ fontSize: '18px', fontWeight: 600 }}>Histórico de Bem-Estar</h3>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <FileText size={18} style={{ color: 'var(--color-primary)' }} />
+                  <h3 style={{ fontSize: '18px', fontWeight: 600 }}>Histórico de Bem-Estar</h3>
+                </div>
+                {currentProntuario.evolucoes.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleExportarProntuarioPDF}
+                    style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px', background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '6px', padding: '5px 10px', cursor: 'pointer', color: '#0284c7', fontWeight: 500 }}
+                    title="Exportar prontuário em PDF (layout CFM)"
+                  >
+                    <FileText size={13} /> Exportar PDF
+                  </button>
+                )}
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', position: 'relative' }}>
@@ -1430,15 +1977,52 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
                         {ev.relatoNatural}
                       </p>
 
-                      <div style={{ 
-                        fontSize: '11px', 
-                        backgroundColor: '#F8F9F8', 
-                        padding: '8px 12px', 
-                        borderRadius: '4px', 
-                        color: 'var(--color-text-muted)', 
-                        border: '1px solid #ECECEC' 
+                      <div style={{
+                        fontSize: '11px',
+                        backgroundColor: '#F8F9F8',
+                        padding: '8px 12px',
+                        borderRadius: '4px',
+                        color: 'var(--color-text-muted)',
+                        border: '1px solid #ECECEC',
+                        marginBottom: '8px'
                       }}>
                         <strong>Anotação Técnica:</strong> {ev.observacoesTecnicas}
+                      </div>
+
+                      {/* US-021: status de assinatura digital + ações (assinar/aditar) */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                        {ev.assinadoEm ? (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#1f6f4a', fontWeight: 500 }} title={`Hash: ${ev.assinaturaHash || ''}`}>
+                            <ShieldCheck size={13} />
+                            Assinado por {ev.assinadoPor} em {new Date(ev.assinadoEm).toLocaleString('pt-BR')} — registro imutável
+                          </span>
+                        ) : (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#c2410c', fontWeight: 500 }}>
+                            <ShieldAlert size={13} />
+                            Rascunho — sem validade legal até a assinatura digital
+                          </span>
+                        )}
+
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          {!ev.assinadoEm && (
+                            <button
+                              type="button"
+                              onClick={() => handleAbrirAssinatura(ev)}
+                              style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '6px', padding: '4px 9px', cursor: 'pointer', color: '#1f6f4a', fontWeight: 500 }}
+                            >
+                              <ShieldCheck size={12} /> Assinar
+                            </button>
+                          )}
+                          {ev.assinadoEm && (
+                            <button
+                              type="button"
+                              onClick={() => handleAditarEvolucao(ev)}
+                              style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '6px', padding: '4px 9px', cursor: 'pointer', color: '#c2410c', fontWeight: 500 }}
+                            >
+                              <Edit2 size={12} /> Aditar (corrigir)
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))
@@ -1447,11 +2031,20 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
             </div>
 
             {/* Form for New Evolution */}
-            <div className="card" style={{ padding: '32px' }}>
+            <div className="card" id="form-nova-evolucao" style={{ padding: '32px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '24px' }}>
                 <Plus size={18} style={{ color: 'var(--color-primary)' }} />
-                <h3 style={{ fontSize: '18px', fontWeight: 600 }}>Nova Evolução Clínica</h3>
+                <h3 style={{ fontSize: '18px', fontWeight: 600 }}>{aditandoEvolucaoId ? 'Aditamento de Registro Assinado' : 'Nova Evolução Clínica'}</h3>
               </div>
+
+              {aditandoEvolucaoId && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', fontSize: '12px', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '6px', padding: '8px 12px', marginBottom: '16px', color: '#c2410c' }}>
+                  <span>Registros assinados são imutáveis (CFM 1.638/2002). Esta entrada será salva como correção referenciando o registro original.</span>
+                  <button type="button" onClick={handleCancelarAditamento} style={{ border: 'none', background: 'transparent', color: '#c2410c', fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
+                    Cancelar
+                  </button>
+                </div>
+              )}
 
               <form onSubmit={handleAddEvolucao}>
                 <div className="form-group">
@@ -1504,12 +2097,12 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
                   />
                 </div>
 
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   className="btn btn-primary"
                   style={{ width: '100%', marginTop: '12px' }}
                 >
-                  Registrar no Prontuário
+                  {aditandoEvolucaoId ? 'Registrar Aditamento' : 'Registrar no Prontuário'}
                 </button>
               </form>
             </div>
@@ -1519,6 +2112,107 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
         </div>
 
       </div>
+
+      {/* US-028 (CA-04): Modal de consentimento explícito do paciente para gravação de consulta */}
+      {showConsentimentoGravacao && currentCliente && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+          onClick={() => setShowConsentimentoGravacao(false)}
+        >
+          <div className="card" style={{ width: '460px', maxWidth: '90vw', padding: '28px' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+              <Mic size={20} style={{ color: '#1f6f4a' }} />
+              <h3 style={{ fontSize: '17px', fontWeight: 600 }}>Consentimento para gravação da consulta</h3>
+            </div>
+            <p style={{ fontSize: '13px', color: 'var(--color-text-main)', marginBottom: '12px', lineHeight: 1.6 }}>
+              Antes de iniciar a gravação, é obrigatório obter o consentimento explícito de{' '}
+              <strong>{currentCliente.nome}</strong>. Leia em voz alta para a paciente:
+            </p>
+            <div style={{ fontSize: '12px', background: '#f8f9f8', border: '1px solid #ececec', borderRadius: '6px', padding: '12px 14px', marginBottom: '14px', color: 'var(--color-text-main)', lineHeight: 1.6, fontStyle: 'italic' }}>
+              "Para agilizar seu atendimento, podemos gravar o áudio desta consulta para gerar automaticamente o
+              registro do seu prontuário com auxílio de inteligência artificial. O áudio é processado de forma
+              isolada, não é usado para treinar nenhum modelo de IA e pode ser excluído a qualquer momento após
+              a transcrição. Você concorda com a gravação?"
+            </div>
+            <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: '18px' }}>
+              Caso a paciente recuse, a gravação não será ativada e você deverá registrar a evolução manualmente —
+              a recusa também fica documentada, com data e hora (CFM/LGPD).
+            </p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                type="button"
+                className="btn"
+                style={{ flex: 1 }}
+                onClick={handleRecusarConsentimentoGravacao}
+              >
+                A paciente não concordou
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                onClick={handleAceitarConsentimentoGravacao}
+              >
+                <ShieldCheck size={15} /> Concordou — iniciar gravação
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* US-021: Modal de Assinatura Digital (confirmação de senha — CFM 1.638/2002) */}
+      {assinandoEvolucao && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+          onClick={() => !assinaturaSalvando && setAssinandoEvolucao(null)}
+        >
+          <div className="card" style={{ width: '420px', maxWidth: '90vw', padding: '28px' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+              <ShieldCheck size={20} style={{ color: '#1f6f4a' }} />
+              <h3 style={{ fontSize: '17px', fontWeight: 600 }}>Assinatura Digital do Prontuário</h3>
+            </div>
+            <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '16px', lineHeight: 1.5 }}>
+              Ao assinar, este registro de <strong>{new Date(assinandoEvolucao.data + 'T12:00:00').toLocaleDateString('pt-BR')}</strong> ({assinandoEvolucao.procedimento || 'evolução clínica'}) torna-se <strong>imutável</strong> — não poderá mais ser editado ou excluído, apenas corrigido por aditamento (CFM 1.638/2002 e 2.299/2021). Confirme sua senha para validar a assinatura.
+            </p>
+            <form onSubmit={handleConfirmarAssinatura}>
+              <div className="form-group">
+                <label className="form-label">Senha de acesso</label>
+                <input
+                  type="password"
+                  className="form-input"
+                  placeholder="Digite sua senha para confirmar a assinatura"
+                  value={assinaturaSenha}
+                  onChange={(e) => setAssinaturaSenha(e.target.value)}
+                  autoFocus
+                  required
+                />
+              </div>
+              {assinaturaErro && (
+                <p style={{ fontSize: '12px', color: '#c2410c', marginBottom: '8px' }}>{assinaturaErro}</p>
+              )}
+              <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                <button
+                  type="button"
+                  className="btn"
+                  style={{ flex: 1 }}
+                  onClick={() => setAssinandoEvolucao(null)}
+                  disabled={assinaturaSalvando}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                  disabled={assinaturaSalvando || !assinaturaSenha.trim()}
+                >
+                  <ShieldCheck size={15} /> {assinaturaSalvando ? 'Assinando…' : 'Confirmar Assinatura'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Template Picker Modal (US-027) */}
       {showTemplatePicker && (
