@@ -13,6 +13,7 @@ import { Gestao } from './components/Gestao';
 import { Auth } from './components/Auth';
 import { Configuracoes } from './components/Configuracoes';
 import { WelcomeModal } from './components/WelcomeModal';
+import { PlanoModal } from './components/PlanoModal';
 import { AgendamentoPublico } from './components/AgendamentoPublico';
 import { AssinaturaPublica } from './components/AssinaturaPublica';
 import { GaleriaPublica } from './components/GaleriaPublica';
@@ -80,6 +81,11 @@ function AppMain() {
   const [clinicName, setClinicName] = useState('');
   const [tenantId, setTenantId]     = useState<string>(''); // ID usado em todas as chamadas de API
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+
+  // Cobrança: modal de escolha de plano (fim de trial sem ativação ou renovação anual próxima)
+  const [billingModalMotivo, setBillingModalMotivo] = useState<'trial_expirado' | 'renovacao_anual' | null>(null);
+  const [billingDiasRestantes, setBillingDiasRestantes] = useState<number | null>(null);
+  const [billingModalDismissed, setBillingModalDismissed] = useState(false);
 
   // US-048: Multiclínicas
   const [redeUnidades, setRedeUnidades]       = useState<Unidade[]>([]);
@@ -170,6 +176,9 @@ function AppMain() {
           setClinicName('');
           setTenantId('');
           setShowWelcomeModal(false);
+          setBillingModalMotivo(null);
+          setBillingDiasRestantes(null);
+          setBillingModalDismissed(false);
           setRedes([]);
           setRedeUnidades([]);
           setCurrentUnidadeId(null);
@@ -234,6 +243,50 @@ function AppMain() {
       }
     })();
   }, [session?.user?.id, currentTab]);
+
+  // ============================================================
+  // Cobrança: decide se exibe o modal de escolha de plano
+  // (trial sem ativação após 30 dias, ou assinatura anual vencendo em até 30 dias)
+  // ============================================================
+  useEffect(() => {
+    if (userRole !== 'dono' || !tenantId) return;
+
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('usuarios')
+          .select('abacatepay_subscription_status, plano_periodicidade, acesso_expira_em, created_at')
+          .eq('id', tenantId)
+          .maybeSingle();
+        if (!data) return;
+
+        const status = data.abacatepay_subscription_status as string | null;
+        const periodicidade = data.plano_periodicidade as string | null;
+        const expiraEm = data.acesso_expira_em ? new Date(data.acesso_expira_em as string) : null;
+        const createdAt = data.created_at ? new Date(data.created_at as string) : null;
+        const now = new Date();
+
+        if (status === 'pending' && createdAt) {
+          const diasDesdeCadastro = Math.floor((now.getTime() - createdAt.getTime()) / 86400000);
+          if (diasDesdeCadastro >= 30) {
+            setBillingModalMotivo('trial_expirado');
+            setBillingDiasRestantes(null);
+            return;
+          }
+        }
+
+        if (periodicidade === 'anual' && status === 'active' && expiraEm) {
+          const diasRestantes = Math.ceil((expiraEm.getTime() - now.getTime()) / 86400000);
+          if (diasRestantes <= 30) {
+            setBillingModalMotivo('renovacao_anual');
+            setBillingDiasRestantes(diasRestantes);
+          }
+        }
+      } catch {
+        // Informação de cobrança é opcional — falha silenciosa
+      }
+    })();
+  }, [userRole, tenantId]);
 
   // ============================================================
   // Carga inicial de dados quando há sessão válida
@@ -672,6 +725,15 @@ function AppMain() {
             setShowWelcomeModal(false);
             sessionStorage.setItem('lumina_welcome_shown', '1');
           }}
+        />
+      )}
+
+      {billingModalMotivo && !billingModalDismissed && (
+        <PlanoModal
+          motivo={billingModalMotivo}
+          clinicName={clinicName}
+          diasRestantes={billingDiasRestantes}
+          onClose={() => setBillingModalDismissed(true)}
         />
       )}
 
