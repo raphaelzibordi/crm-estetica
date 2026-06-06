@@ -230,7 +230,7 @@ export interface DadosResumoClinico {
   procedimentosFrequentes: string[]; // já ordenados por frequência desc.
 }
 
-function calcularIdade(dataNascimentoISO: string | null | undefined): number | null {
+export function calcularIdade(dataNascimentoISO: string | null | undefined): number | null {
   if (!dataNascimentoISO) return null;
   const nascimento = new Date(dataNascimentoISO);
   if (isNaN(nascimento.getTime())) return null;

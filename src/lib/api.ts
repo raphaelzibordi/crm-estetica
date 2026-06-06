@@ -1,7 +1,7 @@
 ﻿import { supabase } from './supabase';
 import { ApiError, humanizeError } from './errors';
 import { findAgendamentoConflict, getSalasStatus } from './agendaConflict';
-import { chamarLLMEstruturacao, chamarLLMResumoClinico } from './ia';
+import { chamarLLMEstruturacao, chamarLLMResumoClinico, calcularIdade } from './ia';
 import type {
   Agendamento,
   AnamneseCampo,
@@ -1437,9 +1437,7 @@ export const api = {
 
       const resumo = await chamarLLMResumoClinico({
         nomeCliente: clienteRow.nome ?? 'paciente',
-        idade: clienteRow.data_nascimento
-          ? Math.floor((Date.now() - new Date(clienteRow.data_nascimento).getTime()) / (365.25 * 24 * 3600 * 1000))
-          : null,
+        idade: calcularIdade(clienteRow.data_nascimento),
         totalAtendimentos: evolucoes.length,
         primeiraVisita: evolucoes[0]?.data ?? null,
         ultimaVisita: evolucoes[evolucoes.length - 1]?.data ?? null,
