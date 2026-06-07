@@ -47,6 +47,7 @@ interface CRMProps {
   userId: string;
   userName: string;
   onConvertidoAgendar?: (clienteId: string, clienteNome: string) => void;
+  permissoes?: import('../types').Permissoes | null;
 }
 
 // ── Estado inicial do formulário de lead ─────────────────────────────
@@ -60,7 +61,9 @@ const LEAD_VAZIO = {
 // COMPONENTE PRINCIPAL
 // ═══════════════════════════════════════════════════════════════════════
 
-export const CRM: React.FC<CRMProps> = ({ userId, userName, onConvertidoAgendar }) => {
+export const CRM: React.FC<CRMProps> = ({ userId, userName, onConvertidoAgendar, permissoes }) => {
+  const pode = (acao: 'ver' | 'criar' | 'editar' | 'deletar') =>
+    !permissoes || !!(permissoes['crm']?.[acao]);
   const [activeView, setActiveView] = useState<'pipeline' | 'ranking'>('pipeline');
 
   const [etapas, setEtapas]     = useState<FunilEtapa[]>([]);
@@ -378,9 +381,11 @@ export const CRM: React.FC<CRMProps> = ({ userId, userName, onConvertidoAgendar 
             <button onClick={() => setEtapasOpen(true)} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
               <Settings2 size={15} /> Etapas
             </button>
-            <button onClick={() => abrirCriarLead(etapas[0]?.id ?? '')} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
-              <Plus size={15} /> Novo Lead
-            </button>
+            {pode('criar') && (
+              <button onClick={() => abrirCriarLead(etapas[0]?.id ?? '')} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+                <Plus size={15} /> Novo Lead
+              </button>
+            )}
           </div>
         )}
       </div>

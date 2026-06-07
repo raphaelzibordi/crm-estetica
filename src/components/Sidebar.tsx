@@ -25,7 +25,7 @@ import {
   Check,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import type { UserRole, Unidade } from '../types';
+import type { UserRole, Unidade, Permissoes } from '../types';
 
 interface SidebarProps {
   currentTab: string;
@@ -35,6 +35,7 @@ interface SidebarProps {
   userRole?: UserRole;
   userCargo?: string;
   clinicName?: string;
+  permissoes?: Permissoes | null;
   // US-048: multiclínicas
   unidades?: Unidade[];
   currentUnidadeId?: string | null;
@@ -64,6 +65,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   userRole = 'dono',
   userCargo,
   clinicName,
+  permissoes,
   unidades = [],
   currentUnidadeId,
   onSwitchUnidade,
@@ -81,8 +83,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const menuItems = ALL_MENU_ITEMS.filter(item => {
-    if (item.donoOnly && userRole !== 'dono') return false;
-    return true;
+    if (userRole === 'dono') return true;
+    // Equipe com perfil: usa as permissões do perfil
+    if (permissoes) return permissoes[item.id]?.ver === true;
+    // Equipe sem perfil: comportamento legado (oculta donoOnly)
+    return !item.donoOnly;
   });
 
   // Fecha dropdown de unidades ao clicar fora

@@ -5,12 +5,15 @@ import { Plus, Pencil, Trash2, DoorOpen, AlertTriangle } from 'lucide-react';
 
 interface GerenciamentoSalasProps {
   userId: string;
+  permissoes?: import('../types').Permissoes | null;
 }
 
 type StatusFiltro = 'todas' | 'ativa' | 'inativa';
 type ModalMode = 'criar' | 'editar' | null;
 
-export const GerenciamentoSalas: React.FC<GerenciamentoSalasProps> = ({ userId }) => {
+export const GerenciamentoSalas: React.FC<GerenciamentoSalasProps> = ({ userId, permissoes }) => {
+  const pode = (acao: 'ver' | 'criar' | 'editar' | 'deletar') =>
+    !permissoes || !!(permissoes['salas']?.[acao]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFiltro, setStatusFiltro] = useState<StatusFiltro>('todas');
@@ -117,9 +120,11 @@ export const GerenciamentoSalas: React.FC<GerenciamentoSalasProps> = ({ userId }
             Gerencie as salas da clínica para associar a agendamentos.
           </p>
         </div>
-        <button className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={openCreate}>
-          <Plus size={15} /> Nova Sala
-        </button>
+        {pode('criar') && (
+          <button className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={openCreate}>
+            <Plus size={15} /> Nova Sala
+          </button>
+        )}
       </div>
 
       {deleteError && (

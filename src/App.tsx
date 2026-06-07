@@ -22,7 +22,7 @@ import { LGPD } from './components/LGPD';
 import { GerenciamentoSalas } from './components/GerenciamentoSalas';
 import { CalendarioSalas } from './components/CalendarioSalas';
 import { DefinirSenha } from './components/DefinirSenha';
-import type { Agendamento, StatusJornada, UserRole, Unidade } from './types';
+import type { Agendamento, StatusJornada, UserRole, Unidade, Permissoes } from './types';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { api } from './lib/api';
 import { ApiError, isUnauthorized } from './lib/errors';
@@ -75,12 +75,13 @@ function AppMain() {
   const [recoveryMode, setRecoveryMode] = useState(() => isDefinirSenhaPath());
 
   // Perfil do usuário logado (resolvido após sessão).
-  const [userRole, setUserRole]     = useState<UserRole>('dono');
-  const [userPhotoUrl, setUserPhotoUrl] = useState('');
-  const [userName, setUserName]     = useState('');
-  const [userCargo, setUserCargo]   = useState('');
-  const [clinicName, setClinicName] = useState('');
-  const [tenantId, setTenantId]     = useState<string>(''); // ID usado em todas as chamadas de API
+  const [userRole, setUserRole]           = useState<UserRole>('dono');
+  const [userPhotoUrl, setUserPhotoUrl]   = useState('');
+  const [userName, setUserName]           = useState('');
+  const [userCargo, setUserCargo]         = useState('');
+  const [clinicName, setClinicName]       = useState('');
+  const [tenantId, setTenantId]           = useState<string>('');
+  const [userPermissoes, setUserPermissoes] = useState<Permissoes | null>(null);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
 
   // Cobrança: modal de escolha de plano (fim de trial sem ativação ou renovação anual próxima)
@@ -109,13 +110,18 @@ function AppMain() {
   const [selectedClienteId, setSelectedClienteId] = useState<string | null>(null);
   const [onlineBookingAlert, setOnlineBookingAlert] = useState<string | null>(null);
 
-  // Guarda de rota para membros da equipe: redireciona para 'dashboard' se tentarem
-  // acessar aba bloqueada (inclusive via setCurrentTab direto).
+  // Guarda de rota: para equipe com perfil usa permissões dinâmicas; sem perfil usa fallback.
   const setCurrentTabSafe = useCallback((tab: string) => {
-    if (userRole === 'equipe' && TABS_BLOQUEADAS_EQUIPE.has(tab)) return;
+    if (userRole === 'equipe') {
+      if (userPermissoes) {
+        if (!userPermissoes[tab]?.ver) return;
+      } else {
+        if (TABS_BLOQUEADAS_EQUIPE.has(tab)) return;
+      }
+    }
     if (tab === 'prontuario') setSelectedClienteId(null);
     setCurrentTab(tab);
-  }, [userRole]);
+  }, [userRole, userPermissoes]);
 
   // Evita loop: só busca perfil quando session.user.id muda.
   const lastProfileUid = useRef<string | null>(null);
@@ -187,6 +193,7 @@ function AppMain() {
           setUserCargo('');
           setClinicName('');
           setTenantId('');
+          setUserPermissoes(null);
           setShowWelcomeModal(false);
           setBillingModalMotivo(null);
           setBillingDiasRestantes(null);
@@ -233,14 +240,19 @@ function AppMain() {
         );
         if (profile.role === 'equipe') {
           setUserCargo(profile.cargo ?? '');
+          setUserPermissoes(profile.permissoes ?? null);
           // Show welcome modal once per browser session (cleared on logout).
           if (!sessionStorage.getItem('lumina_welcome_shown')) {
             setShowWelcomeModal(true);
           }
         }
         // Membro da equipe na aba bloqueada: redireciona.
-        if (profile.role === 'equipe' && TABS_BLOQUEADAS_EQUIPE.has(currentTab)) {
-          setCurrentTab('dashboard');
+        if (profile.role === 'equipe') {
+          const permissoes = profile.permissoes ?? null;
+          const bloqueada = permissoes
+            ? !permissoes[currentTab]?.ver
+            : TABS_BLOQUEADAS_EQUIPE.has(currentTab);
+          if (bloqueada) setCurrentTab('dashboard');
         }
 
         // US-048: carrega redes e unidades do dono
@@ -628,6 +640,7 @@ function AppMain() {
         unidades={redeUnidades}
         currentUnidadeId={currentUnidadeId}
         onSwitchUnidade={setCurrentUnidadeId}
+        permissoes={userPermissoes}
       />
 
       <main className="main-content">
@@ -653,6 +666,7 @@ function AppMain() {
             onAddAgendamento={handleAddAgendamento}
             onDeleteAgendamento={handleDeleteAgendamento}
             onOpenProntuario={handleOpenProntuario}
+            permissoes={userPermissoes}
           />
         )}
 
@@ -664,6 +678,7 @@ function AppMain() {
             userName={userName}
             unidadeId={currentUnidadeId}
             pacienteCompartilhado={pacienteCompartilhado}
+            permissoes={userPermissoes}
           />
         )}
 
@@ -675,6 +690,7 @@ function AppMain() {
               alert(`"${clienteNome}" convertido em paciente! Acesse Prontuário para criar o agendamento.`);
               setCurrentTabSafe('prontuario');
             }}
+            permissoes={userPermissoes}
           />
         )}
 
@@ -686,6 +702,7 @@ function AppMain() {
               alert(`Orçamento de "${nomeCliente}" aprovado! Acesse a Agenda para criar o agendamento.`);
               setCurrentTabSafe('agenda');
             }}
+            permissoes={userPermissoes}
           />
         )}
 
@@ -694,6 +711,7 @@ function AppMain() {
             userId={effectiveTenantId}
             userName={userName || clinicName}
             onAgendar={() => setCurrentTabSafe('agenda')}
+            permissoes={userPermissoes}
           />
         )}
 
@@ -701,31 +719,33 @@ function AppMain() {
           <WhatsApp
             userId={effectiveTenantId}
             userName={userName || clinicName}
+            permissoes={userPermissoes}
           />
         )}
 
-        {/* Abas restritas: apenas donos chegam aqui (setCurrentTabSafe bloqueia equipe) */}
-        {currentTab === 'comunicacao' && userRole === 'dono' && (
-          <Comunicacao userId={effectiveTenantId} />
+        {/* Abas restritas: setCurrentTabSafe bloqueia equipe sem permissão */}
+        {currentTab === 'comunicacao' && (userRole === 'dono' || userPermissoes?.['comunicacao']?.ver) && (
+          <Comunicacao userId={effectiveTenantId} permissoes={userPermissoes} />
         )}
 
-        {currentTab === 'gestao' && userRole === 'dono' && (
+        {currentTab === 'gestao' && (userRole === 'dono' || userPermissoes?.['gestao']?.ver) && (
           <Gestao userId={effectiveTenantId} userName={userName} unidadeId={currentUnidadeId} />
         )}
 
-        {currentTab === 'salas' && userRole === 'dono' && (
-          <GerenciamentoSalas userId={effectiveTenantId} />
+        {currentTab === 'salas' && (userRole === 'dono' || userPermissoes?.['salas']?.ver) && (
+          <GerenciamentoSalas userId={effectiveTenantId} permissoes={userPermissoes} />
         )}
 
-        {currentTab === 'calendario-salas' && userRole === 'dono' && (
+        {currentTab === 'calendario-salas' && (userRole === 'dono' || userPermissoes?.['calendario-salas']?.ver) && (
           <CalendarioSalas
             userId={effectiveTenantId}
             agendamentosHoje={agendamentos}
             onEditAgendamento={handleUpdateAgendamentoDados}
+            permissoes={userPermissoes}
           />
         )}
 
-        {currentTab === 'lgpd' && userRole === 'dono' && (
+        {currentTab === 'lgpd' && (userRole === 'dono' || userPermissoes?.['lgpd']?.ver) && (
           <LGPD userId={effectiveTenantId} />
         )}
 

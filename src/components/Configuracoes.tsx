@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { User, Building2, Users, Plus, X, Check, Edit2, Trash2, Shield, Link, ToggleLeft, ToggleRight, Copy, Eye, EyeOff, Bell, FileText, Network, ChevronRight } from 'lucide-react';
 import { api } from '../lib/api';
-import type { BookingSettings, ConfirmacaoSettings, DocumentoModelo, DocumentoTipo, MembroEquipe, Procedimento, Rede, Unidade } from '../types';
+import type { BookingSettings, ConfirmacaoSettings, DocumentoModelo, DocumentoTipo, MembroEquipe, PerfilAcesso, Permissoes, Procedimento, Rede, Unidade } from '../types';
 import { RedeClinicas } from './RedeClinicas';
+import { PerfilAcessoModal } from './PerfilAcessoModal';
 import { MODELOS_PADRAO } from './AssinaturaDigital';
 
 interface ConfiguracoesProps {
@@ -75,10 +76,15 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
   const [editingMembroId, setEditingMembroId] = useState<string | null>(null);
   const [mNome, setMNome] = useState('');
   const [mEmail, setMEmail] = useState('');
-
   const [mCargo, setMCargo] = useState('');
   const [mCargoCustom, setMCargoCustom] = useState(false);
+  const [mPerfilId, setMPerfilId] = useState<string | null>(null);
   const [savingMembro, setSavingMembro] = useState(false);
+
+  // ── Perfis de Acesso state ──
+  const [perfis, setPerfis] = useState<PerfilAcesso[]>([]);
+  const [showPerfilModal, setShowPerfilModal] = useState(false);
+  const [editingPerfil, setEditingPerfil] = useState<PerfilAcesso | null>(null);
 
   // ── Documentos state (US-025) ──
   const [docTemplates, setDocTemplates] = useState<DocumentoModelo[]>([]);
@@ -89,7 +95,7 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
   const [docConteudo, setDocConteudo] = useState('');
   const [savingDoc, setSavingDoc] = useState(false);
 
-  useEffect(() => { loadPerfil(); loadEquipeRemota(); loadBookingSettings(); loadConfirmacaoSettings(); loadDocTemplates(); }, [userId]);
+  useEffect(() => { loadPerfil(); loadEquipeRemota(); loadBookingSettings(); loadConfirmacaoSettings(); loadDocTemplates(); loadPerfisAcesso(); }, [userId]);
 
   const loadDocTemplates = async () => {
     try { setDocTemplates(await api.getDocumentTemplates(userId)); }
@@ -118,6 +124,11 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
   const loadEquipeRemota = async () => {
     try { setEquipe(await api.getEquipe(userId)); }
     catch (e) { console.error('Erro ao carregar equipe', e); }
+  };
+
+  const loadPerfisAcesso = async () => {
+    try { setPerfis(await api.getPerfisAcesso(userId)); }
+    catch { /* silently fail — table may not exist yet */ }
   };
 
   // ── Upload de foto de perfil ──
@@ -193,9 +204,11 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
       setEditingMembroId(m.id); setMNome(m.nome); setMEmail(m.email);
       setMCargo(m.cargo);
       setMCargoCustom(!CARGOS_SUGERIDOS.includes(m.cargo));
+      setMPerfilId(m.perfilId ?? null);
     } else {
       setEditingMembroId(null); setMNome(''); setMEmail('');
       setMCargo(CARGOS_SUGERIDOS[0]); setMCargoCustom(false);
+      setMPerfilId(null);
     }
     setShowMembroModal(true);
   };
@@ -207,16 +220,13 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
       if (editingMembroId) {
         const atualizado = await api.updateMembroEquipe(
           editingMembroId,
-          { nome: mNome, email: mEmail, cargo: mCargo },
+          { nome: mNome, email: mEmail, cargo: mCargo, perfilId: mPerfilId },
           userId
         );
         setEquipe(prev => prev.map(m => (m.id === editingMembroId ? atualizado : m)));
       } else {
-        // Cria apenas o registro na tabela equipe.
-        // O membro criará a própria conta de acesso na tela de login do Lumina.
-        // O sistema detectará automaticamente o e-mail e configurará o perfil correto.
         const novo = await api.createMembroEquipe(
-          { nome: mNome, email: mEmail, cargo: mCargo, ativo: true },
+          { nome: mNome, email: mEmail, cargo: mCargo, ativo: true, perfilId: mPerfilId },
           userId
         );
         setEquipe(prev => [...prev, novo]);
@@ -226,6 +236,33 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
       alert(`Erro ao salvar membro: ${err?.message || err}`);
     } finally {
       setSavingMembro(false);
+    }
+  };
+
+  const handleSavePerfilAcesso = async (nome: string, permissoes: Permissoes) => {
+    if (editingPerfil) {
+      const updated = await api.updatePerfilAcesso(editingPerfil.id, { nome, permissoes }, userId);
+      setPerfis(prev => prev.map(p => p.id === editingPerfil.id ? updated : p));
+    } else {
+      const novo = await api.createPerfilAcesso({ nome, permissoes }, userId);
+      setPerfis(prev => [...prev, novo]);
+    }
+    setShowPerfilModal(false);
+    setEditingPerfil(null);
+  };
+
+  const handleDeletePerfil = async (id: string) => {
+    const membrosVinculados = equipe.filter(m => m.perfilId === id).length;
+    if (membrosVinculados > 0) {
+      alert(`Este perfil está em uso por ${membrosVinculados} membro(s). Remova o vínculo antes de deletar.`);
+      return;
+    }
+    if (!window.confirm('Deletar este perfil de acesso?')) return;
+    try {
+      await api.deletePerfilAcesso(id, userId);
+      setPerfis(prev => prev.filter(p => p.id !== id));
+    } catch (err: any) {
+      alert(`Erro ao deletar perfil: ${err?.message || err}`);
     }
   };
 
@@ -534,12 +571,81 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
 
       {/* ── TAB: EQUIPE ── */}
       {tab === 'equipe' && (
-        <div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+          {/* Seção: Perfis de Acesso */}
           <div className="card" style={{ padding: '28px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Shield size={16} style={{ color: 'var(--color-primary)' }} />
+                <h3 style={{ fontSize: '16px', fontWeight: 600 }}>Perfis de Acesso</h3>
+                <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>({perfis.length} perfis)</span>
+              </div>
+              <button
+                className="btn btn-outline"
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}
+                onClick={() => { setEditingPerfil(null); setShowPerfilModal(true); }}
+              >
+                <Plus size={13} />Novo Perfil
+              </button>
+            </div>
+
+            <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '16px', lineHeight: 1.6 }}>
+              Perfis definem quais módulos e ações cada membro pode acessar. Atribua um perfil a cada membro abaixo.
+            </p>
+
+            {perfis.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '28px 20px', border: '1px dashed var(--color-border)', borderRadius: '10px', color: 'var(--color-text-muted)' }}>
+                <Shield size={24} style={{ marginBottom: '8px', opacity: 0.35 }} />
+                <p style={{ fontWeight: 600, fontSize: '13px' }}>Nenhum perfil cadastrado</p>
+                <p style={{ fontSize: '12px', marginTop: '4px' }}>Crie perfis como "Recepcionista" ou "Profissional" e defina o que cada um pode acessar.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {perfis.map(p => {
+                  const membrosNoPerfil = equipe.filter(m => m.perfilId === p.id).length;
+                  const tabsVisiveis = Object.values(p.permissoes).filter(t => t.ver).length;
+                  return (
+                    <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: '8px', border: '1px solid var(--color-border)', background: '#fafafa' }}>
+                      <div style={{ width: 36, height: 36, borderRadius: '8px', background: 'var(--color-primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Shield size={15} style={{ color: 'var(--color-primary)' }} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, fontSize: '14px' }}>{p.nome}</div>
+                        <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                          {tabsVisiveis} módulo{tabsVisiveis !== 1 ? 's' : ''} visível{tabsVisiveis !== 1 ? 'is' : ''}
+                          {membrosNoPerfil > 0 && ` · ${membrosNoPerfil} membro${membrosNoPerfil !== 1 ? 's' : ''}`}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button
+                          onClick={() => { setEditingPerfil(p); setShowPerfilModal(true); }}
+                          className="btn btn-outline"
+                          style={{ padding: '4px 8px' }}
+                        >
+                          <Edit2 size={12} />
+                        </button>
+                        <button
+                          onClick={() => handleDeletePerfil(p.id)}
+                          className="btn btn-outline"
+                          style={{ padding: '4px 8px', borderColor: '#fca5a5', color: '#ef4444' }}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Seção: Membros da Equipe */}
+          <div className="card" style={{ padding: '28px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Users size={16} style={{ color: 'var(--color-primary)' }} />
-                <h3 style={{ fontSize: '16px', fontWeight: 600 }}>Equipe da Clínica</h3>
+                <h3 style={{ fontSize: '16px', fontWeight: 600 }}>Membros da Equipe</h3>
                 <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>({equipe.length} membros)</span>
               </div>
               <button className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => openMembroModal()}>
@@ -549,7 +655,7 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
 
             <div style={{ marginBottom: '16px', padding: '10px 14px', background: '#f8f8f6', borderRadius: '8px', fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
               <Shield size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-              Membros cadastrados aqui devem criar a própria conta no Lumina usando o e-mail registrado. O acesso será automaticamente restrito às abas <strong>Jornada, Agenda e Prontuário</strong>.
+              Membros cadastrados aqui devem criar a própria conta no Lumina usando o e-mail registrado. Atribua um Perfil de Acesso para controlar o que cada um pode ver e fazer.
             </div>
 
             {equipe.length === 0 ? (
@@ -560,24 +666,36 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {equipe.map(m => (
-                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '14px 16px', borderRadius: '10px', border: '1px solid var(--color-border)', background: '#fafafa' }}>
-                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--color-primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-primary)', fontWeight: 700, fontSize: '16px', flexShrink: 0 }}>
-                      {m.nome.charAt(0).toUpperCase()}
+                {equipe.map(m => {
+                  const perfilDoMembro = perfis.find(p => p.id === m.perfilId);
+                  return (
+                    <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px', borderRadius: '10px', border: '1px solid var(--color-border)', background: '#fafafa' }}>
+                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--color-primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-primary)', fontWeight: 700, fontSize: '16px', flexShrink: 0 }}>
+                        {m.nome.charAt(0).toUpperCase()}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: '14px' }}>{m.nome}</div>
+                        <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.email}</div>
+                      </div>
+                      <span style={{ fontSize: '11px', fontWeight: 600, padding: '4px 10px', borderRadius: '20px', background: 'var(--color-primary-light)', color: 'var(--color-primary)', flexShrink: 0 }}>
+                        {m.cargo}
+                      </span>
+                      {perfilDoMembro ? (
+                        <span style={{ fontSize: '11px', fontWeight: 600, padding: '4px 10px', borderRadius: '20px', background: '#e8f5e9', color: '#2e7d32', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Shield size={10} />{perfilDoMembro.nome}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '20px', background: '#fff3e0', color: '#e65100', flexShrink: 0 }}>
+                          Sem perfil
+                        </span>
+                      )}
+                      <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                        <button onClick={() => openMembroModal(m)} className="btn btn-outline" style={{ padding: '4px 8px' }}><Edit2 size={12} /></button>
+                        <button onClick={() => handleDeleteMembro(m.id)} className="btn btn-outline" style={{ padding: '4px 8px', borderColor: '#fca5a5', color: '#ef4444' }}><Trash2 size={12} /></button>
+                      </div>
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 600, fontSize: '14px' }}>{m.nome}</div>
-                      <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{m.email}</div>
-                    </div>
-                    <span style={{ fontSize: '11px', fontWeight: 600, padding: '4px 10px', borderRadius: '20px', background: 'var(--color-primary-light)', color: 'var(--color-primary)' }}>
-                      {m.cargo}
-                    </span>
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      <button onClick={() => openMembroModal(m)} className="btn btn-outline" style={{ padding: '4px 8px' }}><Edit2 size={12} /></button>
-                      <button onClick={() => handleDeleteMembro(m.id)} className="btn btn-outline" style={{ padding: '4px 8px', borderColor: '#fca5a5', color: '#ef4444' }}><Trash2 size={12} /></button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1081,6 +1199,24 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
                   </div>
                 )}
               </div>
+              <div className="form-group">
+                <label className="form-label">Perfil de Acesso</label>
+                <select
+                  className="form-select"
+                  value={mPerfilId ?? ''}
+                  onChange={e => setMPerfilId(e.target.value || null)}
+                >
+                  <option value="">Sem perfil (acesso padrão)</option>
+                  {perfis.map(p => (
+                    <option key={p.id} value={p.id}>{p.nome}</option>
+                  ))}
+                </select>
+                {perfis.length === 0 && (
+                  <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+                    Crie perfis de acesso na seção acima para poder atribuí-los.
+                  </p>
+                )}
+              </div>
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '8px' }}>
                 <button type="button" onClick={() => setShowMembroModal(false)} className="btn btn-outline">Cancelar</button>
                 <button type="submit" className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} disabled={savingMembro}><Check size={14} />{savingMembro ? 'Salvando...' : 'Salvar'}</button>
@@ -1088,6 +1224,14 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
             </form>
           </div>
         </div>
+      )}
+
+      {showPerfilModal && (
+        <PerfilAcessoModal
+          perfil={editingPerfil}
+          onSave={handleSavePerfilAcesso}
+          onClose={() => { setShowPerfilModal(false); setEditingPerfil(null); }}
+        />
       )}
 
       {tab === 'rede' && (

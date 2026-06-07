@@ -5,9 +5,12 @@ import { api } from '../lib/api';
 
 interface ComunicacaoProps {
   userId: string;
+  permissoes?: import('../types').Permissoes | null;
 }
 
-export const Comunicacao: React.FC<ComunicacaoProps> = ({ userId }) => {
+export const Comunicacao: React.FC<ComunicacaoProps> = ({ userId, permissoes }) => {
+  const pode = (acao: 'ver' | 'criar' | 'editar' | 'deletar') =>
+    !permissoes || !!(permissoes['comunicacao']?.[acao]);
   const [selectedAlertaIdx, setSelectedAlertaIdx] = useState<number>(0);
   const [editingText, setEditingText] = useState<string>('');
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
@@ -227,13 +230,15 @@ export const Comunicacao: React.FC<ComunicacaoProps> = ({ userId }) => {
                 >
                   Restaurar Original
                 </button>
-                <button
-                  onClick={handleSendWhatsApp}
-                  className="btn btn-primary"
-                >
-                  <MessageSquare size={16} />
-                  <span>Enviar pelo WhatsApp</span>
-                </button>
+                {pode('criar') && (
+                  <button
+                    onClick={handleSendWhatsApp}
+                    className="btn btn-primary"
+                  >
+                    <MessageSquare size={16} />
+                    <span>Enviar pelo WhatsApp</span>
+                  </button>
+                )}
               </div>
 
             </div>

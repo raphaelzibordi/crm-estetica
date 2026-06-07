@@ -138,11 +138,14 @@ interface OrcamentosProps {
   userId: string;
   userName: string;
   onConvertidoAgendar?: (nomeCliente: string) => void;
+  permissoes?: import('../types').Permissoes | null;
 }
 
 type TabId = 'painel' | 'followup' | 'relatorio';
 
-export const Orcamentos: React.FC<OrcamentosProps> = ({ userId, userName, onConvertidoAgendar }) => {
+export const Orcamentos: React.FC<OrcamentosProps> = ({ userId, userName, onConvertidoAgendar, permissoes }) => {
+  const pode = (acao: 'ver' | 'criar' | 'editar' | 'deletar') =>
+    !permissoes || !!(permissoes['orcamentos']?.[acao]);
   const [tab, setTab]                               = useState<TabId>('painel');
   const [orcamentos, setOrcamentos]                 = useState<Orcamento[]>([]);
   const [followupConfigs, setFollowupConfigs]       = useState<OrcamentoFollowupConfig[]>([]);
@@ -501,17 +504,19 @@ export const Orcamentos: React.FC<OrcamentosProps> = ({ userId, userName, onConv
             Gerencie propostas e follow-ups automáticos
           </p>
         </div>
-        <button
-          onClick={() => { setForm(EMPTY_FORM); setClienteBusca(''); setShowModal(true); }}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            background: 'var(--color-primary)', color: '#fff',
-            border: 'none', borderRadius: 'var(--border-radius-md)',
-            padding: '10px 18px', fontSize: 14, fontWeight: 600, cursor: 'pointer',
-          }}
-        >
-          <Plus size={16} /> Novo Orçamento
-        </button>
+        {pode('criar') && (
+          <button
+            onClick={() => { setForm(EMPTY_FORM); setClienteBusca(''); setShowModal(true); }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              background: 'var(--color-primary)', color: '#fff',
+              border: 'none', borderRadius: 'var(--border-radius-md)',
+              padding: '10px 18px', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+            }}
+          >
+            <Plus size={16} /> Novo Orçamento
+          </button>
+        )}
       </div>
 
       {/* Tabs */}

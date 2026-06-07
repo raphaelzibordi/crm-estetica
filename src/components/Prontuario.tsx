@@ -28,9 +28,12 @@ interface ProntuarioProps {
   userName?: string;
   unidadeId?: string | null;
   pacienteCompartilhado?: boolean;
+  permissoes?: import('../types').Permissoes | null;
 }
 
-export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userId, onAddAgendamento, userName, unidadeId, pacienteCompartilhado }) => {
+export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userId, onAddAgendamento, userName, unidadeId, pacienteCompartilhado, permissoes }) => {
+  const pode = (acao: 'ver' | 'criar' | 'editar' | 'deletar') =>
+    !permissoes || !!(permissoes['prontuario']?.[acao]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [activeClienteId, setActiveClienteId] = useState<string>(selectedClienteId || '');
   const [evolucoes, setEvolucoes] = useState<EvolucaoClinica[]>([]);
@@ -2013,7 +2016,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
                               <ShieldCheck size={12} /> Assinar
                             </button>
                           )}
-                          {ev.assinadoEm && (
+                          {ev.assinadoEm && pode('editar') && (
                             <button
                               type="button"
                               onClick={() => handleAditarEvolucao(ev)}
@@ -2031,6 +2034,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
             </div>
 
             {/* Form for New Evolution */}
+            {pode('criar') && (
             <div className="card" id="form-nova-evolucao" style={{ padding: '32px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '24px' }}>
                 <Plus size={18} style={{ color: 'var(--color-primary)' }} />
@@ -2106,6 +2110,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
                 </button>
               </form>
             </div>
+            )}
 
           </div>
 

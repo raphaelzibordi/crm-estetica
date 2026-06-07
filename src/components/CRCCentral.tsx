@@ -93,9 +93,12 @@ interface CRCCentralProps {
   userId: string;
   userName: string;
   onAgendar?: () => void;
+  permissoes?: import('../types').Permissoes | null;
 }
 
-export const CRCCentral: React.FC<CRCCentralProps> = ({ userId, userName, onAgendar }) => {
+export const CRCCentral: React.FC<CRCCentralProps> = ({ userId, userName, onAgendar, permissoes }) => {
+  const pode = (acao: 'ver' | 'criar' | 'editar' | 'deletar') =>
+    !permissoes || !!(permissoes['crc']?.[acao]);
   const [tab, setTab] = useState<TabId>('faltas');
 
   // Dados
@@ -502,12 +505,14 @@ export const CRCCentral: React.FC<CRCCentralProps> = ({ userId, userName, onAgen
           <FilterBar>
             <SearchInput value={buscaInadimpl} onChange={setBuscaInadimpl} placeholder="Buscar cliente..." />
             <button onClick={loadInadimpl} style={refreshBtn}><RefreshCw size={14} /></button>
-            <button
-              onClick={() => { setContaForm(EMPTY_CONTA); setClienteBusca(''); setShowContaModal(true); }}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--border-radius-md)', padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-            >
-              <Plus size={14} /> Registrar conta
-            </button>
+            {pode('criar') && (
+              <button
+                onClick={() => { setContaForm(EMPTY_CONTA); setClienteBusca(''); setShowContaModal(true); }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--border-radius-md)', padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+              >
+                <Plus size={14} /> Registrar conta
+              </button>
+            )}
           </FilterBar>
 
           {selectedInadimpl.size > 0 && (
@@ -544,12 +549,16 @@ export const CRCCentral: React.FC<CRCCentralProps> = ({ userId, userName, onAgen
                         <MessageCircle size={15} />
                       </ActionBtn>
                     )}
-                    <ActionBtn title="Marcar como pago" color="#15803D" onClick={() => handleMarcarPago(c)}>
-                      <CheckCircle2 size={15} />
-                    </ActionBtn>
-                    <ActionBtn title="Excluir" color="#B91C1C" onClick={() => handleDeleteConta(c.id)}>
-                      <Trash2 size={15} />
-                    </ActionBtn>
+                    {pode('editar') && (
+                      <ActionBtn title="Marcar como pago" color="#15803D" onClick={() => handleMarcarPago(c)}>
+                        <CheckCircle2 size={15} />
+                      </ActionBtn>
+                    )}
+                    {pode('deletar') && (
+                      <ActionBtn title="Excluir" color="#B91C1C" onClick={() => handleDeleteConta(c.id)}>
+                        <Trash2 size={15} />
+                      </ActionBtn>
+                    )}
                   </div>
                 </CRCCard>
               ))}
@@ -623,9 +632,11 @@ export const CRCCentral: React.FC<CRCCentralProps> = ({ userId, userName, onAgen
                         <CalendarRange size={15} />
                       </ActionBtn>
                     )}
-                    <ActionBtn title="Não retorna mais" color="#6B7280" onClick={() => handleNaoRetorna(s)}>
-                      <UserX size={15} />
-                    </ActionBtn>
+                    {pode('editar') && (
+                      <ActionBtn title="Não retorna mais" color="#6B7280" onClick={() => handleNaoRetorna(s)}>
+                        <UserX size={15} />
+                      </ActionBtn>
+                    )}
                   </div>
                 </CRCCard>
               ))}

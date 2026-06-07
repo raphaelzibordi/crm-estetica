@@ -64,9 +64,12 @@ const BATCH_LIMIT = 50;
 interface WhatsAppProps {
   userId: string;
   userName: string;
+  permissoes?: import('../types').Permissoes | null;
 }
 
-export const WhatsApp: React.FC<WhatsAppProps> = ({ userId, userName }) => {
+export const WhatsApp: React.FC<WhatsAppProps> = ({ userId, userName, permissoes }) => {
+  const pode = (acao: 'ver' | 'criar') =>
+    !permissoes || !!(permissoes['whatsapp']?.[acao]);
   const [tab, setTab]                               = useState<TabId>('enviar');
   const [config, setConfig]                         = useState<WhatsAppConfig | null>(null);
   const [mensagens, setMensagens]                   = useState<WhatsAppMensagem[]>([]);
@@ -362,12 +365,14 @@ export const WhatsApp: React.FC<WhatsAppProps> = ({ userId, userName }) => {
               </div>
             )}
 
-            <button onClick={handleSend} disabled={saving || !selectedCliente} style={{
-              ...btnPrimary, background: '#16A34A', display: 'flex', alignItems: 'center', gap: 8,
-              opacity: (!selectedCliente) ? 0.5 : 1,
-            }}>
-              <Send size={15} /> {saving ? 'Enviando...' : 'Enviar mensagem'}
-            </button>
+            {pode('criar') && (
+              <button onClick={handleSend} disabled={saving || !selectedCliente} style={{
+                ...btnPrimary, background: '#16A34A', display: 'flex', alignItems: 'center', gap: 8,
+                opacity: (!selectedCliente) ? 0.5 : 1,
+              }}>
+                <Send size={15} /> {saving ? 'Enviando...' : 'Enviar mensagem'}
+              </button>
+            )}
           </div>
 
           {/* Últimas mensagens do cliente selecionado */}
@@ -472,13 +477,15 @@ export const WhatsApp: React.FC<WhatsAppProps> = ({ userId, userName }) => {
               )}
             </div>
 
-            <button
-              onClick={handleBatchSend}
-              disabled={batchRunning || batchSelecionados.size === 0 || batchSelecionados.size > BATCH_LIMIT}
-              style={{ ...btnPrimary, background: '#16A34A', display: 'flex', alignItems: 'center', gap: 8, opacity: batchSelecionados.size === 0 ? 0.5 : 1 }}
-            >
-              <Send size={15} /> {batchRunning ? 'Disparando...' : `Disparar para ${batchSelecionados.size}`}
-            </button>
+            {pode('criar') && (
+              <button
+                onClick={handleBatchSend}
+                disabled={batchRunning || batchSelecionados.size === 0 || batchSelecionados.size > BATCH_LIMIT}
+                style={{ ...btnPrimary, background: '#16A34A', display: 'flex', alignItems: 'center', gap: 8, opacity: batchSelecionados.size === 0 ? 0.5 : 1 }}
+              >
+                <Send size={15} /> {batchRunning ? 'Disparando...' : `Disparar para ${batchSelecionados.size}`}
+              </button>
+            )}
 
             {/* Resultado do último disparo */}
             {batchResult && (
@@ -585,11 +592,13 @@ export const WhatsApp: React.FC<WhatsAppProps> = ({ userId, userName }) => {
                 </div>
               </label>
 
-              <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
-                <button onClick={handleSaveConfig} disabled={saving} style={btnPrimary}>
-                  {saving ? 'Salvando...' : 'Salvar configuração'}
-                </button>
-              </div>
+              {pode('criar') && (
+                <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
+                  <button onClick={handleSaveConfig} disabled={saving} style={btnPrimary}>
+                    {saving ? 'Salvando...' : 'Salvar configuração'}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -611,9 +620,11 @@ export const WhatsApp: React.FC<WhatsAppProps> = ({ userId, userName }) => {
                       <div style={{ fontWeight: 600, fontSize: 13 }}>{o.clienteNome ?? o.clienteId}</div>
                       <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{o.motivo}</div>
                     </div>
-                    <button title="Remover opt-out" onClick={() => handleRemoverOptOut(o.clienteId)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#B91C1C', padding: 4 }}>
-                      <Trash2 size={14} />
-                    </button>
+                    {pode('deletar') && (
+                      <button title="Remover opt-out" onClick={() => handleRemoverOptOut(o.clienteId)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#B91C1C', padding: 4 }}>
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>

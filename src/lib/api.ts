@@ -256,6 +256,7 @@ function mapMembroEquipe(row: any): MembroEquipe {
     fotoUrl: row.foto_url ?? undefined,
     ativo: row.ativo ?? true,
     bookingVisivel: row.booking_visivel ?? true,
+    perfilId: row.perfil_id ?? null,
   };
 }
 
@@ -1861,6 +1862,7 @@ export const api = {
       let equipeFotoUrl: string | undefined;
       let cargo: string | undefined;
       let nomeClinica: string | undefined;
+      let equipePerfilId: string | null = null;
 
       if (role === 'equipe' && ownerId) {
         // Get the member's email from the live session (no extra network call).
@@ -1871,13 +1873,14 @@ export const api = {
           // equipe RLS uses get_tenant_id() = ownerId, so this query is allowed.
           const { data: equipeRow } = await supabase
             .from('equipe')
-            .select('nome, cargo, foto_url')
+            .select('nome, cargo, foto_url, perfil_id')
             .eq('user_id', ownerId)
             .ilike('email', memberEmail)
             .maybeSingle();
-          equipeNome  = equipeRow?.nome    ?? undefined;
-          cargo       = equipeRow?.cargo   ?? undefined;
+          equipeNome    = equipeRow?.nome     ?? undefined;
+          cargo         = equipeRow?.cargo    ?? undefined;
           equipeFotoUrl = equipeRow?.foto_url ?? undefined;
+          equipePerfilId = equipeRow?.perfil_id ?? null;
         }
 
         // usuarios_select RLS: id = get_tenant_id() = ownerId — equipe can read owner row.
@@ -1892,6 +1895,19 @@ export const api = {
         nomeClinica = data?.nome_clinica ?? undefined;
       }
 
+      // Load permissions from the assigned profile (equipe only)
+      let permissoes: import('../types').Permissoes | undefined;
+      if (role === 'equipe' && equipePerfilId) {
+        const { data: perfilRow } = await supabase
+          .from('perfis_acesso')
+          .select('permissoes')
+          .eq('id', equipePerfilId)
+          .maybeSingle();
+        if (perfilRow?.permissoes) {
+          permissoes = perfilRow.permissoes as import('../types').Permissoes;
+        }
+      }
+
       return {
         nome: equipeNome || data?.nome || '',
         fotoUrl: equipeFotoUrl || data?.foto_url || '',
@@ -1899,6 +1915,7 @@ export const api = {
         tenantId,
         cargo,
         nomeClinica,
+        permissoes,
       };
     });
   },
@@ -2067,6 +2084,7 @@ export const api = {
           cargo: membro.cargo || null,
           foto_url: membro.fotoUrl || null,
           ativo: membro.ativo ?? true,
+          perfil_id: membro.perfilId ?? null,
         }])
         .select()
         .single();
@@ -2083,11 +2101,12 @@ export const api = {
     return run(async () => {
       const uid = await requireUserId(userId);
       const dbUpdates: Record<string, unknown> = {};
-      if (updates.nome !== undefined)    dbUpdates.nome    = updates.nome;
-      if (updates.email !== undefined)   dbUpdates.email   = updates.email || null;
-      if (updates.cargo !== undefined)   dbUpdates.cargo   = updates.cargo || null;
-      if (updates.fotoUrl !== undefined) dbUpdates.foto_url = updates.fotoUrl || null;
-      if (updates.ativo !== undefined)   dbUpdates.ativo   = updates.ativo;
+      if (updates.nome !== undefined)     dbUpdates.nome     = updates.nome;
+      if (updates.email !== undefined)    dbUpdates.email    = updates.email || null;
+      if (updates.cargo !== undefined)    dbUpdates.cargo    = updates.cargo || null;
+      if (updates.fotoUrl !== undefined)  dbUpdates.foto_url = updates.fotoUrl || null;
+      if (updates.ativo !== undefined)    dbUpdates.ativo    = updates.ativo;
+      if ('perfilId' in updates)          dbUpdates.perfil_id = updates.perfilId ?? null;
       const { data, error } = await supabase
         .from('equipe')
         .update(dbUpdates)
@@ -2105,6 +2124,80 @@ export const api = {
       const uid = await requireUserId(userId);
       const { error } = await supabase
         .from('equipe')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', uid);
+      if (error) throw error;
+    });
+  },
+
+  // ============================================================
+  // PERFIS DE ACESSO (RBAC)
+  // ============================================================
+
+  async getPerfisAcesso(userId?: string): Promise<import('../types').PerfilAcesso[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('perfis_acesso')
+        .select('*')
+        .eq('user_id', uid)
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      return (data ?? []).map((r: any) => ({
+        id: r.id,
+        userId: r.user_id,
+        nome: r.nome ?? '',
+        permissoes: (r.permissoes ?? {}) as import('../types').Permissoes,
+        isDefault: r.is_default ?? false,
+        createdAt: r.created_at ?? '',
+      }));
+    });
+  },
+
+  async createPerfilAcesso(
+    dados: { nome: string; permissoes: import('../types').Permissoes; isDefault?: boolean },
+    userId?: string
+  ): Promise<import('../types').PerfilAcesso> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { data, error } = await supabase
+        .from('perfis_acesso')
+        .insert([{ user_id: uid, nome: dados.nome, permissoes: dados.permissoes, is_default: dados.isDefault ?? false }])
+        .select()
+        .single();
+      if (error) throw error;
+      return { id: data.id, userId: data.user_id, nome: data.nome, permissoes: data.permissoes, isDefault: data.is_default, createdAt: data.created_at };
+    });
+  },
+
+  async updatePerfilAcesso(
+    id: string,
+    dados: { nome?: string; permissoes?: import('../types').Permissoes },
+    userId?: string
+  ): Promise<import('../types').PerfilAcesso> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const updates: Record<string, unknown> = {};
+      if (dados.nome !== undefined)       updates.nome       = dados.nome;
+      if (dados.permissoes !== undefined) updates.permissoes = dados.permissoes;
+      const { data, error } = await supabase
+        .from('perfis_acesso')
+        .update(updates)
+        .eq('id', id)
+        .eq('user_id', uid)
+        .select()
+        .single();
+      if (error) throw error;
+      return { id: data.id, userId: data.user_id, nome: data.nome, permissoes: data.permissoes, isDefault: data.is_default, createdAt: data.created_at };
+    });
+  },
+
+  async deletePerfilAcesso(id: string, userId?: string): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { error } = await supabase
+        .from('perfis_acesso')
         .delete()
         .eq('id', id)
         .eq('user_id', uid);

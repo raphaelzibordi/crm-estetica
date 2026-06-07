@@ -60,7 +60,9 @@
       "Bash(awk 'NR==1490{print NR\": \"$0} NR>=1470 && NR<=1490{print NR\": \"$0}' src/components/Prontuario.tsx)",
       "Bash(grep -n \"/\\\\* Anamnese\\\\|/\\\\* Plano de Tratamento\\\\|AnamneseDigital\\\\|PlanoTratamento\\\\|/\\\\* Carrossel\\\\|carouselRef\" src/components/Prontuario.tsx)",
       "Bash(node -e \"const r = require\\('lucide-react'\\); console.log\\('Trash:', typeof r.Trash, 'Trash2:', typeof r.Trash2, 'Mic:', typeof r.Mic, 'Square:', typeof r.Square, 'Sparkles:', typeof r.Sparkles\\)\")",
-      "mcp__07964978-6f8f-4bcc-8f4a-23b14d3ae84c__notion-create-comment"
+      "mcp__07964978-6f8f-4bcc-8f4a-23b14d3ae84c__notion-create-comment",
+      "Bash(Get-ChildItem -Path . -Directory)",
+      "Bash(Select-Object Name)"
     ]
   }
 }

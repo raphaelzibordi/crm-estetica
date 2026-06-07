@@ -16,6 +16,7 @@ interface AgendaProps {
   ) => void;
   onDeleteAgendamento?: (id: string) => Promise<void>;
   onOpenProntuario?: (clienteId: string) => void;
+  permissoes?: import('../types').Permissoes | null;
 }
 
 type AgendaView = 'hoje' | 'semana' | 'ano';
@@ -69,7 +70,11 @@ export const Agenda: React.FC<AgendaProps> = ({
   onAddAgendamento,
   onDeleteAgendamento,
   onOpenProntuario,
+  permissoes,
 }) => {
+  const pode = (acao: 'ver' | 'criar' | 'editar' | 'deletar') =>
+    !permissoes || !!(permissoes['agenda']?.[acao]);
+
   const [view, setView] = useState<AgendaView>('hoje');
   const [cursor, setCursor] = useState<Date>(new Date());
 
@@ -629,21 +634,23 @@ export const Agenda: React.FC<AgendaProps> = ({
                             Nenhuma reserva ativa para salas ou profissionais neste bloco.
                           </div>
                         </div>
-                        <button
-                          onClick={() => {
-                            setNewData(toISODate(cursor));
-                            setNewHora(slot);
-                            setNewNome('');
-                            setNewTelefone('');
-                            setNewSala('');
-                            setConflictMessage(null);
-                            setShowAddModal(true);
-                          }}
-                          className="btn btn-secondary"
-                          style={{ padding: '6px 14px', fontSize: '11px', cursor: 'pointer', flexShrink: 0 }}
-                        >
-                          Acolher Paciente
-                        </button>
+                        {pode('criar') && (
+                          <button
+                            onClick={() => {
+                              setNewData(toISODate(cursor));
+                              setNewHora(slot);
+                              setNewNome('');
+                              setNewTelefone('');
+                              setNewSala('');
+                              setConflictMessage(null);
+                              setShowAddModal(true);
+                            }}
+                            className="btn btn-secondary"
+                            style={{ padding: '6px 14px', fontSize: '11px', cursor: 'pointer', flexShrink: 0 }}
+                          >
+                            Acolher Paciente
+                          </button>
+                        )}
                       </div>
                     ) : (
                       <div className="agenda-slot-bookings" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px', minWidth: 0 }}>
@@ -687,7 +694,7 @@ export const Agenda: React.FC<AgendaProps> = ({
                               <span className={`badge ${booked.status === 'finalizada' ? 'badge-neutral' : 'badge-sage'}`}>
                                 {booked.status}
                               </span>
-                              {booked.status !== 'finalizada' && (
+                              {booked.status !== 'finalizada' && pode('deletar') && (
                                 <button
                                   onClick={() => handleCancelAgendamento(booked.id)}
                                   className="btn btn-outline"

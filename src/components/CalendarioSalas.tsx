@@ -7,6 +7,7 @@ interface CalendarioSalasProps {
   userId: string;
   agendamentosHoje: Agendamento[];
   onEditAgendamento?: (id: string, updates: { sala?: string }) => void;
+  permissoes?: import('../types').Permissoes | null;
 }
 
 const DIAS_SEMANA = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
@@ -52,7 +53,10 @@ export const CalendarioSalas: React.FC<CalendarioSalasProps> = ({
   userId,
   agendamentosHoje,
   onEditAgendamento: _onEditAgendamento,
+  permissoes,
 }) => {
+  const pode = (acao: 'ver' | 'criar' | 'editar' | 'deletar') =>
+    !permissoes || !!(permissoes['calendario-salas']?.[acao]);
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date()));
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [loading, setLoading] = useState(false);

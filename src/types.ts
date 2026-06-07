@@ -1,5 +1,26 @@
 export type UserRole = 'dono' | 'equipe';
 
+// ── Perfis de Acesso / RBAC ───────────────────────────────────────────────
+
+export interface TabPermissoes {
+  ver: boolean;
+  criar?: boolean;
+  editar?: boolean;
+  deletar?: boolean;
+}
+
+/** Mapa de permissões por aba: chave = tab id (ex: 'agenda', 'prontuario') */
+export type Permissoes = Record<string, TabPermissoes>;
+
+export interface PerfilAcesso {
+  id: string;
+  userId: string;
+  nome: string;
+  permissoes: Permissoes;
+  isDefault: boolean;
+  createdAt: string;
+}
+
 export interface Usuario {
   id: string;
   nome: string;            // nome pessoal
@@ -20,8 +41,9 @@ export interface UserProfile {
   fotoUrl: string;
   role: UserRole;
   tenantId: string; // owner's user_id (for equipe) or own user_id (for dono)
-  cargo?: string;      // job title — equipe only
-  nomeClinica?: string; // owner's clinic name — equipe only, used in welcome modal
+  cargo?: string;        // job title — equipe only
+  nomeClinica?: string;  // owner's clinic name — equipe only, used in welcome modal
+  permissoes?: Permissoes; // present when role='equipe' and a perfil_id is assigned
 }
 
 export interface Cliente {
@@ -168,6 +190,7 @@ export interface MembroEquipe {
   fotoUrl?: string;
   ativo: boolean;
   bookingVisivel?: boolean;
+  perfilId?: string | null;
 }
 
 export interface Profissional {
