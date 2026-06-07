@@ -68,7 +68,7 @@ interface WhatsAppProps {
 }
 
 export const WhatsApp: React.FC<WhatsAppProps> = ({ userId, userName, permissoes }) => {
-  const pode = (acao: 'ver' | 'criar') =>
+  const pode = (acao: 'ver' | 'criar' | 'editar' | 'deletar') =>
     !permissoes || !!(permissoes['whatsapp']?.[acao]);
   const [tab, setTab]                               = useState<TabId>('enviar');
   const [config, setConfig]                         = useState<WhatsAppConfig | null>(null);

@@ -55,8 +55,6 @@ export const CalendarioSalas: React.FC<CalendarioSalasProps> = ({
   onEditAgendamento: _onEditAgendamento,
   permissoes,
 }) => {
-  const pode = (acao: 'ver' | 'criar' | 'editar' | 'deletar') =>
-    !permissoes || !!(permissoes['calendario-salas']?.[acao]);
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date()));
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [loading, setLoading] = useState(false);
