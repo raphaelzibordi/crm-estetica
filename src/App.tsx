@@ -741,7 +741,6 @@ function AppMain() {
             userId={effectiveTenantId}
             agendamentosHoje={agendamentos}
             onEditAgendamento={handleUpdateAgendamentoDados}
-            permissoes={userPermissoes}
           />
         )}
 
