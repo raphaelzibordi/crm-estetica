@@ -168,7 +168,7 @@ export const PerfilAcessoModal: React.FC<PerfilAcessoModalProps> = ({ perfil, on
     >
       <div
         style={{
-          background: 'var(--color-bg)', borderRadius: '16px',
+          background: 'var(--bg-card)', borderRadius: '16px',
           width: '100%', maxWidth: '660px',
           maxHeight: '90vh', display: 'flex', flexDirection: 'column',
           boxShadow: '0 24px 64px rgba(0,0,0,0.18)',
