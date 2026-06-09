@@ -15,6 +15,7 @@ import { Configuracoes } from './components/Configuracoes';
 import { WelcomeModal } from './components/WelcomeModal';
 import { PlanoModal, type PlanoBilling, type PeriodicidadeBilling } from './components/PlanoModal';
 import { PagamentoPendenteModal } from './components/PagamentoPendenteModal';
+import { AdminSuspendedModal } from './components/AdminSuspendedModal';
 import { AgendamentoPublico } from './components/AgendamentoPublico';
 import { AssinaturaPublica } from './components/AssinaturaPublica';
 import { GaleriaPublica } from './components/GaleriaPublica';
@@ -99,6 +100,9 @@ function AppMain() {
     periodicidade: PeriodicidadeBilling;
   } | null>(null);
   const [paymentIssueDismissed, setPaymentIssueDismissed] = useState(false);
+
+  // Cobrança: modal de suspensão administrativa (admin_suspended=true)
+  const [adminSuspended, setAdminSuspended] = useState(false);
 
   // US-048: Multiclínicas
   const [redeUnidades, setRedeUnidades]       = useState<Unidade[]>([]);
@@ -198,6 +202,7 @@ function AppMain() {
           setBillingModalMotivo(null);
           setBillingDiasRestantes(null);
           setBillingModalDismissed(false);
+          setAdminSuspended(false);
           setRedes([]);
           setRedeUnidades([]);
           setCurrentUnidadeId(null);
@@ -279,10 +284,19 @@ function AppMain() {
       try {
         const { data } = await supabase
           .from('usuarios')
-          .select('abacatepay_subscription_status, plano, plano_periodicidade, acesso_expira_em, created_at, payment_overdue_since, payment_retry_count, suspended_at')
+          .select('abacatepay_subscription_status, plano, plano_periodicidade, acesso_expira_em, created_at, payment_overdue_since, payment_retry_count, suspended_at, admin_suspended')
           .eq('id', tenantId)
           .maybeSingle();
         if (!data) return;
+
+        // Suspensão manual pelo administrador: bloqueia tudo, prioridade máxima
+        if (data.admin_suspended) {
+          setAdminSuspended(true);
+          return;
+        }
+
+        // Clínica VIP: acesso gratuito, nenhum modal de cobrança
+        if ((data.plano as string | null) === 'vip') return;
 
         const status = data.abacatepay_subscription_status as string | null;
         const periodicidade = (data.plano_periodicidade as string | null) ?? 'mensal';
@@ -783,7 +797,11 @@ function AppMain() {
         />
       )}
 
-      {paymentIssue && (paymentIssue.status === 'suspended' || !paymentIssueDismissed) && (
+      {adminSuspended && (
+        <AdminSuspendedModal clinicName={clinicName} />
+      )}
+
+      {!adminSuspended && paymentIssue && (paymentIssue.status === 'suspended' || !paymentIssueDismissed) && (
         <PagamentoPendenteModal
           status={paymentIssue.status}
           clinicName={clinicName}
