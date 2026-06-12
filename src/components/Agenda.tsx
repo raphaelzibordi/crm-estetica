@@ -291,7 +291,7 @@ export const Agenda: React.FC<AgendaProps> = ({
     try {
       await onAddAgendamento(
         {
-          clienteId: 'c_' + Math.random().toString(36).slice(2, 10),
+          clienteId: 'c_' + crypto.randomUUID().slice(0, 8),
           clienteNome: newNome,
           data: newData,
           horaInicio: newHora,

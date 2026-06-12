@@ -88,9 +88,17 @@ export function humanizeError(err: unknown): ApiError {
         err.code
       );
     }
+    // PostgrestError não mapeado: loga detalhes internamente, retorna
+    // mensagem genérica para evitar vazar nomes de constraints/colunas
+    // / estrutura interna do banco ao usuário final.
+    console.error('[api] PostgrestError não mapeado:', {
+      code:    err.code,
+      message: err.message,
+      details: err.details,
+      hint:    err.hint,
+    });
     return new ApiError(
-      err.message ||
-        'Falha ao comunicar com o banco de dados. Tente novamente em alguns instantes.',
+      'Falha ao comunicar com o banco de dados. Tente novamente em alguns instantes.',
       status,
       err.code
     );
@@ -105,7 +113,8 @@ export function humanizeError(err: unknown): ApiError {
         'NETWORK_ERROR'
       );
     }
-    return new ApiError(err.message, 500);
+    console.error('[api] erro não esperado:', err);
+    return new ApiError('Ocorreu um erro inesperado. Tente novamente.', 500);
   }
 
   return new ApiError('Ocorreu um erro inesperado. Tente novamente.', 500);

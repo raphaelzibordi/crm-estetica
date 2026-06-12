@@ -420,7 +420,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
     try {
       await onAddAgendamento(
         {
-          clienteId: 'c_' + Math.random().toString(36).slice(2, 10),
+          clienteId: 'c_' + crypto.randomUUID().slice(0, 8),
           clienteNome: acolherNome.trim(),
           data: acolherData,
           horaInicio: acolherHora,
