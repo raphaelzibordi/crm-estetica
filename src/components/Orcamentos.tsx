@@ -16,6 +16,7 @@ import {
   Bell,
 } from 'lucide-react';
 import { api } from '../lib/api';
+import { escapeHtml } from '../lib/escapeHtml';
 import type {
   Orcamento,
   OrcamentoFollowupConfig,
@@ -408,14 +409,14 @@ export const Orcamentos: React.FC<OrcamentosProps> = ({ userId, userName, onConv
     const itens = o.itens ?? [];
     const linhasItens = itens.map((it) =>
       `<tr>
-        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${it.descricao}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center">${it.quantidade}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right">${formatCurrency(it.valorUnitario)}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:600">${formatCurrency(it.valorTotal)}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${escapeHtml(it.descricao)}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center">${escapeHtml(it.quantidade)}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right">${escapeHtml(formatCurrency(it.valorUnitario))}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:600">${escapeHtml(formatCurrency(it.valorTotal))}</td>
       </tr>`
     ).join('');
     win.document.write(`<!DOCTYPE html><html><head>
-      <meta charset="utf-8"><title>Orçamento — ${o.nomeCliente}</title>
+      <meta charset="utf-8"><title>Orçamento — ${escapeHtml(o.nomeCliente)}</title>
       <style>
         body{font-family:system-ui,sans-serif;color:#111;margin:0;padding:32px}
         .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:32px;padding-bottom:20px;border-bottom:2px solid #111}
@@ -431,23 +432,23 @@ export const Orcamentos: React.FC<OrcamentosProps> = ({ userId, userName, onConv
       </style></head><body>
       <div class="header">
         <div>
-          <div class="clinic">${userName}</div>
+          <div class="clinic">${escapeHtml(userName)}</div>
           <div style="margin-top:4px;font-size:13px;color:#6b7280">Orçamento</div>
         </div>
         <div style="text-align:right">
           <div class="label">Data de emissão</div>
-          <div class="val">${formatDate(o.dataEnvio)}</div>
+          <div class="val">${escapeHtml(formatDate(o.dataEnvio))}</div>
           <div class="label" style="margin-top:10px">Válido até</div>
-          <div class="val" style="color:#dc2626;font-weight:600">${formatDate(o.validade)}</div>
+          <div class="val" style="color:#dc2626;font-weight:600">${escapeHtml(formatDate(o.validade))}</div>
         </div>
       </div>
       <div style="display:flex;gap:40px;margin-bottom:24px">
         <div>
           <div class="label">Cliente</div>
-          <div class="val" style="font-size:16px;font-weight:600">${o.nomeCliente}</div>
-          ${o.telefone ? `<div style="color:#6b7280;font-size:13px;margin-top:2px">${o.telefone}</div>` : ''}
+          <div class="val" style="font-size:16px;font-weight:600">${escapeHtml(o.nomeCliente)}</div>
+          ${o.telefone ? `<div style="color:#6b7280;font-size:13px;margin-top:2px">${escapeHtml(o.telefone)}</div>` : ''}
         </div>
-        ${o.profissionalNome ? `<div><div class="label">Profissional</div><div class="val">${o.profissionalNome}</div></div>` : ''}
+        ${o.profissionalNome ? `<div><div class="label">Profissional</div><div class="val">${escapeHtml(o.profissionalNome)}</div></div>` : ''}
       </div>
       <table>
         <thead><tr>
@@ -459,11 +460,11 @@ export const Orcamentos: React.FC<OrcamentosProps> = ({ userId, userName, onConv
         <tbody>${linhasItens}</tbody>
         <tfoot><tr class="total-row">
           <td colspan="3" style="padding:12px;text-align:right;font-size:14px;color:#6b7280">Total</td>
-          <td style="padding:12px;text-align:right;font-size:18px;font-weight:700">${formatCurrency(o.valorTotal)}</td>
+          <td style="padding:12px;text-align:right;font-size:18px;font-weight:700">${escapeHtml(formatCurrency(o.valorTotal))}</td>
         </tr></tfoot>
       </table>
-      ${o.observacoes ? `<div style="margin-top:24px;padding:16px;background:#f9fafb;border-radius:8px;font-size:13px"><strong>Observações:</strong> ${o.observacoes}</div>` : ''}
-      <div class="footer">Este orçamento é válido até ${formatDate(o.validade)}. Para aprovação ou dúvidas, entre em contato.</div>
+      ${o.observacoes ? `<div style="margin-top:24px;padding:16px;background:#f9fafb;border-radius:8px;font-size:13px"><strong>Observações:</strong> ${escapeHtml(o.observacoes)}</div>` : ''}
+      <div class="footer">Este orçamento é válido até ${escapeHtml(formatDate(o.validade))}. Para aprovação ou dúvidas, entre em contato.</div>
     </body></html>`);
     win.document.close();
     win.focus();

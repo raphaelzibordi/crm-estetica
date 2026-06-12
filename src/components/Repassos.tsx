@@ -4,6 +4,7 @@ import {
   Percent, Users, Lock, Download, FileText, ChevronDown, ChevronUp, ChevronRight,
 } from 'lucide-react';
 import { api } from '../lib/api';
+import { escapeHtml } from '../lib/escapeHtml';
 import type {
   FechamentoRepasse,
   MembroEquipe,
@@ -81,10 +82,10 @@ function printDemonstrativo(fechamento: FechamentoRepasse) {
     .map(
       (i) =>
         `<tr>
-          <td>${fmtDate(i.data)}</td>
-          <td>${i.procedimento}</td>
-          <td>${fmtBRL(i.valorLiquido)}</td>
-          <td>${fmtBRL(i.valorRepasse)}</td>
+          <td>${escapeHtml(fmtDate(i.data))}</td>
+          <td>${escapeHtml(i.procedimento)}</td>
+          <td>${escapeHtml(fmtBRL(i.valorLiquido))}</td>
+          <td>${escapeHtml(fmtBRL(i.valorRepasse))}</td>
         </tr>`
     )
     .join('');
@@ -110,21 +111,21 @@ function printDemonstrativo(fechamento: FechamentoRepasse) {
 </style>
 </head><body>
 <h2>Demonstrativo de Repasse</h2>
-<p><strong>Profissional:</strong> ${fechamento.profissionalNome}</p>
-<p><strong>Período:</strong> ${periodoStr}</p>
-<p><strong>Modelo:</strong> ${MODELO_LABEL[fechamento.modelo]}</p>
-<p><strong>Emitido por:</strong> ${fechamento.fechadoPor} em ${new Date(fechamento.fechadoEm).toLocaleString('pt-BR')}</p>
+<p><strong>Profissional:</strong> ${escapeHtml(fechamento.profissionalNome)}</p>
+<p><strong>Período:</strong> ${escapeHtml(periodoStr)}</p>
+<p><strong>Modelo:</strong> ${escapeHtml(MODELO_LABEL[fechamento.modelo])}</p>
+<p><strong>Emitido por:</strong> ${escapeHtml(fechamento.fechadoPor)} em ${escapeHtml(new Date(fechamento.fechadoEm).toLocaleString('pt-BR'))}</p>
 <table>
   <thead><tr><th>Data</th><th>Procedimento</th><th>Valor Líquido</th><th>Repasse / Taxa</th></tr></thead>
   <tbody>${rows}</tbody>
 </table>
 <div class="totals">
-  <div>Total de atendimentos: <strong>${fechamento.totalAtendimentos}</strong></div>
-  <div>Faturamento bruto do profissional: <strong>${fmtBRL(fechamento.faturamentoBruto)}</strong></div>
-  <div class="highlight">${valorFinalLabel}</div>
-  ${fechamento.observacoes ? `<div style="margin-top:12px;color:#666;font-size:13px;">Obs: ${fechamento.observacoes}</div>` : ''}
+  <div>Total de atendimentos: <strong>${escapeHtml(fechamento.totalAtendimentos)}</strong></div>
+  <div>Faturamento bruto do profissional: <strong>${escapeHtml(fmtBRL(fechamento.faturamentoBruto))}</strong></div>
+  <div class="highlight">${escapeHtml(valorFinalLabel)}</div>
+  ${fechamento.observacoes ? `<div style="margin-top:12px;color:#666;font-size:13px;">Obs: ${escapeHtml(fechamento.observacoes)}</div>` : ''}
 </div>
-<div class="footer">Documento gerado pelo Lumina CRM. ID do fechamento: ${fechamento.id}</div>
+<div class="footer">Documento gerado pelo Lumina CRM. ID do fechamento: ${escapeHtml(fechamento.id)}</div>
 </body></html>`;
 
   const win = window.open('', '_blank');

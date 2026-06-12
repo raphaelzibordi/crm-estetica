@@ -1,10 +1,28 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGINS') ?? '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+function corsHeadersFor(origin: string | null): Record<string, string> {
+  const allow =
+    origin && ALLOWED_ORIGINS.includes(origin)
+      ? origin
+      : ALLOWED_ORIGINS[0] ?? '';
+  return {
+    'Access-Control-Allow-Origin': allow,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    Vary: 'Origin',
+  };
+}
+
+function escapeHtml(v: unknown): string {
+  if (v === null || v === undefined) return '';
+  return String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+}
 
 interface ProdutoCritico {
   id: string;
@@ -22,6 +40,9 @@ interface ProdutoVencendo {
 }
 
 serve(async (req: Request) => {
+  const origin = req.headers.get('Origin');
+  const corsHeaders = corsHeadersFor(origin);
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -61,17 +82,17 @@ serve(async (req: Request) => {
 
     const criticoRows = criticos.map(p =>
       `<tr style="border-bottom:1px solid #fee2e2">
-        <td style="padding:10px 14px;font-weight:600;color:#111">${p.produto}</td>
-        <td style="padding:10px 14px;color:#dc2626;font-weight:700">${p.quantidade} ${p.unidade}</td>
-        <td style="padding:10px 14px;color:#6b7280">${p.quantidadeMinima} ${p.unidade}</td>
+        <td style="padding:10px 14px;font-weight:600;color:#111">${escapeHtml(p.produto)}</td>
+        <td style="padding:10px 14px;color:#dc2626;font-weight:700">${escapeHtml(p.quantidade)} ${escapeHtml(p.unidade)}</td>
+        <td style="padding:10px 14px;color:#6b7280">${escapeHtml(p.quantidadeMinima)} ${escapeHtml(p.unidade)}</td>
       </tr>`
     ).join('');
 
     const vencendoRows = vencendoBreve.map(p =>
       `<tr style="border-bottom:1px solid #fef3c7">
-        <td style="padding:10px 14px;font-weight:600;color:#111">${p.produto}</td>
-        <td style="padding:10px 14px;color:#b45309;font-weight:700">${p.diasRestantes} dia(s)</td>
-        <td style="padding:10px 14px;color:#6b7280">${new Date(p.validade + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
+        <td style="padding:10px 14px;font-weight:600;color:#111">${escapeHtml(p.produto)}</td>
+        <td style="padding:10px 14px;color:#b45309;font-weight:700">${escapeHtml(p.diasRestantes)} dia(s)</td>
+        <td style="padding:10px 14px;color:#6b7280">${escapeHtml(new Date(p.validade + 'T00:00:00').toLocaleDateString('pt-BR'))}</td>
       </tr>`
     ).join('');
 

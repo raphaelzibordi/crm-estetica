@@ -65,7 +65,11 @@
       "Bash(Select-Object Name)",
       "PowerShell(npm run lint 2>$null)",
       "PowerShell(Remove-Item src\\\\components\\\\Salas.tsx, src\\\\App.css, src\\\\assets\\\\react.svg, src\\\\assets\\\\vite.svg, src\\\\assets\\\\hero.png -Force; if \\(-not \\(Get-ChildItem src\\\\assets -ErrorAction SilentlyContinue\\)\\) { Remove-Item src\\\\assets -Force }; Write-Output 'done')",
-      "PowerShell(npx tsc -b; Write-Output \"EXIT=$LASTEXITCODE\")"
+      "PowerShell(npx tsc -b; Write-Output \"EXIT=$LASTEXITCODE\")",
+      "Bash(sed -n '500,560p' supabase_schema.sql)",
+      "Bash(sed -n '90,200p' supabase/document_signatures.sql)",
+      "Bash(npm audit *)",
+      "Bash(git rm *)"
     ]
   }
 }

@@ -3,6 +3,7 @@ import type { Agendamento, Cliente, EvolucaoClinica, GaleriaItem, GravacaoConsul
 import { FileText, Camera, Plus, Trash2, Edit2, User, CalendarPlus, UserPlus, AlertTriangle, Calendar, ChevronLeft, ChevronRight, LayoutTemplate, Search, ShieldCheck, ShieldAlert, Mic, Square, Sparkles, Trash } from 'lucide-react';
 import { api } from '../lib/api';
 import { criarMotorTranscricao } from '../lib/ia';
+import { escapeHtml } from '../lib/escapeHtml';
 import { HistoricoPresenca } from './HistoricoPresenca';
 import { AnamneseDigital } from './AnamneseDigital';
 import { AssinaturaDigital } from './AssinaturaDigital';
@@ -913,23 +914,23 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
     const linhas = currentProntuario.evolucoes.map((ev) => `
       <div class="registro ${ev.assinadoEm ? 'assinado' : 'rascunho'}">
         <div class="registro-cabecalho">
-          <span class="registro-data">${new Date(ev.data + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
-          <span class="registro-procedimento">${ev.procedimento || '—'}</span>
-          <span class="registro-profissional">${ev.profissional || '—'}</span>
+          <span class="registro-data">${escapeHtml(new Date(ev.data + 'T12:00:00').toLocaleDateString('pt-BR'))}</span>
+          <span class="registro-procedimento">${escapeHtml(ev.procedimento || '—')}</span>
+          <span class="registro-profissional">${escapeHtml(ev.profissional || '—')}</span>
         </div>
         ${ev.aditamentoDe ? '<p class="aditamento-tag">Aditamento / correção de registro anterior</p>' : ''}
-        <p class="registro-relato">${ev.relatoNatural}</p>
-        <p class="registro-obs"><strong>Dados técnicos:</strong> ${ev.observacoesTecnicas}</p>
+        <p class="registro-relato">${escapeHtml(ev.relatoNatural)}</p>
+        <p class="registro-obs"><strong>Dados técnicos:</strong> ${escapeHtml(ev.observacoesTecnicas)}</p>
         <p class="registro-assinatura">
           ${ev.assinadoEm
-            ? `✔ Assinado digitalmente por <strong>${ev.assinadoPor}</strong> em ${new Date(ev.assinadoEm).toLocaleString('pt-BR')} — registro imutável (CFM 1.638/2002). Hash: ${ev.assinaturaHash?.slice(0, 16)}…`
+            ? `✔ Assinado digitalmente por <strong>${escapeHtml(ev.assinadoPor)}</strong> em ${escapeHtml(new Date(ev.assinadoEm).toLocaleString('pt-BR'))} — registro imutável (CFM 1.638/2002). Hash: ${escapeHtml(ev.assinaturaHash?.slice(0, 16) ?? '')}…`
             : '⚠ Rascunho — registro ainda não assinado digitalmente, sem validade legal (CFM 1.638/2002).'}
         </p>
       </div>
     `).join('');
 
     win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8" />
-      <title>Prontuário — ${currentCliente.nome}</title>
+      <title>Prontuário — ${escapeHtml(currentCliente.nome)}</title>
       <style>
         body { font-family: Georgia, 'Times New Roman', serif; color: #1f2933; padding: 32px; max-width: 820px; margin: 0 auto; }
         header { border-bottom: 2px solid #5F7D75; padding-bottom: 12px; margin-bottom: 20px; }
@@ -952,12 +953,12 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
       </head><body>
         <header>
           <h1>Prontuário Eletrônico — Conformidade CFM (Resolução 1.638/2002 e 2.299/2021)</h1>
-          <p>Documento gerado em ${dataEmissao} · Profissional responsável: ${userName || '—'}</p>
+          <p>Documento gerado em ${escapeHtml(dataEmissao)} · Profissional responsável: ${escapeHtml(userName || '—')}</p>
         </header>
         <div class="paciente">
-          <strong>Paciente:</strong> ${currentCliente.nome} &nbsp;|&nbsp;
-          <strong>Telefone:</strong> ${currentCliente.telefone || '—'} &nbsp;|&nbsp;
-          <strong>E-mail:</strong> ${currentCliente.email || '—'}
+          <strong>Paciente:</strong> ${escapeHtml(currentCliente.nome)} &nbsp;|&nbsp;
+          <strong>Telefone:</strong> ${escapeHtml(currentCliente.telefone || '—')} &nbsp;|&nbsp;
+          <strong>E-mail:</strong> ${escapeHtml(currentCliente.email || '—')}
         </div>
         <h2>Linha do tempo de evoluções clínicas</h2>
         ${linhas || '<p>Sem evoluções registradas.</p>'}
