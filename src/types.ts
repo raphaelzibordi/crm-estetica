@@ -1064,5 +1064,3 @@ export interface PainelRede {
   ticketMedioGeral: number;
   periodo: { dataInicio: string; dataFim: string };
 }
-
-export const IS_TYPED = true;

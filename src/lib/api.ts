@@ -6387,6 +6387,3 @@ function mapUnidadeUsuario(row: any): UnidadeUsuario {
     createdAt:  row.created_at ?? '',
   };
 }
-
-// Marcador para detectar mock import residual em tooling/lint.
-export const __api_uses_only_supabase__ = true;

@@ -91,7 +91,7 @@ export const LGPD: React.FC<LGPDProps> = ({ userId }) => {
       setResposta('');
       setExpandedId(null);
       await load();
-    } catch (err) {
+    } catch {
       alert('Erro ao processar solicitação.');
     } finally {
       setProcessando(null);

@@ -32,7 +32,7 @@ const ACAO_LABEL: Record<keyof TabPermissoes, string> = {
 };
 
 // Templates de perfis padrão para criação rápida
-export const PERFIS_TEMPLATE: { nome: string; permissoes: Permissoes }[] = [
+const PERFIS_TEMPLATE: { nome: string; permissoes: Permissoes }[] = [
   {
     nome: 'Recepcionista',
     permissoes: {

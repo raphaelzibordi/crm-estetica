@@ -782,8 +782,6 @@ export const EstoqueAvancado: React.FC<Props> = ({ userId, onDataChange }) => {
   );
 };
 
-export default EstoqueAvancado;
-
 // ─── ScrollTableWrapper ───────────────────────────────────────────────────────
 
 const ScrollTableWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {

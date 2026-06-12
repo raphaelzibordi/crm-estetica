@@ -88,7 +88,7 @@ export const ConsentimentoLGPD: React.FC<ConsentimentoLGPDProps> = ({
       }
 
       onConcluido();
-    } catch (err) {
+    } catch {
       setErro('Erro ao registrar consentimento. Tente novamente.');
     } finally {
       setSalvando(false);

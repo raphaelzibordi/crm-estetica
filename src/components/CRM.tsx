@@ -1062,7 +1062,7 @@ const EtapasConfigModal: React.FC<{
       }, userId);
       setLista((prev) => [...prev, etapa]);
       setNovo('');
-    } catch (err) {
+    } catch {
       alert('Erro ao criar etapa.');
     } finally {
       setSaving(false);
@@ -1074,7 +1074,7 @@ const EtapasConfigModal: React.FC<{
     try {
       const atualizada = await api.updateFunilEtapa(id, { nome }, userId);
       setLista((prev) => prev.map((e) => e.id === id ? atualizada : e));
-    } catch (err) {
+    } catch {
       alert('Erro ao renomear etapa.');
     }
   };
@@ -1182,7 +1182,7 @@ const AutomacoesModal: React.FC<{
       }, userId);
       setAutomacoes((prev) => [...prev, nova]);
       setForm({ tipo: 'tarefa', gatilho: 'ao_entrar', diasEspera: '3', mensagem: '', tarefaTitulo: '' });
-    } catch (err) {
+    } catch {
       alert('Erro ao criar automação.');
     } finally {
       setCriando(false);
