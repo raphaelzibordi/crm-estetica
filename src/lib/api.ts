@@ -2579,21 +2579,21 @@ export const api = {
     return (data as ClinicaPublica) ?? null;
   },
 
-  async getProfissionaisPublicos(userId: string): Promise<ProfissionalPublico[]> {
-    const { data, error } = await supabase.rpc('get_public_professionals', { p_user_id: userId });
+  async getProfissionaisPublicos(slug: string): Promise<ProfissionalPublico[]> {
+    const { data, error } = await supabase.rpc('get_public_professionals', { p_slug: slug });
     if (error) throw humanizeError(error);
     return (data as ProfissionalPublico[]) ?? [];
   },
 
-  async getProcedimentosPublicos(userId: string): Promise<ProcedimentoPublico[]> {
-    const { data, error } = await supabase.rpc('get_public_procedures', { p_user_id: userId });
+  async getProcedimentosPublicos(slug: string): Promise<ProcedimentoPublico[]> {
+    const { data, error } = await supabase.rpc('get_public_procedures', { p_slug: slug });
     if (error) throw humanizeError(error);
     return (data as ProcedimentoPublico[]) ?? [];
   },
 
-  async getSlotsOcupados(userId: string, date: string, profissional: string): Promise<SlotOcupado[]> {
+  async getSlotsOcupados(slug: string, date: string, profissional: string): Promise<SlotOcupado[]> {
     const { data, error } = await supabase.rpc('get_booked_slots', {
-      p_user_id:      userId,
+      p_slug:         slug,
       p_date:         date,
       p_profissional: profissional,
     });
@@ -2614,7 +2614,7 @@ export const api = {
     pacienteTelefone:   string;
     pacienteEmail:      string;
   }): Promise<{ id: string }> {
-    const { data, error } = await supabase.rpc('create_public_booking', {
+    const { data, error } = await supabase.rpc('create_public_booking_rl', {
       p_clinic_slug:        params.clinicSlug,
       p_profissional:       params.profissional,
       p_procedimento:       params.procedimento,
@@ -3502,16 +3502,13 @@ export const api = {
   async signDocumentByToken(
     token: string,
     assinaturaData: string,
-    ip?: string,
+    _ip?: string, // parâmetro mantido por compat; IP agora vem do servidor (Edge Function)
     dispositivo?: string
   ): Promise<{ success: boolean; error?: string }> {
-    const { data, error } = await supabase.rpc('sign_document_by_token', {
-      p_token:       token,
-      p_assinatura:  assinaturaData,
-      p_ip:          ip ?? null,
-      p_dispositivo: dispositivo ?? null,
+    const { data, error } = await supabase.functions.invoke('sign-document', {
+      body: { token, assinatura: assinaturaData, dispositivo: dispositivo ?? null },
     });
-    if (error) return { success: false, error: error.message };
+    if (error) return { success: false, error: 'Não foi possível processar a assinatura.' };
     return data as { success: boolean; error?: string };
   },
 

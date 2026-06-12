@@ -161,8 +161,8 @@ export const AgendamentoPublico: React.FC<Props> = ({ slug }) => {
         }
         setClinica(c);
         const [profs, procs] = await Promise.all([
-          api.getProfissionaisPublicos(c.userId),
-          api.getProcedimentosPublicos(c.userId),
+          api.getProfissionaisPublicos(slug),
+          api.getProcedimentosPublicos(slug),
         ]);
         setProfissionais(profs);
         setProcedimentos(procs);
@@ -180,7 +180,7 @@ export const AgendamentoPublico: React.FC<Props> = ({ slug }) => {
     setSlotsLoading(true);
     setSelTime('');
     try {
-      const booked = await api.getSlotsOcupados(clinica.userId, date, selProfissional.nome);
+      const booked = await api.getSlotsOcupados(slug, date, selProfissional.nome);
       setSlots(generateAvailableSlots(booked, selProcedimento.duracaoMinutos, date, clinica.minAdvanceHoras));
     } catch {
       setSlots([]);
@@ -228,7 +228,7 @@ export const AgendamentoPublico: React.FC<Props> = ({ slug }) => {
     setSubmitError(null);
     try {
       // Re-check slot availability before final commit (anti-race-condition)
-      const booked = await api.getSlotsOcupados(clinica.userId, selDate, selProfissional.nome);
+      const booked = await api.getSlotsOcupados(slug, selDate, selProfissional.nome);
       const currentSlots = generateAvailableSlots(booked, selProcedimento.duracaoMinutos, selDate, clinica.minAdvanceHoras);
       if (!currentSlots.includes(selTime)) {
         setSubmitError('Este horário acabou de ser reservado. Escolha outro horário.');
