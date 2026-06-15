@@ -165,8 +165,9 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
               body: { action: 'start-checkout', plano: planoCadastro, periodicidade },
             });
             if (!billingErr && billingData?.checkoutUrl) {
-              // Garante que a sessão seja persistida antes do redirect
-              onLogin(authData.session);
+              // Sign out antes do redirect: impede acesso ao sistema se o usuário
+              // clicar em "voltar" no checkout sem concluir o pagamento.
+              await supabase.auth.signOut();
               window.location.href = billingData.checkoutUrl;
               return;
             }
@@ -263,6 +264,26 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
         {/* ── PASSO 2: SELEÇÃO DE PLANO (fora do form) ── */}
         {isCadastroDono && passo === 'plano' && (
           <div>
+            {/* Banner 30 dias grátis */}
+            <div style={{
+              display: 'flex', alignItems: 'flex-start', gap: 12,
+              padding: '14px 16px', borderRadius: 10, marginBottom: 20,
+              background: 'var(--color-primary-light)',
+              border: '1px solid var(--color-primary)',
+            }}>
+              <div style={{ flexShrink: 0, width: 36, height: 36, borderRadius: '50%', background: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Sparkles size={16} color="#fff" />
+              </div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary)', marginBottom: 3 }}>
+                  30 dias grátis, independente do plano escolhido
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.55 }}>
+                  Todas as funcionalidades desbloqueadas durante o período de teste. Só é cobrado após os 30 dias — cancele antes e não paga nada.
+                </div>
+              </div>
+            </div>
+
             {/* Toggle mensal / anual */}
             <div style={{ display: 'flex', gap: 8, background: '#f8f8f6', padding: 4, borderRadius: 8, border: '1px solid var(--color-border)', marginBottom: 20 }}>
               {(['mensal', 'anual'] as const).map(p => (
@@ -336,8 +357,18 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
               })}
             </div>
 
-            <p style={{ fontSize: 11, color: 'var(--color-text-muted)', textAlign: 'center', marginBottom: 20 }}>
-              Você será redirecionado para o checkout seguro após criar a conta. Sem fidelidade — cancele quando quiser.
+            <p style={{ fontSize: 11, color: 'var(--color-text-muted)', textAlign: 'center', marginBottom: 6 }}>
+              Checkout seguro via AbacatePay · Sem fidelidade · Cancele quando quiser
+            </p>
+            <p style={{ fontSize: 11, textAlign: 'center', marginBottom: 20 }}>
+              <a
+                href="https://luminaclin.com/planos"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: 'var(--color-primary)', fontWeight: 600, textDecoration: 'underline', cursor: 'pointer' }}
+              >
+                Ver todas as funcionalidades de cada plano
+              </a>
             </p>
 
             <div style={{ display: 'flex', gap: 10 }}>
@@ -356,7 +387,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 disabled={loading}
                 onClick={handleAuth as unknown as React.MouseEventHandler}
               >
-                {loading ? 'Criando conta...' : 'Criar conta e ir para o pagamento'}
+                {loading ? 'Criando conta...' : 'Iniciar 30 dias grátis'}
                 {!loading && <ArrowRight size={18} style={{ marginLeft: 8 }} />}
               </button>
             </div>
