@@ -380,9 +380,10 @@ declare
   v_owner_id  uuid;
 begin
   -- Verifica se o e-mail pertence a um membro pré-cadastrado pelo dono.
+  -- Exclui casos onde o dono adicionou a si mesmo à equipe.
   select user_id into v_owner_id
   from public.equipe
-  where lower(email) = lower(new.email) and ativo = true
+  where lower(email) = lower(new.email) and ativo = true and user_id != new.id
   limit 1;
 
   if v_owner_id is not null then
@@ -567,7 +568,7 @@ begin
 
   select user_id into v_owner
   from public.equipe
-  where lower(email) = lower(v_email) and ativo = true
+  where lower(email) = lower(v_email) and ativo = true and user_id != v_uid
   limit 1;
 
   -- Se encontrado, corrige o perfil automaticamente
