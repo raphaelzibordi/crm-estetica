@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lumina CRM — Planos e Preços</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --font-family: "Outfit", sans-serif;
+    --bg-primary: #fafafa;
+    --bg-card: #fff;
+    --color-primary: #5f7d75;
+    --color-primary-light: #f3f6f5;
+    --color-primary-dark: #465c56;
+    --color-text-main: #2c302e;
+    --color-text-muted: #7a827e;
+    --color-border: #eaeaea;
+    --color-border-hover: #d4dad7;
+    --color-warning: #d98e73;
+    --color-warning-light: #fcf4f1;
+    --color-success: #7ea191;
+    --color-success-light: #f1f6f4;
+    --shadow-subtle: 0 4px 20px #00000005, 0 2px 8px #00000003;
+    --shadow-active: 0 8px 30px #5f7d7514;
+    --shadow-card: 0 2px 12px #00000008, 0 1px 4px #00000005;
+    --transition: all .25s cubic-bezier(.4, 0, .2, 1);
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 16px;
+    --radius-xl: 20px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: var(--font-family);
+    background: var(--bg-primary);
+    color: var(--color-text-main);
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  /* ── TOP NAV ── */
+  .topnav {
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--color-border);
+    padding: 0 40px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: var(--shadow-subtle);
+  }
+  .nav-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+  }
+  .nav-logo-icon {
+    width: 34px; height: 34px;
+    background: var(--color-primary);
+    border-radius: var(--radius-md);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff;
+    font-size: 16px;
+  }
+  .nav-logo-text {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--color-text-main);
+    letter-spacing: -0.3px;
+  }
+  .nav-back {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--color-text-muted);
+    text-decoration: none;
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    transition: var(--transition);
+  }
+  .nav-back:hover { background: var(--color-primary-light); color: var(--color-primary); }
+
+  /* ── HERO ── */
+  .hero {
+    background: linear-gradient(160deg, var(--color-primary-dark) 0%, var(--color-primary) 60%, #7a9e96 100%);
+    padding: 72px 40px 88px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 60% 70% at 80% 20%, rgba(255,255,255,0.06) 0%, transparent 60%);
+  }
+  .hero::after {
+    content: '';
+    position: absolute; bottom: -1px; left: 0; right: 0;
+    height: 48px;
+    background: var(--bg-primary);
+    clip-path: ellipse(55% 100% at 50% 100%);
+  }
+  .hero-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 40px;
+    padding: 5px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.8);
+    margin-bottom: 24px;
+  }
+  .hero-eyebrow-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.6); }
+  .hero h1 {
+    font-size: clamp(32px, 5vw, 52px);
+    font-weight: 800;
+    color: #fff;
+    line-height: 1.1;
+    margin-bottom: 16px;
+    letter-spacing: -0.5px;
+  }
+  .hero h1 span { color: rgba(255,255,255,0.65); font-weight: 400; }
+  .hero p {
+    font-size: 16px;
+    color: rgba(255,255,255,0.7);
+    max-width: 480px;
+    margin: 0 auto 36px;
+    font-weight: 400;
+  }
+
+  /* Toggle */
+  .billing-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 40px;
+    padding: 6px 16px;
+    font-size: 13px;
+    color: rgba(255,255,255,0.75);
+    cursor: pointer;
+    user-select: none;
+    font-weight: 500;
+  }
+  .toggle-knob {
+    width: 36px; height: 20px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 20px;
+    position: relative;
+    transition: background 0.2s;
+  }
+  .toggle-knob::after {
+    content: ''; position: absolute;
+    width: 14px; height: 14px;
+    background: #fff; border-radius: 50%;
+    top: 3px; left: 3px;
+    transition: transform 0.2s;
+  }
+  .toggle-knob.on { background: rgba(255,255,255,0.4); }
+  .toggle-knob.on::after { transform: translateX(16px); }
+  .badge-annual {
+    background: var(--color-warning);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  /* ── PLANS SECTION ── */
+  .plans-section {
+    max-width: 1100px;
+    margin: -24px auto 0;
+    padding: 0 24px 72px;
+    position: relative;
+    z-index: 10;
+  }
+  .plans-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    align-items: start;
+  }
+
+  /* ── PLAN CARD ── */
+  .plan-card {
+    background: var(--bg-card);
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    position: relative;
+    transition: var(--transition);
+    box-shadow: var(--shadow-card);
+  }
+  .plan-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 16px 48px #5f7d7510;
+    border-color: var(--color-border-hover);
+  }
+  .plan-card.featured {
+    border-color: var(--color-primary);
+    box-shadow: 0 8px 32px #5f7d7520;
+  }
+  .plan-card.featured:hover {
+    box-shadow: 0 20px 56px #5f7d7528;
+  }
+  .plan-card.enterprise {
+    background: var(--color-primary-dark);
+    border-color: var(--color-primary);
+    color: #fff;
+  }
+  .plan-card.enterprise:hover {
+    box-shadow: 0 20px 56px #465c5630;
+  }
+
+  .popular-badge {
+    position: absolute;
+    top: 0; left: 50%;
+    transform: translateX(-50%);
+    background: var(--color-primary);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 4px 16px;
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+  }
+
+  .plan-header {
+    padding: 28px 24px 22px;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .enterprise .plan-header { border-bottom-color: rgba(255,255,255,0.1); }
+  .featured .plan-header { padding-top: 36px; }
+
+  .plan-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .plan-icon {
+    width: 36px; height: 36px;
+    border-radius: var(--radius-md);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px;
+    flex-shrink: 0;
+  }
+  .icon-basic { background: var(--color-primary-light); }
+  .icon-pro   { background: var(--color-success-light); }
+  .icon-ent   { background: rgba(255,255,255,0.1); }
+
+  .plan-name {
+    font-size: 14px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--color-primary);
+  }
+  .enterprise .plan-name { color: rgba(255,255,255,0.6); }
+
+  .plan-tagline {
+    font-size: 12.5px;
+    color: var(--color-text-muted);
+    margin-bottom: 18px;
+    line-height: 1.5;
+  }
+  .enterprise .plan-tagline { color: rgba(255,255,255,0.5); }
+
+  .plan-price {
+    display: flex;
+    align-items: baseline;
+    gap: 3px;
+    margin-bottom: 4px;
+  }
+  .price-curr {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    margin-top: 6px;
+  }
+  .enterprise .price-curr { color: rgba(255,255,255,0.4); }
+  .price-val {
+    font-size: 46px;
+    font-weight: 800;
+    color: var(--color-text-main);
+    letter-spacing: -1px;
+    line-height: 1;
+  }
+  .enterprise .price-val { color: #fff; }
+  .price-per {
+    font-size: 13px;
+    color: var(--color-text-muted);
+  }
+  .enterprise .price-per { color: rgba(255,255,255,0.4); }
+  .price-note {
+    font-size: 11.5px;
+    color: var(--color-text-muted);
+    margin-bottom: 18px;
+  }
+  .enterprise .price-note { color: rgba(255,255,255,0.35); }
+
+  .plan-btn {
+    display: block;
+    width: 100%;
+    padding: 11px 20px;
+    border-radius: var(--radius-md);
+    font-size: 13.5px;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+    border: none;
+    font-family: var(--font-family);
+    transition: var(--transition);
+  }
+  .btn-basic {
+    background: var(--color-primary-light);
+    color: var(--color-primary-dark);
+    border: 1.5px solid var(--color-border-hover);
+  }
+  .btn-basic:hover { background: #e8efed; border-color: var(--color-primary); }
+  .btn-pro {
+    background: var(--color-primary);
+    color: #fff;
+  }
+  .btn-pro:hover { background: var(--color-primary-dark); }
+  .btn-ent {
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+    border: 1.5px solid rgba(255,255,255,0.2);
+  }
+  .btn-ent:hover { background: rgba(255,255,255,0.2); }
+
+  /* ── FEATURES ── */
+  .plan-features { padding: 20px 24px 28px; }
+  .features-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    margin-bottom: 14px;
+  }
+  .enterprise .features-label { color: rgba(255,255,255,0.3); }
+
+  .feature-group { margin-bottom: 16px; }
+  .feature-group-title {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--color-text-muted);
+    background: var(--bg-primary);
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    margin-bottom: 8px;
+    display: inline-block;
+  }
+  .enterprise .feature-group-title {
+    background: rgba(255,255,255,0.07);
+    color: rgba(255,255,255,0.35);
+  }
+
+  .feature-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 5px 0;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .fi {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .fi-basic { background: var(--color-primary-light); color: var(--color-primary); }
+  .fi-pro   { background: var(--color-success-light); color: var(--color-success); }
+  .fi-ent   { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.7); }
+
+  .ft { flex: 1; color: var(--color-text-main); }
+  .enterprise .ft { color: rgba(255,255,255,0.8); }
+
+  .tag-unique {
+    display: inline-block;
+    font-size: 9px; font-weight: 700;
+    padding: 1px 5px; border-radius: 4px;
+    background: #fef3c7; color: #92400e;
+    vertical-align: middle; margin-left: 3px;
+  }
+  .tag-ai {
+    display: inline-block;
+    font-size: 9px; font-weight: 700;
+    padding: 1px 5px; border-radius: 4px;
+    background: var(--color-primary-light); color: var(--color-primary-dark);
+    vertical-align: middle; margin-left: 3px;
+  }
+
+  /* ── TABLE ── */
+  .table-section {
+    max-width: 1100px;
+    margin: 0 auto 72px;
+    padding: 0 24px;
+  }
+  .section-heading {
+    font-size: 26px;
+    font-weight: 800;
+    text-align: center;
+    color: var(--color-text-main);
+    margin-bottom: 6px;
+    letter-spacing: -0.3px;
+  }
+  .section-sub {
+    text-align: center;
+    color: var(--color-text-muted);
+    font-size: 14px;
+    margin-bottom: 32px;
+  }
+
+  .comp-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    box-shadow: var(--shadow-card);
+    font-size: 13px;
+  }
+  .comp-table thead th {
+    padding: 14px 18px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    background: var(--bg-primary);
+    border-bottom: 1.5px solid var(--color-border);
+  }
+  .comp-table thead th:not(:first-child) { text-align: center; }
+  .comp-table thead th.th-basic { color: var(--color-primary); }
+  .comp-table thead th.th-pro   { color: var(--color-primary-dark); }
+  .comp-table thead th.th-ent   { color: var(--color-text-main); }
+  .comp-table tbody tr:nth-child(even) td { background: #fafcfb; }
+  .comp-table tbody tr:hover td { background: var(--color-primary-light); }
+  .comp-table tbody td {
+    padding: 11px 18px;
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: middle;
+  }
+  .comp-table tbody td:not(:first-child) { text-align: center; font-weight: 600; }
+  .comp-table tbody td:first-child { color: var(--color-text-main); font-size: 13px; }
+  .comp-table .cat-row td {
+    background: var(--color-primary-dark) !important;
+    color: rgba(255,255,255,0.6);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    padding: 7px 18px;
+  }
+  .yes { color: var(--color-primary); }
+  .no  { color: #d0d8d5; font-weight: 400; }
+
+  /* ── FAQ ── */
+  .faq-section {
+    max-width: 680px;
+    margin: 0 auto 72px;
+    padding: 0 24px;
+  }
+  .faq-item { border-bottom: 1px solid var(--color-border); padding: 18px 0; }
+  .faq-q {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 8px;
+    color: var(--color-text-main);
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .faq-q span { color: var(--color-text-muted); font-weight: 400; }
+  .faq-a { font-size: 13.5px; color: var(--color-text-muted); line-height: 1.7; }
+
+  /* ── FOOTER CTA ── */
+  .footer-cta {
+    background: linear-gradient(160deg, var(--color-primary-dark) 0%, var(--color-primary) 100%);
+    padding: 64px 32px;
+    text-align: center;
+  }
+  .footer-cta h2 {
+    font-size: 30px;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 12px;
+    letter-spacing: -0.3px;
+  }
+  .footer-cta p { color: rgba(255,255,255,0.6); margin-bottom: 28px; font-size: 15px; }
+  .cta-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .cta-primary {
+    background: #fff;
+    color: var(--color-primary-dark);
+    padding: 13px 28px;
+    border-radius: var(--radius-md);
+    font-weight: 700;
+    font-size: 14px;
+    text-decoration: none;
+    font-family: var(--font-family);
+    transition: var(--transition);
+  }
+  .cta-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+  .cta-secondary {
+    background: rgba(255,255,255,0.1);
+    border: 1.5px solid rgba(255,255,255,0.2);
+    color: rgba(255,255,255,0.8);
+    padding: 13px 28px;
+    border-radius: var(--radius-md);
+    font-weight: 600;
+    font-size: 14px;
+    text-decoration: none;
+    font-family: var(--font-family);
+    transition: var(--transition);
+  }
+  .cta-secondary:hover { background: rgba(255,255,255,0.15); }
+
+  /* ── FOOTER BAR ── */
+  .footer-bar {
+    background: var(--bg-card);
+    border-top: 1px solid var(--color-border);
+    padding: 18px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--color-text-muted);
+  }
+  .footer-bar-logo {
+    display: flex; align-items: center; gap: 8px;
+    font-weight: 600; color: var(--color-text-main); font-size: 13px;
+  }
+  .footer-bar-logo-icon {
+    width: 24px; height: 24px;
+    background: var(--color-primary);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 11px;
+  }
+
+  @media (max-width: 860px) {
+    .plans-grid { grid-template-columns: 1fr; max-width: 420px; margin: 0 auto; }
+    .topnav { padding: 0 20px; }
+    .hero { padding: 56px 24px 72px; }
+    .plans-section { padding: 0 16px 56px; margin-top: -16px; }
+    .footer-bar { flex-direction: column; gap: 8px; text-align: center; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="topnav">
+  <a href="/" class="nav-logo">
+    <div class="nav-logo-icon">✦</div>
+    <span class="nav-logo-text">Lumina</span>
+  </a>
+  <a href="/" class="nav-back">← Voltar ao sistema</a>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-eyebrow"><span class="hero-eyebrow-dot"></span>Planos & Preços</div>
+  <h1>O plano certo para <span>cada fase</span><br>da sua clínica</h1>
+  <p>Sem taxa de setup, sem contrato de fidelidade.<br>30 dias grátis em qualquer plano.</p>
+  <div class="billing-toggle" onclick="toggleBilling()">
+    <span id="billingLabel">Mensal</span>
+    <div class="toggle-knob" id="toggleKnob"></div>
+    <span>Anual</span>
+    <span class="badge-annual">-25%</span>
+  </div>
+</div>
+
+<!-- PLANS -->
+<div class="plans-section">
+  <div class="plans-grid">
+
+    <!-- BÁSICO -->
+    <div class="plan-card">
+      <div class="plan-header">
+        <div class="plan-top">
+          <div class="plan-icon icon-basic">🌱</div>
+          <span class="plan-name">Básico</span>
+        </div>
+        <div class="plan-tagline">Para clínicas que querem organizar a operação com qualidade</div>
+        <div class="plan-price">
+          <span class="price-curr">R$</span>
+          <span class="price-val" id="price-basic">39,90</span>
+          <span class="price-per">/mês</span>
+        </div>
+        <div class="price-note" id="note-basic">Cobrado mensalmente</div>
+        <a href="/" class="plan-btn btn-basic">Começar grátis por 30 dias</a>
+      </div>
+      <div class="plan-features">
+        <div class="features-label">Incluso no plano</div>
+
+        <div class="feature-group">
+          <div class="feature-group-title">📅 Agenda</div>
+          <div class="feature-item"><div class="fi fi-basic">✓</div><span class="ft">Agenda multi-profissional <span class="tag-unique">★ Premium</span></span></div>
+          <div class="feature-item"><div class="fi fi-basic">✓</div><span class="ft">Visão dia / semana / ano</span></div>
+          <div class="feature-item"><div class="fi fi-basic">✓</div><span class="ft">Bloqueio de conflito (3 regras) <span class="tag-unique">★</span></span></div>
+          <div class="feature-item"><div class="fi fi-basic">✓</div><span class="ft">Sala de espera kanban em tempo real <span class="tag-unique">★ Único</span></span></div>
+        </div>
+
+        <div class="feature-group">
+          <div class="feature-group-title">🎯 Jornada do Paciente</div>
+          <div class="feature-item"><div class="fi fi-basic">✓</div><span class="ft">Kanban de atendimento (Confirmado → Checkout) <span class="tag-unique">★ Único</span></span></div>
+          <div class="feature-item"><div class="fi fi-basic">✓</div><span class="ft">Alertas cromáticos em tempo real <span class="tag-unique">★ Único</span></span></div>
+          <div class="feature-item"><div class="fi fi-basic">✓</div><span class="ft">Persistência pós-checkout com reset à meia-noite <span class="tag-unique">★ Único</span></span></div>
+          <div class="feature-item"><div class="fi fi-basic">✓</div><span class="ft">Botão "Acolher Paciente" <span class="tag-unique">★ Único</span></span></div>
+        </div>
+
+        <div class="feature-group">
+          <div class="feature-group-title">📋 Prontuário Clínico</div>
+          <div class="feature-item"><div class="fi fi-basic">✓</div><span class="ft">Prontuário com linha do tempo <span class="tag-unique">★ Carrossel</span></span></div>
+          <div class="feature-item"><div class="fi fi-basic">✓</div><span class="ft">Anamnese digital personalizada</span></div>
+          <div class="feature-item"><div class="fi fi-basic">✓</div><span class="ft">Galeria de fotos antes/depois</span></div>
+          <div class="feature-item"><div class="fi fi-basic">✓</div><span class="ft">Documentos e assinaturas digitais</span></div>
+          <div class="feature-item"><div class="fi fi-basic">✓</div><span class="ft">Planos de tratamento</span></div>
+        </div>
+
+        <div class="feature-group">
+          <div class="feature-group-title">💰 Financeiro</div>
+          <div class="feature-item"><div class="fi fi-basic">✓</div><span class="ft">Dashboard financeiro (bruto, líquido, ticket médio)</span></div>
+          <div class="feature-item"><div class="fi fi-basic">✓</div><span class="ft">Fluxo de caixa em tempo real</span></div>
+          <div class="feature-item"><div class="fi fi-basic">✓</div><span class="ft">Métodos de pagamento e procedimentos realizados</span></div>
+          <div class="feature-item"><div class="fi fi-basic">✓</div><span class="ft">Catálogo de procedimentos com preços</span></div>
+        </div>
+
+        <div class="feature-group">
+          <div class="feature-group-title">⚙️ Plataforma</div>
+          <div class="feature-item"><div class="fi fi-basic">✓</div><span class="ft">100% em nuvem · Mobile-first <span class="tag-unique">★</span></span></div>
+          <div class="feature-item"><div class="fi fi-basic">✓</div><span class="ft">Até <strong>2 profissionais</strong></span></div>
+          <div class="feature-item"><div class="fi fi-basic">✓</div><span class="ft">Suporte por e-mail</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PRO -->
+    <div class="plan-card featured">
+      <div class="popular-badge">Mais popular</div>
+      <div class="plan-header">
+        <div class="plan-top">
+          <div class="plan-icon icon-pro">⚡</div>
+          <span class="plan-name">Pro</span>
+        </div>
+        <div class="plan-tagline">Gestão clínica completa com CRM, financeiro avançado e salas</div>
+        <div class="plan-price">
+          <span class="price-curr">R$</span>
+          <span class="price-val" id="price-pro">89,90</span>
+          <span class="price-per">/mês</span>
+        </div>
+        <div class="price-note" id="note-pro">Cobrado mensalmente</div>
+        <a href="/" class="plan-btn btn-pro">Começar grátis por 30 dias</a>
+      </div>
+      <div class="plan-features">
+        <div class="features-label">Tudo do Básico, mais:</div>
+
+        <div class="feature-group">
+          <div class="feature-group-title">📅 Agenda Avançada</div>
+          <div class="feature-item"><div class="fi fi-pro">✓</div><span class="ft">Fidelidade de minutos (HH:MM exata) <span class="tag-unique">★ Único</span></span></div>
+          <div class="feature-item"><div class="fi fi-pro">✓</div><span class="ft">Encaixe inteligente algorítmico <span class="tag-unique">★ Único</span></span></div>
+          <div class="feature-item"><div class="fi fi-pro">✓</div><span class="ft">Exibição multi-profissional simétrica <span class="tag-unique">★ Premium</span></span></div>
+        </div>
+
+        <div class="feature-group">
+          <div class="feature-group-title">🏢 Salas</div>
+          <div class="feature-item"><div class="fi fi-pro">✓</div><span class="ft">Gestão de salas de atendimento</span></div>
+          <div class="feature-item"><div class="fi fi-pro">✓</div><span class="ft">Calendário por sala (ocupação semanal)</span></div>
+        </div>
+
+        <div class="feature-group">
+          <div class="feature-group-title">🎯 CRM & Vendas</div>
+          <div class="feature-item"><div class="fi fi-pro">✓</div><span class="ft">Pipeline de leads (funil kanban)</span></div>
+          <div class="feature-item"><div class="fi fi-pro">✓</div><span class="ft">Ranking de pacientes por valor</span></div>
+          <div class="feature-item"><div class="fi fi-pro">✓</div><span class="ft">Orçamentos com follow-up automático</span></div>
+          <div class="feature-item"><div class="fi fi-pro">✓</div><span class="ft">Central de Relacionamento (faltas, inadimplentes)</span></div>
+          <div class="feature-item"><div class="fi fi-pro">✓</div><span class="ft">CRM & Retenção Ativa (expiração de procedimento)</span></div>
+        </div>
+
+        <div class="feature-group">
+          <div class="feature-group-title">💰 Financeiro Avançado</div>
+          <div class="feature-item"><div class="fi fi-pro">✓</div><span class="ft">Comissões por profissional e procedimento</span></div>
+          <div class="feature-item"><div class="fi fi-pro">✓</div><span class="ft">Repassos</span></div>
+          <div class="feature-item"><div class="fi fi-pro">✓</div><span class="ft">Trilha de auditoria imutável <span class="tag-unique">★ Único</span></span></div>
+          <div class="feature-item"><div class="fi fi-pro">✓</div><span class="ft">Trava contábil de retroatividade <span class="tag-unique">★ Único</span></span></div>
+          <div class="feature-item"><div class="fi fi-pro">✓</div><span class="ft">Contas (gestão prospectiva)</span></div>
+          <div class="feature-item"><div class="fi fi-pro">✓</div><span class="ft">Faltas & ausências</span></div>
+        </div>
+
+        <div class="feature-group">
+          <div class="feature-group-title">📦 Estoque & Relatórios</div>
+          <div class="feature-item"><div class="fi fi-pro">✓</div><span class="ft">Gestão de estoque e insumos</span></div>
+          <div class="feature-item"><div class="fi fi-pro">✓</div><span class="ft">Alertas de estoque mínimo</span></div>
+          <div class="feature-item"><div class="fi fi-pro">✓</div><span class="ft">Ocupação e rentabilidade por profissional</span></div>
+        </div>
+
+        <div class="feature-group">
+          <div class="feature-group-title">⚙️ Plataforma</div>
+          <div class="feature-item"><div class="fi fi-pro">✓</div><span class="ft">LGPD — conformidade completa</span></div>
+          <div class="feature-item"><div class="fi fi-pro">✓</div><span class="ft">Até <strong>5 profissionais</strong></span></div>
+          <div class="feature-item"><div class="fi fi-pro">✓</div><span class="ft">Suporte por chat (horário comercial)</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ENTERPRISE -->
+    <div class="plan-card enterprise">
+      <div class="plan-header">
+        <div class="plan-top">
+          <div class="plan-icon icon-ent">🏆</div>
+          <span class="plan-name">Enterprise</span>
+        </div>
+        <div class="plan-tagline">Para redes, franquias e clínicas de alta performance</div>
+        <div class="plan-price">
+          <span class="price-curr">R$</span>
+          <span class="price-val" id="price-ent">119,90</span>
+          <span class="price-per">/mês</span>
+        </div>
+        <div class="price-note" id="note-ent">Cobrado mensalmente · por unidade</div>
+        <a href="/" class="plan-btn btn-ent">Falar com um especialista</a>
+      </div>
+      <div class="plan-features">
+        <div class="features-label">Tudo do Pro, mais:</div>
+
+        <div class="feature-group">
+          <div class="feature-group-title">🤖 Inteligência Artificial</div>
+          <div class="feature-item"><div class="fi fi-ent">✓</div><span class="ft">IA: resumo do histórico clínico <span class="tag-ai">✦ IA</span></span></div>
+          <div class="feature-item"><div class="fi fi-ent">✓</div><span class="ft">IA: gravação e transcrição de consulta <span class="tag-ai">✦ IA</span></span></div>
+        </div>
+
+        <div class="feature-group">
+          <div class="feature-group-title">💬 WhatsApp</div>
+          <div class="feature-item"><div class="fi fi-ent">✓</div><span class="ft">Envio de mensagens pelo sistema</span></div>
+          <div class="feature-item"><div class="fi fi-ent">✓</div><span class="ft">Disparos em massa com templates e variáveis</span></div>
+          <div class="feature-item"><div class="fi fi-ent">✓</div><span class="ft">Histórico de comunicações</span></div>
+        </div>
+
+        <div class="feature-group">
+          <div class="feature-group-title">🏢 Multiclínicas & Escala</div>
+          <div class="feature-item"><div class="fi fi-ent">✓</div><span class="ft">Múltiplas unidades na mesma conta</span></div>
+          <div class="feature-item"><div class="fi fi-ent">✓</div><span class="ft">Dashboard consolidado por rede</span></div>
+          <div class="feature-item"><div class="fi fi-ent">✓</div><span class="ft">Relatórios comparativos entre unidades</span></div>
+          <div class="feature-item"><div class="fi fi-ent">✓</div><span class="ft">Permissões granulares por unidade</span></div>
+          <div class="feature-item"><div class="fi fi-ent">✓</div><span class="ft">Profissionais ilimitados</span></div>
+        </div>
+
+        <div class="feature-group">
+          <div class="feature-group-title">🤝 Suporte Premium</div>
+          <div class="feature-item"><div class="fi fi-ent">✓</div><span class="ft">Gerente de conta dedicado</span></div>
+          <div class="feature-item"><div class="fi fi-ent">✓</div><span class="ft">Onboarding guiado para toda a rede</span></div>
+          <div class="feature-item"><div class="fi fi-ent">✓</div><span class="ft">SLA 99,9% de disponibilidade</span></div>
+          <div class="feature-item"><div class="fi fi-ent">✓</div><span class="ft">Suporte prioritário 7 dias</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- TABLE -->
+<div class="table-section">
+  <h2 class="section-heading">Comparativo completo</h2>
+  <p class="section-sub">Todas as funcionalidades disponíveis hoje no Lumina CRM</p>
+
+  <table class="comp-table">
+    <thead>
+      <tr>
+        <th>Funcionalidade</th>
+        <th class="th-basic">Básico</th>
+        <th class="th-pro">Pro</th>
+        <th class="th-ent">Enterprise</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="cat-row"><td colspan="4">📅 Agenda & Recepção</td></tr>
+      <tr><td>Agenda multi-profissional ★ Premium</td><td class="yes">✅</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+      <tr><td>Visão dia / semana / ano</td><td class="yes">✅</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+      <tr><td>Bloqueio de conflito (3 regras) ★</td><td class="yes">✅</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+      <tr><td>Sala de espera kanban em tempo real ★ Único</td><td class="yes">✅</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+      <tr><td>Fidelidade de minutos (HH:MM exata) ★ Único</td><td class="no">—</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+      <tr><td>Encaixe inteligente algorítmico ★ Único</td><td class="no">—</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+      <tr><td>Exibição multi-profissional simétrica ★ Premium</td><td class="no">—</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+
+      <tr class="cat-row"><td colspan="4">🎯 Jornada do Paciente</td></tr>
+      <tr><td>Kanban de atendimento (Confirmado → Checkout) ★ Único</td><td class="yes">✅</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+      <tr><td>Alertas cromáticos temporais ★ Único</td><td class="yes">✅</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+      <tr><td>Persistência pós-checkout com reset à meia-noite ★ Único</td><td class="yes">✅</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+      <tr><td>Botão "Acolher Paciente" ★ Único</td><td class="yes">✅</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+
+      <tr class="cat-row"><td colspan="4">📋 Prontuário Clínico</td></tr>
+      <tr><td>Prontuário com linha do tempo ★ Carrossel</td><td class="yes">✅</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+      <tr><td>Anamnese digital personalizada</td><td class="yes">✅</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+      <tr><td>Galeria de fotos antes/depois</td><td class="yes">✅</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+      <tr><td>Documentos e assinaturas digitais</td><td class="yes">✅</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+      <tr><td>Planos de tratamento</td><td class="yes">✅</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+      <tr><td>IA — Resumo do histórico clínico ✦</td><td class="no">—</td><td class="no">—</td><td class="yes">✅</td></tr>
+      <tr><td>IA — Gravação e transcrição de consulta ✦</td><td class="no">—</td><td class="no">—</td><td class="yes">✅</td></tr>
+
+      <tr class="cat-row"><td colspan="4">🎯 CRM & Vendas</td></tr>
+      <tr><td>Pipeline de leads (funil kanban)</td><td class="no">—</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+      <tr><td>Ranking de pacientes por valor</td><td class="no">—</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+      <tr><td>Orçamentos com follow-up automático</td><td class="no">—</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+      <tr><td>Central de Relacionamento (faltas, inadimplentes, sem retorno)</td><td class="no">—</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+      <tr><td>CRM & Retenção Ativa (expiração de procedimento)</td><td class="no">—</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+
+      <tr class="cat-row"><td colspan="4">💬 WhatsApp</td></tr>
+      <tr><td>Envio de mensagens pelo sistema</td><td class="no">—</td><td class="no">—</td><td class="yes">✅</td></tr>
+      <tr><td>Disparos em massa com templates e variáveis</td><td class="no">—</td><td class="no">—</td><td class="yes">✅</td></tr>
+      <tr><td>Histórico de comunicações</td><td class="no">—</td><td class="no">—</td><td class="yes">✅</td></tr>
+
+      <tr class="cat-row"><td colspan="4">💰 Gestão Financeira</td></tr>
+      <tr><td>Dashboard financeiro (bruto, líquido, ticket médio)</td><td class="yes">✅</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+      <tr><td>Fluxo de caixa em tempo real</td><td class="yes">✅</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+      <tr><td>Catálogo de procedimentos com preços</td><td class="yes">✅</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+      <tr><td>Comissões por profissional e procedimento</td><td class="no">—</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+      <tr><td>Repassos</td><td class="no">—</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+      <tr><td>Contas (gestão prospectiva)</td><td class="no">—</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+      <tr><td>Faltas & ausências</td><td class="no">—</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+      <tr><td>Trilha de auditoria imutável ★ Único</td><td class="no">—</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+      <tr><td>Trava contábil de retroatividade ★ Único</td><td class="no">—</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+      <tr><td>Ocupação e rentabilidade por profissional</td><td class="no">—</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+
+      <tr class="cat-row"><td colspan="4">📦 Estoque</td></tr>
+      <tr><td>Gestão de estoque e insumos</td><td class="no">—</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+      <tr><td>Alertas de estoque mínimo</td><td class="no">—</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+
+      <tr class="cat-row"><td colspan="4">🏢 Salas</td></tr>
+      <tr><td>Gestão de salas de atendimento</td><td class="no">—</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+      <tr><td>Calendário por sala (ocupação semanal)</td><td class="no">—</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+
+      <tr class="cat-row"><td colspan="4">🔗 Plataforma & Compliance</td></tr>
+      <tr><td>100% em nuvem · Mobile-first ★</td><td class="yes">✅</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+      <tr><td>LGPD — conformidade completa com dashboard</td><td class="no">—</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+      <tr><td>Múltiplas unidades / franquias</td><td class="no">—</td><td class="no">—</td><td class="yes">✅</td></tr>
+      <tr><td>Dashboard consolidado por rede</td><td class="no">—</td><td class="no">—</td><td class="yes">✅</td></tr>
+
+      <tr class="cat-row"><td colspan="4">👥 Limites & Suporte</td></tr>
+      <tr><td>Profissionais</td><td>Até 2</td><td>Até 5</td><td>Ilimitados</td></tr>
+      <tr><td>Unidades / clínicas</td><td>1</td><td>1</td><td>Múltiplas</td></tr>
+      <tr><td>Suporte</td><td>E-mail</td><td>Chat (comercial)</td><td>Dedicado + SLA</td></tr>
+      <tr><td>Onboarding</td><td>Self-service</td><td>Guiado</td><td>Gerente dedicado</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- FAQ -->
+<div class="faq-section">
+  <h2 class="section-heading" style="margin-bottom:6px;">Dúvidas frequentes</h2>
+  <p class="section-sub" style="margin-bottom:28px;">O que você precisa saber antes de assinar</p>
+
+  <div class="faq-item">
+    <div class="faq-q">O que significa o ✦ IA nas funcionalidades? <span>+</span></div>
+    <div class="faq-a">São funcionalidades com inteligência artificial integrada ao prontuário: resumo automático do histórico clínico da paciente e gravação + transcrição automática da consulta, estruturada em Queixa, Histórico, Exame, Conduta e Prescrição — tudo revisado por você antes de salvar.</div>
+  </div>
+  <div class="faq-item">
+    <div class="faq-q">O que significam os ★ nas funcionalidades? <span>+</span></div>
+    <div class="faq-a">São funcionalidades exclusivas do Lumina CRM — não encontradas em nenhum concorrente (Clinicorp, Belle Software, GestãoDS). Inovações técnicas desenvolvidas para resolver problemas reais das clínicas de estética brasileiras.</div>
+  </div>
+  <div class="faq-item">
+    <div class="faq-q">Posso mudar de plano a qualquer momento? <span>+</span></div>
+    <div class="faq-a">Sim. Upgrades têm efeito imediato e você paga apenas a diferença proporcional. Downgrade entra em vigor no próximo ciclo de cobrança.</div>
+  </div>
+  <div class="faq-item">
+    <div class="faq-q">O que acontece depois dos 30 dias grátis? <span>+</span></div>
+    <div class="faq-a">Nada acontece automaticamente. Você recebe um aviso e escolhe se quer assinar. Sem cobrança surpresa, sem necessidade de cartão de crédito para começar o trial.</div>
+  </div>
+  <div class="faq-item">
+    <div class="faq-q">Há desconto para redes com múltiplas unidades? <span>+</span></div>
+    <div class="faq-a">Sim. Redes com 3 ou mais unidades no plano Enterprise têm condições negociadas. Fale com nosso time para uma proposta personalizada.</div>
+  </div>
+</div>
+
+<!-- FOOTER CTA -->
+<div class="footer-cta">
+  <h2>Sua clínica merece uma gestão à altura</h2>
+  <p>30 dias grátis · Sem cartão de crédito · Cancele quando quiser</p>
+  <div class="cta-row">
+    <a href="/" class="cta-primary">Começar agora, é grátis</a>
+  </div>
+</div>
+
+<!-- FOOTER BAR -->
+<div class="footer-bar">
+  <div class="footer-bar-logo">
+    <div class="footer-bar-logo-icon">✦</div>
+    Lumina CRM
+  </div>
+  <span>© 2026 Lumina CRM · Todos os direitos reservados</span>
+  <span>Plataforma para clínicas de estética</span>
+</div>
+
+<script>
+  let isAnnual = false;
+  const prices = {
+    basic: { monthly: '39,90', annual: '29,90' },
+    pro:   { monthly: '89,90', annual: '69,90' },
+    ent:   { monthly: '119,90', annual: '99,90' },
+  };
+  function toggleBilling() {
+    isAnnual = !isAnnual;
+    document.getElementById('toggleKnob').classList.toggle('on', isAnnual);
+    document.getElementById('billingLabel').textContent = isAnnual ? 'Anual' : 'Mensal';
+    ['basic','pro','ent'].forEach(k => {
+      document.getElementById('price-' + k).textContent = isAnnual ? prices[k].annual : prices[k].monthly;
+      const isEnt = k === 'ent';
+      document.getElementById('note-' + k).textContent = isAnnual
+        ? (isEnt ? 'Cobrado anualmente · por unidade' : 'Cobrado anualmente')
+        : (isEnt ? 'Cobrado mensalmente · por unidade' : 'Cobrado mensalmente');
+    });
+  }
+</script>
+</body>
+</html>

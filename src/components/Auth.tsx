@@ -362,7 +362,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
             </p>
             <p style={{ fontSize: 11, textAlign: 'center', marginBottom: 20 }}>
               <a
-                href="https://luminaclin.com/planos"
+                href="/planos.html"
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{ color: 'var(--color-primary)', fontWeight: 600, textDecoration: 'underline', cursor: 'pointer' }}
