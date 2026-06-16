@@ -2077,13 +2077,15 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
                 <div className="form-group">
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
                     <label className="form-label" style={{ marginBottom: 0 }}>Relato da Paciente (Texto Natural e Acolhedor)</label>
-                    <button
-                      type="button"
-                      onClick={handleOpenTemplatePicker}
-                      style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px', background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '6px', padding: '4px 10px', cursor: 'pointer', color: '#0284c7', fontWeight: 500 }}
-                    >
-                      <LayoutTemplate size={13} /> Usar Template
-                    </button>
+                    {isPro && (
+                      <button
+                        type="button"
+                        onClick={handleOpenTemplatePicker}
+                        style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px', background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '6px', padding: '4px 10px', cursor: 'pointer', color: '#0284c7', fontWeight: 500 }}
+                      >
+                        <LayoutTemplate size={13} /> Usar Template
+                      </button>
+                    )}
                   </div>
                   <textarea
                     rows={4}
