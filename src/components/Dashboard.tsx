@@ -158,6 +158,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
     return `Hoje é dia ${dia} de ${mes} de ${ano} • ${prefixo} ${hora}:${minuto}h`;
   };
 
+  const formatDataNascimento = (value: string) => {
+    const numbersOnly = value.replace(/\D/g, '');
+    const truncated = numbersOnly.slice(0, 8);
+    if (truncated.length <= 2) return truncated;
+    if (truncated.length <= 4) return `${truncated.slice(0, 2)}/${truncated.slice(2)}`;
+    return `${truncated.slice(0, 2)}/${truncated.slice(2, 4)}/${truncated.slice(4)}`;
+  };
+
   const formatTelefone = (value: string) => {
     const numbersOnly = value.replace(/\D/g, '');
     const truncated = numbersOnly.slice(0, 11);
@@ -172,6 +180,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
       return `(${truncated.slice(0, 2)}) ${truncated.slice(2, 7)}-${truncated.slice(7)}`;
     }
   };
+
+  const [showCadastrarPacienteModal, setShowCadastrarPacienteModal] = useState(false);
+  const [cadastrarNome, setCadastrarNome] = useState('');
+  const [cadastrarTelefone, setCadastrarTelefone] = useState('');
+  const [cadastrarNasc, setCadastrarNasc] = useState('');
+  const [cadastrarEmail, setCadastrarEmail] = useState('');
+  const [salvandoCadastro, setSalvandoCadastro] = useState(false);
 
   const [newNome, setNewNome] = useState('');
   const [newTelefone, setNewTelefone] = useState('');
@@ -257,6 +272,64 @@ export const Dashboard: React.FC<DashboardProps> = ({
     { id: 'atendimento', label: 'Em Cabine', desc: 'Procedimento em andamento' },
     { id: 'checkout', label: 'Checkout / Conclusão', desc: 'Pós-procedimento imediato' },
   ];
+
+  const handleCadastrarPacienteSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cadastrarNome.trim()) return;
+
+    const rawTelefone = cadastrarTelefone.replace(/\D/g, '');
+    if (rawTelefone && rawTelefone.length < 10) {
+      alert('Por favor, informe um telefone de contato válido com DDD (mínimo 10 dígitos).');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (cadastrarEmail && !emailRegex.test(cadastrarEmail)) {
+      alert('Por favor, insira um e-mail válido.');
+      return;
+    }
+
+    let dbDataNascimento = '';
+    if (cadastrarNasc) {
+      const parts = cadastrarNasc.split('/');
+      const dia = parseInt(parts[0], 10);
+      const mes = parseInt(parts[1], 10);
+      const ano = parseInt(parts[2], 10);
+      const dataValida =
+        parts.length === 3 &&
+        parts[0].length === 2 &&
+        parts[1].length === 2 &&
+        parts[2].length === 4 &&
+        dia >= 1 && dia <= 31 &&
+        mes >= 1 && mes <= 12 &&
+        ano >= 1900 && ano <= new Date().getFullYear();
+      if (!dataValida) {
+        alert('Data de nascimento inválida. Use o formato DD/MM/AAAA com valores reais (ex: 15/08/1990).');
+        return;
+      }
+      dbDataNascimento = `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+
+    setSalvandoCadastro(true);
+    try {
+      await api.createCliente({
+        nome: cadastrarNome.trim(),
+        telefone: cadastrarTelefone.trim() || undefined,
+        email: cadastrarEmail.trim() || undefined,
+        dataNascimento: dbDataNascimento || undefined,
+      }, userId);
+      setCadastrarNome('');
+      setCadastrarTelefone('');
+      setCadastrarNasc('');
+      setCadastrarEmail('');
+      setShowCadastrarPacienteModal(false);
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao cadastrar paciente.');
+    } finally {
+      setSalvandoCadastro(false);
+    }
+  };
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -428,7 +501,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
         <button
-          onClick={() => setShowAddModal(true)}
+          onClick={() => setShowCadastrarPacienteModal(true)}
           className="btn btn-primary"
         >
           <UserPlus size={16} />
@@ -693,6 +766,72 @@ export const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       {/* Add client modal dialog */}
+      {showCadastrarPacienteModal && (
+        <div
+          className="modal-overlay"
+          style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, animation: 'fadeIn 0.2s ease-out' }}
+          onClick={() => setShowCadastrarPacienteModal(false)}
+        >
+          <div
+            className="card"
+            style={{ maxWidth: '440px', width: '92%', padding: '32px' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 style={{ marginBottom: '20px' }}>Cadastrar Paciente</h3>
+            <form onSubmit={handleCadastrarPacienteSubmit}>
+              <div className="form-group">
+                <label className="form-label">Nome *</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={cadastrarNome}
+                  onChange={e => setCadastrarNome(e.target.value)}
+                  placeholder="Ex: Amanda Santos"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Telefone</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={cadastrarTelefone}
+                  onChange={e => setCadastrarTelefone(formatTelefone(e.target.value))}
+                  placeholder="(XX) 9XXXX-XXXX"
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Data de Nascimento</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={cadastrarNasc}
+                  onChange={e => setCadastrarNasc(formatDataNascimento(e.target.value))}
+                  placeholder="DD/MM/AAAA"
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">E-mail</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={cadastrarEmail}
+                  onChange={e => setCadastrarEmail(e.target.value)}
+                  placeholder="exemplo@email.com"
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
+                <button type="button" onClick={() => setShowCadastrarPacienteModal(false)} className="btn btn-outline">Cancelar</button>
+                <button type="submit" className="btn btn-primary" disabled={salvandoCadastro || !cadastrarNome.trim()}>
+                  <UserPlus size={15} />
+                  {salvandoCadastro ? 'Salvando...' : 'Cadastrar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {showAddModal && (
         <div className="modal-overlay" style={{
           position: 'fixed',
