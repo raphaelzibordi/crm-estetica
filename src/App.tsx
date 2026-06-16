@@ -396,7 +396,8 @@ function AppMain() {
   const loadAgendamentosDoDia = useCallback(async () => {
     if (!tenantId) return;
     try {
-      const hoje = new Date().toISOString().split('T')[0];
+      const _d = new Date();
+      const hoje = `${_d.getFullYear()}-${String(_d.getMonth() + 1).padStart(2, '0')}-${String(_d.getDate()).padStart(2, '0')}`;
       const data = await api.getAgendamentos(tenantId, hoje, currentUnidadeId ?? undefined);
       setAgendamentos(data);
     } catch (err) {
@@ -526,7 +527,8 @@ function AppMain() {
 
       await api.createAgendamento({ ...newAgendamento, clienteId: finalClienteId }, tenantId);
 
-      const hoje = new Date().toISOString().split('T')[0];
+      const _d2 = new Date();
+      const hoje = `${_d2.getFullYear()}-${String(_d2.getMonth() + 1).padStart(2, '0')}-${String(_d2.getDate()).padStart(2, '0')}`;
       if (newAgendamento.data === hoje) await loadAgendamentosDoDia();
     } catch (err) {
       console.error('Erro ao criar agendamento:', err);
@@ -546,7 +548,7 @@ function AppMain() {
 
   const handleUpdateAgendamentoDados = async (
     id: string,
-    updates: { horaInicio?: string; horaFim?: string; procedimento?: string; profissional?: string; sala?: string }
+    updates: { data?: string; horaInicio?: string; horaFim?: string; procedimento?: string; profissional?: string; sala?: string }
   ) => {
     setAgendamentos((prev) =>
       prev.map((a) => (a.id !== id ? a : { ...a, ...updates }))
@@ -687,6 +689,7 @@ function AppMain() {
             onDeleteAgendamento={handleDeleteAgendamento}
             userId={effectiveTenantId}
             userName={userName}
+            plano={userPlano}
           />
         )}
 

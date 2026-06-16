@@ -828,13 +828,14 @@ export const api = {
 
   async updateAgendamentoDados(
     id: string,
-    updates: { horaInicio?: string; horaFim?: string; procedimento?: string; profissional?: string; sala?: string },
+    updates: { data?: string; horaInicio?: string; horaFim?: string; procedimento?: string; profissional?: string; sala?: string },
     userId?: string
   ): Promise<Agendamento> {
     return run(async () => {
       const uid = await requireUserId(userId);
 
       const precisaValidar =
+        updates.data !== undefined ||
         updates.horaInicio !== undefined ||
         updates.horaFim !== undefined ||
         updates.profissional !== undefined ||
@@ -850,11 +851,13 @@ export const api = {
         if (fetchAtualErr) throw fetchAtualErr;
         const atualMapped = mapAgendamento(atual);
 
+        const targetData = updates.data ?? atualMapped.data;
+
         const { data: existentes, error: listErr } = await supabase
           .from('agendamentos')
           .select('*, clientes ( nome, foto_url )')
           .eq('user_id', uid)
-          .eq('data', atualMapped.data);
+          .eq('data', targetData);
         if (listErr) throw listErr;
 
         const agExistentes = (existentes ?? []).map(mapAgendamento);
@@ -863,7 +866,7 @@ export const api = {
           {
             clienteId: atualMapped.clienteId,
             profissional: updates.profissional ?? atualMapped.profissional,
-            data: atualMapped.data,
+            data: targetData,
             horaInicio: updates.horaInicio ?? atualMapped.horaInicio,
             horaFim: updates.horaFim ?? atualMapped.horaFim,
           },
@@ -878,7 +881,7 @@ export const api = {
         if (updates.sala !== undefined && updates.sala !== atualMapped.sala) {
           const horaInicio = updates.horaInicio ?? atualMapped.horaInicio;
           const horaFim = updates.horaFim ?? atualMapped.horaFim;
-          const [salaStatus] = getSalasStatus([updates.sala], atualMapped.data, horaInicio, horaFim, agExistentes, id);
+          const [salaStatus] = getSalasStatus([updates.sala], targetData, horaInicio, horaFim, agExistentes, id);
           if (salaStatus && !salaStatus.disponivel) {
             throw new ApiError(
               `Sala "${updates.sala}" já está ocupada neste horário (${salaStatus.ocupadaPor}). Escolha outra sala ou mude o horário.`,
@@ -890,6 +893,7 @@ export const api = {
       }
 
       const dbUpdates: Record<string, unknown> = {};
+      if (updates.data !== undefined) dbUpdates.data = updates.data;
       if (updates.horaInicio !== undefined) dbUpdates.hora_inicio = updates.horaInicio;
       if (updates.horaFim !== undefined) dbUpdates.hora_fim = updates.horaFim;
       if (updates.procedimento !== undefined) dbUpdates.procedimento = updates.procedimento;

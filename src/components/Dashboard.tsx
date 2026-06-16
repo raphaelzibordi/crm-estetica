@@ -10,7 +10,7 @@ const OWNER_ID = '__owner__';
 interface DashboardProps {
   agendamentos: Agendamento[];
   onUpdateStatus: (id: string, newStatus: StatusJornada, extras?: { metodoPagamento?: Agendamento['metodoPagamento'] }) => void;
-  onUpdateAgendamentoDados?: (id: string, updates: { horaInicio?: string; horaFim?: string; procedimento?: string; profissional?: string; sala?: string }) => void;
+  onUpdateAgendamentoDados?: (id: string, updates: { data?: string; horaInicio?: string; horaFim?: string; procedimento?: string; profissional?: string; sala?: string }) => void;
   onOpenProntuario: (clienteId: string) => void;
   onAddAgendamento: (
     agendamento: Omit<Agendamento, 'id'>,
@@ -19,6 +19,7 @@ interface DashboardProps {
   onDeleteAgendamento?: (id: string) => void;
   userId?: string;
   userName?: string;
+  plano?: string | null;
 }
 
 function addMinutesToTime(hhmm: string, minutes: number): string {
@@ -80,6 +81,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onDeleteAgendamento,
   userId,
   userName,
+  plano,
 }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
@@ -173,7 +175,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [newProcedimento, setNewProcedimento] = useState('');
   const [newProfissionalId, setNewProfissionalId] = useState<string>(OWNER_ID);
   const [newHora, setNewHora] = useState('14:30');
-  const [newData, setNewData] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [newData, setNewData] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
 
   useEffect(() => {
     if (procedimentos.length > 0 && !newProcedimento) {
@@ -192,16 +197,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   // Edit-card state
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editData, setEditData] = useState('');
   const [editHora, setEditHora] = useState('');
   const [editProcedimento, setEditProcedimento] = useState('');
   const [editProfissionalId, setEditProfissionalId] = useState<string>(OWNER_ID);
   const [editSala, setEditSala] = useState('');
   const [editSalaOptions, setEditSalaOptions] = useState<SalaStatus[]>([]);
-  const [, setEditItemData] = useState<string>('');
   const [editSalaHistorico, setEditSalaHistorico] = useState<Array<{ from: string; to: string; changedAt: string }>>([]);
 
   const openEditModal = (item: Agendamento) => {
-    setEditItemData(item.data);
+    setEditData(item.data);
     setEditingId(item.id);
     setEditHora(item.horaInicio.substring(0, 5));
     setEditProcedimento(item.procedimento);
@@ -222,6 +227,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     const proc = procedimentos.find((p) => p.nome === editProcedimento);
     const duracao = proc?.duracaoMinutos ?? 60;
     onUpdateAgendamentoDados(editingId, {
+      data: editData,
       horaInicio: editHora,
       horaFim: addMinutesToTime(editHora, duracao),
       procedimento: editProcedimento,
@@ -835,6 +841,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <h3 style={{ marginBottom: '20px', fontSize: '16px' }}>Editar Atendimento</h3>
 
             <div className="form-group">
+              <label className="form-label">Data</label>
+              <input
+                type="date"
+                className="form-input"
+                value={editData}
+                onChange={(e) => setEditData(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="form-group">
               <label className="form-label">Horário de Início</label>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <select
@@ -875,7 +892,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </select>
             </div>
 
-            {editSalaOptions.length > 0 && (
+            {editSalaOptions.length > 0 && plano && plano !== 'basico' && (
               <div className="form-group">
                 <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   Sala de Atendimento
