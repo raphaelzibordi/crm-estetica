@@ -13,6 +13,7 @@ interface ConfiguracoesProps {
   redes?: Rede[];
   redeUnidades?: Unidade[];
   onRedeUpdated?: () => void;
+  plano?: string | null;
 }
 
 type ActiveTab = 'perfil' | 'equipe' | 'agendamento' | 'confirmacoes' | 'documentos' | 'rede';
@@ -28,7 +29,7 @@ const CARGOS_SUGERIDOS = [
   'Dermatologista',
 ];
 
-export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, onProfileUpdate, redes = [], redeUnidades = [], onRedeUpdated }) => {
+export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, onProfileUpdate, redes = [], redeUnidades = [], onRedeUpdated, plano }) => {
   const [tab, setTab] = useState<ActiveTab>('perfil');
 
   // ── Perfil pessoal ──
@@ -366,7 +367,7 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
         {tabBtn('agendamento', 'Agendamento Online', Link)}
         {tabBtn('confirmacoes', 'Confirmações Automáticas', Bell)}
         {tabBtn('documentos', 'Modelos de Documentos', FileText)}
-        {tabBtn('rede', 'Rede de Clínicas', Network)}
+        {(plano === 'enterprise' || plano === 'vip' || plano == null) && tabBtn('rede', 'Rede de Clínicas', Network)}
       </div>
 
       {/* ── TAB: PERFIL ── */}

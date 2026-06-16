@@ -83,6 +83,7 @@ function AppMain() {
   const [clinicName, setClinicName]       = useState('');
   const [tenantId, setTenantId]           = useState<string>('');
   const [userPermissoes, setUserPermissoes] = useState<Permissoes | null>(null);
+  const [userPlano, setUserPlano] = useState<string | null>(null);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
 
   // Cobrança: modal de escolha de plano (fim de trial sem ativação ou renovação anual próxima)
@@ -114,7 +115,14 @@ function AppMain() {
   const [selectedClienteId, setSelectedClienteId] = useState<string | null>(null);
   const [onlineBookingAlert, setOnlineBookingAlert] = useState<string | null>(null);
 
-  // Guarda de rota: para equipe com perfil usa permissões dinâmicas; sem perfil usa fallback.
+  // Nível mínimo de plano exigido por aba (deve espelhar Sidebar.tsx)
+  const TAB_MIN_PLAN: Record<string, number> = { basico: 0, pro: 1, enterprise: 2, vip: 2 };
+  const TAB_PLAN_REQ: Record<string, number> = {
+    crm: 1, orcamentos: 1, crc: 1, salas: 1, 'calendario-salas': 1, lgpd: 1,
+    whatsapp: 2, comunicacao: 2,
+  };
+
+  // Guarda de rota: para equipe usa permissões RBAC; para dono usa gate de plano.
   const setCurrentTabSafe = useCallback((tab: string) => {
     if (userRole === 'equipe') {
       if (userPermissoes) {
@@ -123,9 +131,14 @@ function AppMain() {
         if (TABS_BLOQUEADAS_EQUIPE.has(tab)) return;
       }
     }
+    if (userRole === 'dono' && userPlano != null) {
+      const planLevel = TAB_MIN_PLAN[userPlano] ?? 0;
+      const required = TAB_PLAN_REQ[tab] ?? 0;
+      if (planLevel < required) return;
+    }
     if (tab === 'prontuario') setSelectedClienteId(null);
     setCurrentTab(tab);
-  }, [userRole, userPermissoes]);
+  }, [userRole, userPermissoes, userPlano]);
 
   // Evita loop: só busca perfil quando session.user.id muda.
   const lastProfileUid = useRef<string | null>(null);
@@ -198,6 +211,7 @@ function AppMain() {
           setClinicName('');
           setTenantId('');
           setUserPermissoes(null);
+          setUserPlano(null);
           setShowWelcomeModal(false);
           setBillingModalMotivo(null);
           setBillingDiasRestantes(null);
@@ -288,6 +302,9 @@ function AppMain() {
           .eq('id', tenantId)
           .maybeSingle();
         if (!data) return;
+
+        // Persiste o plano para gate de features na navegação
+        setUserPlano((data.plano as string | null) ?? 'basico');
 
         // Suspensão manual pelo administrador: bloqueia tudo, prioridade máxima
         if (data.admin_suspended) {
@@ -655,6 +672,7 @@ function AppMain() {
         currentUnidadeId={currentUnidadeId}
         onSwitchUnidade={setCurrentUnidadeId}
         permissoes={userPermissoes}
+        plano={userPlano}
       />
 
       <main className="main-content">
@@ -773,6 +791,7 @@ function AppMain() {
             redes={redes}
             redeUnidades={redeUnidades}
             onRedeUpdated={() => loadRedeData()}
+            plano={userPlano}
           />
         )}
       </main>

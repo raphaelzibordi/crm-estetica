@@ -36,25 +36,29 @@ interface SidebarProps {
   userCargo?: string;
   clinicName?: string;
   permissoes?: Permissoes | null;
+  plano?: string | null;
   // US-048: multiclínicas
   unidades?: Unidade[];
   currentUnidadeId?: string | null;
   onSwitchUnidade?: (unidadeId: string | null) => void;
 }
 
+// Ordem numérica dos planos para comparação de nível mínimo
+const PLAN_ORDER: Record<string, number> = { basico: 0, pro: 1, enterprise: 2, vip: 2 };
+
 const ALL_MENU_ITEMS = [
-  { id: 'dashboard',        label: 'Jornada da Cliente', icon: LayoutDashboard,    donoOnly: false },
-  { id: 'agenda',           label: 'Agenda Inteligente', icon: CalendarRange,      donoOnly: false },
-  { id: 'prontuario',       label: 'Prontuário Visual',  icon: ClipboardList,      donoOnly: false },
-  { id: 'crm',              label: 'Pipeline de Leads',  icon: Users,              donoOnly: false },
-  { id: 'orcamentos',       label: 'Orçamentos',         icon: Receipt,            donoOnly: false },
-  { id: 'crc',              label: 'Relacionamento',     icon: HeartHandshake,     donoOnly: false },
-  { id: 'whatsapp',         label: 'WhatsApp',           icon: MessageCircle,      donoOnly: false },
-  { id: 'comunicacao',      label: 'CRM & Retenção',     icon: MessageSquareHeart, donoOnly: true },
-  { id: 'gestao',           label: 'Gestão da Clínica',  icon: TrendingUp,         donoOnly: true },
-  { id: 'salas',            label: 'Salas',              icon: DoorOpen,           donoOnly: true },
-  { id: 'calendario-salas', label: 'Calendário Salas',   icon: CalendarDays,       donoOnly: true },
-  { id: 'lgpd',             label: 'LGPD',               icon: ShieldCheck,        donoOnly: true },
+  { id: 'dashboard',        label: 'Jornada da Cliente', icon: LayoutDashboard,    donoOnly: false, minPlan: 'basico'     },
+  { id: 'agenda',           label: 'Agenda Inteligente', icon: CalendarRange,      donoOnly: false, minPlan: 'basico'     },
+  { id: 'prontuario',       label: 'Prontuário Visual',  icon: ClipboardList,      donoOnly: false, minPlan: 'basico'     },
+  { id: 'crm',              label: 'Pipeline de Leads',  icon: Users,              donoOnly: false, minPlan: 'pro'        },
+  { id: 'orcamentos',       label: 'Orçamentos',         icon: Receipt,            donoOnly: false, minPlan: 'pro'        },
+  { id: 'crc',              label: 'Relacionamento',     icon: HeartHandshake,     donoOnly: false, minPlan: 'pro'        },
+  { id: 'whatsapp',         label: 'WhatsApp',           icon: MessageCircle,      donoOnly: false, minPlan: 'enterprise' },
+  { id: 'comunicacao',      label: 'CRM & Retenção',     icon: MessageSquareHeart, donoOnly: true,  minPlan: 'enterprise' },
+  { id: 'gestao',           label: 'Gestão da Clínica',  icon: TrendingUp,         donoOnly: true,  minPlan: 'basico'     },
+  { id: 'salas',            label: 'Salas',              icon: DoorOpen,           donoOnly: true,  minPlan: 'pro'        },
+  { id: 'calendario-salas', label: 'Calendário Salas',   icon: CalendarDays,       donoOnly: true,  minPlan: 'pro'        },
+  { id: 'lgpd',             label: 'LGPD',               icon: ShieldCheck,        donoOnly: true,  minPlan: 'pro'        },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -66,6 +70,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   userCargo,
   clinicName,
   permissoes,
+  plano,
   unidades = [],
   currentUnidadeId,
   onSwitchUnidade,
@@ -83,7 +88,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const menuItems = ALL_MENU_ITEMS.filter(item => {
-    if (userRole === 'dono') return true;
+    if (userRole === 'dono') {
+      // Enquanto o plano ainda não foi carregado, exibe tudo para evitar flash
+      if (plano == null) return true;
+      const planLevel = PLAN_ORDER[plano] ?? 0;
+      const required = PLAN_ORDER[item.minPlan] ?? 0;
+      return planLevel >= required;
+    }
     // Equipe com perfil: usa as permissões do perfil
     if (permissoes) return permissoes[item.id]?.ver === true;
     // Equipe sem perfil: comportamento legado (oculta donoOnly)
