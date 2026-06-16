@@ -19,7 +19,6 @@ interface DashboardProps {
   onDeleteAgendamento?: (id: string) => void;
   userId?: string;
   userName?: string;
-  plano?: string | null;
 }
 
 function addMinutesToTime(hhmm: string, minutes: number): string {
@@ -81,7 +80,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onDeleteAgendamento,
   userId,
   userName,
-  plano,
 }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
@@ -391,53 +389,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
       {/* Header section with humanized greeting */}
       <div className="dashboard-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
         <div>
-          <h1 style={{ fontSize: '28px', color: 'var(--color-text-main)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-            <span>Olá, {userName || 'Helena'}! Aqui está o ritmo da clínica hoje.</span>
-            {plano && (
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  padding: '4px 12px',
-                  borderRadius: '100px',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
-                  lineHeight: 1,
-                  ...(plano === 'pro' ? {
-                    background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(168, 85, 247, 0.08) 100%)',
-                    color: '#8B5CF6',
-                    border: '1px solid rgba(139, 92, 246, 0.25)',
-                  } : plano === 'enterprise' ? {
-                    background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(239, 68, 68, 0.08) 100%)',
-                    color: '#D97706',
-                    border: '1px solid rgba(217, 119, 6, 0.25)',
-                  } : plano === 'vip' ? {
-                    background: 'linear-gradient(135deg, #1E1E1E 0%, #2D2D2D 100%)',
-                    color: '#F59E0B',
-                    border: '1px solid rgba(245, 158, 11, 0.4)',
-                    boxShadow: '0 2px 8px rgba(245, 158, 11, 0.15)',
-                  } : {
-                    background: 'var(--color-primary-light)',
-                    color: 'var(--color-primary)',
-                    border: '1px solid var(--color-border-hover)',
-                  })
-                }}
-              >
-                <span
-                  style={{
-                    width: '6px',
-                    height: '6px',
-                    borderRadius: '50%',
-                    backgroundColor: 'currentColor',
-                    display: 'inline-block',
-                  }}
-                />
-                Plano {plano === 'basico' ? 'Básico' : plano.toUpperCase()}
-              </span>
-            )}
+          <h1 style={{ fontSize: '28px', color: 'var(--color-text-main)', marginBottom: '6px' }}>
+            Olá, {userName || 'Helena'}! Aqui está o ritmo da clínica hoje.
           </h1>
           <p style={{ color: 'var(--color-text-muted)', fontSize: '14px' }}>
             Acompanhe a jornada de cuidados e proporcione uma experiência memorável.
