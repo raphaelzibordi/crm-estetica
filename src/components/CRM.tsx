@@ -375,14 +375,14 @@ export const CRM: React.FC<CRMProps> = ({ userId, userName, onConvertidoAgendar,
         </div>
         {activeView === 'pipeline' && (
           <div style={{ display: 'flex', gap: '8px' }}>
-            <button onClick={abrirMetricas} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+            <button onClick={abrirMetricas} className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
               <BarChart2 size={15} /> Métricas
             </button>
-            <button onClick={() => setEtapasOpen(true)} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+            <button onClick={() => setEtapasOpen(true)} className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
               <Settings2 size={15} /> Etapas
             </button>
             {pode('criar') && (
-              <button onClick={() => abrirCriarLead(etapas[0]?.id ?? '')} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+              <button onClick={() => abrirCriarLead(etapas[0]?.id ?? '')} className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
                 <Plus size={15} /> Novo Lead
               </button>
             )}
@@ -581,9 +581,9 @@ export const CRM: React.FC<CRMProps> = ({ userId, userName, onConvertidoAgendar,
                 />
               </div>
               <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', paddingTop: '4px' }}>
-                <button className="btn-secondary" onClick={() => setLeadModal({ open: false })}>Cancelar</button>
+                <button className="btn btn-secondary" onClick={() => setLeadModal({ open: false })}>Cancelar</button>
                 <button
-                  className="btn-primary"
+                  className="btn btn-primary"
                   onClick={salvarLead}
                   disabled={savingLead || !leadForm.nome.trim()}
                 >
@@ -637,7 +637,7 @@ export const CRM: React.FC<CRMProps> = ({ userId, userName, onConvertidoAgendar,
                     style={{ flex: 1 }}
                   />
                   <button
-                    className="btn-primary"
+                    className="btn btn-primary"
                     onClick={enviarNota}
                     disabled={savingNota || !novaNota.trim()}
                     style={{ whiteSpace: 'nowrap' }}
@@ -665,7 +665,7 @@ export const CRM: React.FC<CRMProps> = ({ userId, userName, onConvertidoAgendar,
 
               {/* Ações */}
               <div style={{ display: 'flex', gap: '8px', paddingTop: '4px', borderTop: '1px solid var(--color-border)' }}>
-                <button className="btn-secondary" onClick={() => { setDetalheModal(null); abrirEditarLead(detalheModal); }} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+                <button className="btn btn-secondary" onClick={() => { setDetalheModal(null); abrirEditarLead(detalheModal); }} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
                   <Edit3 size={13} /> Editar
                 </button>
                 {!detalheModal.clienteId && (
@@ -676,7 +676,7 @@ export const CRM: React.FC<CRMProps> = ({ userId, userName, onConvertidoAgendar,
                     <ArrowRightCircle size={13} /> Converter em Paciente
                   </button>
                 )}
-                <button className="btn-danger" onClick={() => { setDetalheModal(null); excluirLead(detalheModal); }} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', marginLeft: 'auto' }}>
+                <button className="btn btn-danger" onClick={() => { setDetalheModal(null); excluirLead(detalheModal); }} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', marginLeft: 'auto' }}>
                   <Trash2 size={13} /> Excluir
                 </button>
               </div>
@@ -700,7 +700,7 @@ export const CRM: React.FC<CRMProps> = ({ userId, userName, onConvertidoAgendar,
               Os dados do lead (nome, telefone, e-mail) serão usados para criar a ficha do paciente. Você poderá criar o agendamento em seguida.
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button className="btn-secondary" onClick={() => setConvertDialog(null)} style={{ flex: 1 }}>Cancelar</button>
+              <button className="btn btn-secondary" onClick={() => setConvertDialog(null)} style={{ flex: 1 }}>Cancelar</button>
               <button
                 onClick={confirmarConversao}
                 disabled={convertendo}
@@ -1126,13 +1126,13 @@ const EtapasConfigModal: React.FC<{
               onKeyDown={(e) => e.key === 'Enter' && adicionarEtapa()}
               style={{ flex: 1 }}
             />
-            <button className="btn-primary" onClick={adicionarEtapa} disabled={saving || !novo.trim()}>
+            <button className="btn btn-primary" onClick={adicionarEtapa} disabled={saving || !novo.trim()}>
               <Plus size={14} />
             </button>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '8px' }}>
-            <button className="btn-primary" onClick={() => onSave(lista)}>Fechar</button>
+            <button className="btn btn-primary" onClick={() => onSave(lista)}>Fechar</button>
           </div>
         </div>
       </div>
@@ -1291,7 +1291,7 @@ const AutomacoesModal: React.FC<{
               />
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button className="btn-primary" onClick={criar} disabled={criando}
+              <button className="btn btn-primary" onClick={criar} disabled={criando}
                 style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
                 <Plus size={13} /> {criando ? 'Criando...' : 'Adicionar automação'}
               </button>
