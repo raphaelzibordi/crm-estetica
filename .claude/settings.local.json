@@ -75,7 +75,8 @@
       "mcp__84ef42a8-55c6-42bb-9150-d4040d81915a__get_project_url",
       "mcp__84ef42a8-55c6-42bb-9150-d4040d81915a__get_logs",
       "mcp__84ef42a8-55c6-42bb-9150-d4040d81915a__deploy_edge_function",
-      "Bash(grep -l \"plano\\\\|abacatepay\\\\|payment_overdue\\\\|subscription\" \"C:\\\\Users\\\\rapha\\\\OneDrive\\\\Documents\\\\GitHub\\\\crm-estetica\"\\\\SCHEMA*.sql)"
+      "Bash(grep -l \"plano\\\\|abacatepay\\\\|payment_overdue\\\\|subscription\" \"C:\\\\Users\\\\rapha\\\\OneDrive\\\\Documents\\\\GitHub\\\\crm-estetica\"\\\\SCHEMA*.sql)",
+      "Bash(git reset *)"
     ]
   }
 }
