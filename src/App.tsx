@@ -244,10 +244,10 @@ function AppMain() {
         setUserRole(profile.role);
         setUserPhotoUrl(profile.fotoUrl);
         setTenantId(profile.tenantId);
-        // Prioridade: nome do perfil > metadata do auth > fallback
+        // Prioridade: nome pessoal > nome da clínica (DB) > fallback
         setUserName(
           profile.nome ||
-          (session.user.user_metadata as any)?.nome_clinica ||
+          profile.nomeClinica ||
           'Lumina'
         );
         // Clinic name: for dono it's their own nome_clinica; for equipe it's the owner's.

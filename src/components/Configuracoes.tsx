@@ -170,7 +170,7 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
         setTelefoneClinica(data.telefone || '');
         setEnderecoClinica(data.endereco || '');
         setEmailClinica(data.email || '');
-        setNomePerfil(data.nome || userName || '');
+        setNomePerfil(data.nome || '');
         setTelefonePessoal(data.telefone_pessoal || '');
         setDataNascimento(data.data_nascimento || '');
         setFotoUrl(data.foto_url || '');
