@@ -78,7 +78,8 @@ export const Agenda: React.FC<AgendaProps> = ({
   const [view, setView] = useState<AgendaView>('hoje');
   const [cursor, setCursor] = useState<Date>(new Date());
 
-  // Dados para Semana / Ano
+  // Dados para Hoje (quando cursor ≠ hoje), Semana e Ano
+  const [dayData, setDayData] = useState<Agendamento[]>([]);
   const [weekData, setWeekData] = useState<Agendamento[]>([]);
   const [yearData, setYearData] = useState<Agendamento[]>([]);
   const [loadingRange, setLoadingRange] = useState(false);
@@ -342,6 +343,21 @@ export const Agenda: React.FC<AgendaProps> = ({
   // ============================================================
   useEffect(() => {
     let cancelled = false;
+    if (view === 'hoje' && !isSameDay(cursor, new Date())) {
+      const dateStr = toISODate(cursor);
+      setLoadingRange(true);
+      api.getAgendamentosRange(userId, dateStr, dateStr)
+        .then((data) => { if (!cancelled) setDayData(data); })
+        .catch(() => { if (!cancelled) setDayData([]); })
+        .finally(() => { if (!cancelled) setLoadingRange(false); });
+    } else if (view === 'hoje') {
+      setDayData([]);
+    }
+    return () => { cancelled = true; };
+  }, [view, cursor, userId]);
+
+  useEffect(() => {
+    let cancelled = false;
     const fetchRange = async () => {
       if (view === 'semana') {
         const ws = startOfWeek(cursor);
@@ -403,9 +419,12 @@ export const Agenda: React.FC<AgendaProps> = ({
   // ============================================================
   // Bucket por hora; cada card mantém o horário exato (14:30 não vira 14:00).
   // Permite múltiplos pacientes no mesmo bloco quando os profissionais diferem.
+  // Quando cursor ≠ hoje, usa dayData (buscado do banco); caso contrário, usa o prop agendamentos.
+  const agendamentosDoDia = isSameDay(cursor, new Date()) ? agendamentos : dayData;
+
   const getAgendamentosForSlot = (time: string): Agendamento[] => {
     const slotHour = time.split(':')[0];
-    return agendamentos
+    return agendamentosDoDia
       .filter((a) => a.horaInicio.split(':')[0] === slotHour)
       .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
   };
@@ -416,7 +435,7 @@ export const Agenda: React.FC<AgendaProps> = ({
     setLoadingEncaixe(true);
     setHasSearched(true);
     const sugs = calcularEncaixeSugestoes(
-      agendamentos,
+      agendamentosDoDia,
       profissionais,
       proc.duracaoMinutos,
       proc.salaRequerida,
