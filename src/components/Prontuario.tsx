@@ -40,6 +40,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
     !permissoes || !!(permissoes['prontuario']?.[acao]);
   const planLevel = PRONTUARIO_PLAN_LEVELS[plano ?? 'basico'] ?? 0;
   const isPro = planLevel >= 1;
+  const isEnterprise = planLevel >= 2;
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [activeClienteId, setActiveClienteId] = useState<string>(selectedClienteId || '');
   const [evolucoes, setEvolucoes] = useState<EvolucaoClinica[]>([]);
@@ -1372,7 +1373,7 @@ Próxima consulta: {{proxima_consulta}}
           )}
 
           {/* US-028 (CA-03): Resumo do histórico clínico gerado por IA — exibido no topo do prontuário */}
-          {currentCliente && isPro && (
+          {currentCliente && isEnterprise && (
             <div className="card" style={{ padding: '24px', background: 'linear-gradient(135deg, #f5f3ff 0%, #ffffff 100%)', border: '1px solid #ddd6fe' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
@@ -1411,7 +1412,7 @@ Próxima consulta: {{proxima_consulta}}
           )}
 
           {/* US-028 (CA-01/CA-02/CA-04/CA-05): Gravação de consulta com transcrição e estruturação por IA */}
-          {currentCliente && isPro && (
+          {currentCliente && isEnterprise && (
             <div className="card" style={{ padding: '24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
                 <Mic size={18} style={{ color: 'var(--color-primary)' }} />
