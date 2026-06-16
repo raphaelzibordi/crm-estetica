@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { Agendamento, Cliente, EvolucaoClinica, GaleriaItem, GravacaoConsulta, Procedimento, Profissional, PrescricaoTemplate } from '../types';
 import { FileText, Camera, Plus, Trash2, Edit2, User, CalendarPlus, UserPlus, AlertTriangle, Calendar, ChevronLeft, ChevronRight, LayoutTemplate, Search, ShieldCheck, ShieldAlert, Mic, Square, Sparkles, Trash } from 'lucide-react';
 import { api } from '../lib/api';
@@ -108,6 +108,8 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
   const [templatePickerSearch, setTemplatePickerSearch] = useState('');
   const [templatePickerCat, setTemplatePickerCat] = useState('');
   const [loadingTemplatePicker, setLoadingTemplatePicker] = useState(false);
+  const [templatesForceExpand, setTemplatesForceExpand] = useState(0);
+  const templatesSectionRef = useRef<HTMLDivElement>(null);
 
   // LGPD: estado de consentimento do paciente ativo
   const [lgpdConsentido, setLgpdConsentido] = useState<boolean | null>(null);
@@ -649,6 +651,14 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
     setNewEvolucaoText(texto);
     setShowTemplatePicker(false);
     api.registrarUsoPrescricaoTemplate(template.id, activeClienteId || null, newEvolucaoProc || null, userId).catch(() => {});
+  };
+
+  const handleGoToTemplates = () => {
+    setShowTemplatePicker(false);
+    setTemplatesForceExpand(prev => prev + 1);
+    setTimeout(() => {
+      templatesSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
   };
 
   const filteredTemplatesPicker = templatePickerList.filter(t => {
@@ -1698,6 +1708,8 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
               clienteNome={currentCliente.nome}
               userId={userId}
               userName={userName}
+              forceExpand={templatesForceExpand}
+              sectionRef={templatesSectionRef}
             />
           )}
 
@@ -2286,9 +2298,27 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
                 </p>
               )}
               {!loadingTemplatePicker && filteredTemplatesPicker.length === 0 && (
-                <p style={{ textAlign: 'center', padding: '24px', color: 'var(--color-text-muted)', fontSize: '14px' }}>
-                  {templatePickerSearch || templatePickerCat ? 'Nenhum template encontrado.' : 'Nenhum template disponível. Crie um na seção abaixo.'}
-                </p>
+                <div style={{ textAlign: 'center', padding: '32px 16px' }}>
+                  <LayoutTemplate size={32} style={{ color: 'var(--color-text-muted)', marginBottom: '12px' }} />
+                  <p style={{ fontSize: '14px', fontWeight: 500, color: 'var(--color-text-primary)', marginBottom: '6px' }}>
+                    {templatePickerSearch || templatePickerCat ? 'Nenhum template encontrado' : 'Nenhum template criado ainda'}
+                  </p>
+                  <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginBottom: '16px' }}>
+                    {templatePickerSearch || templatePickerCat
+                      ? 'Tente ajustar a busca ou categoria.'
+                      : 'Crie templates reutilizáveis de prescrições e orientações para agilizar o preenchimento.'}
+                  </p>
+                  {!templatePickerSearch && !templatePickerCat && (
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}
+                      onClick={handleGoToTemplates}
+                    >
+                      <Plus size={14} /> Criar Primeiro Template
+                    </button>
+                  )}
+                </div>
               )}
               {!loadingTemplatePicker && filteredTemplatesPicker.map(t => (
                 <button

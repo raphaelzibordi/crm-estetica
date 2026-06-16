@@ -28,6 +28,8 @@ interface Props {
   clienteNome: string;
   userId: string;
   userName?: string;
+  forceExpand?: number;
+  sectionRef?: React.RefObject<HTMLDivElement>;
 }
 
 const CATEGORIAS: { value: TemplateCategoria; label: string; cor: string; bg: string }[] = [
@@ -69,7 +71,7 @@ const INITIAL_FORM = {
   permissaoEdicao: 'somente_criador' as TemplatePermissaoEdicao,
 };
 
-export const TemplatesPrescricoes: React.FC<Props> = ({ userId, userName }) => {
+export const TemplatesPrescricoes: React.FC<Props> = ({ userId, userName, forceExpand, sectionRef }) => {
   const [expanded, setExpanded] = useState(false);
   const [templates, setTemplates] = useState<PrescricaoTemplate[]>([]);
   const [loading, setLoading] = useState(false);
@@ -95,6 +97,14 @@ export const TemplatesPrescricoes: React.FC<Props> = ({ userId, userName }) => {
   useEffect(() => {
     if (expanded && templates.length === 0) loadTemplates();
   }, [expanded]);
+
+  useEffect(() => {
+    if (forceExpand) {
+      setExpanded(true);
+      setView('list');
+      loadTemplates();
+    }
+  }, [forceExpand]);
 
   const loadTemplates = async () => {
     setLoading(true);
@@ -207,7 +217,7 @@ export const TemplatesPrescricoes: React.FC<Props> = ({ userId, userName }) => {
     .replace(/\{\{proxima_consulta\}\}/g, '15/07/2026');
 
   return (
-    <div className="card" style={{ padding: '32px' }}>
+    <div ref={sectionRef} className="card" style={{ padding: '32px' }}>
       {/* Header */}
       <div
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
