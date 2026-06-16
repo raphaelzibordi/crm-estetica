@@ -479,8 +479,19 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
     let dbDataNascimento = '';
     if (novoPacienteNasc) {
       const parts = novoPacienteNasc.split('/');
-      if (parts.length !== 3 || parts[0].length !== 2 || parts[1].length !== 2 || parts[2].length !== 4) {
-        alert('Por favor, informe a data de nascimento no formato DD/MM/AAAA.');
+      const dia = parseInt(parts[0], 10);
+      const mes = parseInt(parts[1], 10);
+      const ano = parseInt(parts[2], 10);
+      const dataValida =
+        parts.length === 3 &&
+        parts[0].length === 2 &&
+        parts[1].length === 2 &&
+        parts[2].length === 4 &&
+        dia >= 1 && dia <= 31 &&
+        mes >= 1 && mes <= 12 &&
+        ano >= 1900 && ano <= new Date().getFullYear();
+      if (!dataValida) {
+        alert('Data de nascimento inválida. Use o formato DD/MM/AAAA com valores reais (ex: 15/08/1990).');
         return;
       }
       dbDataNascimento = `${parts[2]}-${parts[1]}-${parts[0]}`;
