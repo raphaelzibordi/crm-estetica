@@ -58,7 +58,6 @@ export function DefinirSenha({ onSuccess }: Props) {
         setErro(json.error ?? 'Ocorreu um erro ao definir a senha. Tente novamente.');
       } else {
         setSucesso(true);
-        setTimeout(() => onSuccess(), 1500);
       }
     } catch {
       setErro('Ocorreu um erro ao definir a senha. Tente novamente.');
@@ -128,11 +127,24 @@ export function DefinirSenha({ onSuccess }: Props) {
         )}
 
         {sucesso ? (
-          <div style={{
-            padding: '12px', backgroundColor: '#ECFDF5', color: '#065F46',
-            borderRadius: '6px', fontSize: '13px', textAlign: 'center',
-          }}>
-            Senha definida com sucesso! Redirecionando...
+          <div style={{ textAlign: 'center' }}>
+            <div style={{
+              padding: '20px 16px', backgroundColor: '#ECFDF5', color: '#065F46',
+              borderRadius: '8px', fontSize: '15px', fontWeight: 600, marginBottom: '8px',
+            }}>
+              Senha definida com sucesso!
+            </div>
+            <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginBottom: '24px' }}>
+              Agora você pode entrar na sua conta com o e-mail e a senha que acabou de criar.
+            </p>
+            <button
+              onClick={onSuccess}
+              className="btn btn-primary"
+              style={{ width: '100%', padding: '14px', fontSize: '15px' }}
+            >
+              Ir para o login
+              <ArrowRight size={18} style={{ marginLeft: '8px' }} />
+            </button>
           </div>
         ) : (
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
