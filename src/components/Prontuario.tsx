@@ -623,13 +623,105 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
 
   const currentProntuario: { clienteId: string | null; evolucoes: EvolucaoClinica[]; galeria: GaleriaItem[] } = { clienteId: activeClienteId, evolucoes, galeria: [] };
 
+  const SEED_TEMPLATES: Array<{ nome: string; categoria: import('../types').TemplateCategoria; conteudo: string }> = [
+    {
+      nome: 'Prescrição Padrão',
+      categoria: 'prescricao',
+      conteudo:
+`Prescrição Estética
+
+Paciente: {{nome_paciente}}
+Data: {{data}}
+Procedimento: {{procedimento}}
+
+Prescrevo:
+- [Produto/Medicamento]: [Dose/Quantidade]
+- [Produto/Medicamento]: [Dose/Quantidade]
+
+Instruções de uso: [Descreva aqui]
+
+{{profissional}}`,
+    },
+    {
+      nome: 'Cuidados Pós-Procedimento',
+      categoria: 'orientacao_pos_procedimento',
+      conteudo:
+`Orientações Pós-Procedimento
+
+Paciente: {{nome_paciente}}
+Data: {{data}}
+Procedimento realizado: {{procedimento}}
+
+Cuidados importantes:
+• Evite exposição solar por 7 dias após o procedimento
+• Não massageie a área tratada nas primeiras 24h
+• Mantenha boa hidratação
+• Em caso de dúvidas ou reações inesperadas, entre em contato com a clínica
+
+Retorno agendado: {{proxima_consulta}}
+
+{{profissional}}`,
+    },
+    {
+      nome: 'Recomendação Dermatológica',
+      categoria: 'recomendacao_dermatologica',
+      conteudo:
+`Recomendação Dermatológica
+
+Paciente: {{nome_paciente}}
+Data: {{data}}
+
+Com base na avaliação realizada, recomendo:
+
+Limpeza: [Produto/Rotina indicada]
+Hidratação: [Produto/Rotina indicada]
+Proteção Solar: [FPS recomendado]
+Tratamento: [Produto ou procedimento indicado]
+
+Observações: [Observações adicionais]
+
+{{profissional}}`,
+    },
+    {
+      nome: 'Recomendação Estética',
+      categoria: 'recomendacao_estetica',
+      conteudo:
+`Recomendação Estética
+
+Paciente: {{nome_paciente}}
+Data: {{data}}
+Procedimento: {{procedimento}}
+
+Após avaliação, recomendo os seguintes cuidados e tratamentos complementares:
+
+• [Recomendação 1]
+• [Recomendação 2]
+• [Recomendação 3]
+
+Próxima consulta: {{proxima_consulta}}
+
+{{profissional}}`,
+    },
+  ];
+
   const handleOpenTemplatePicker = async () => {
     setTemplatePickerSearch('');
     setTemplatePickerCat('');
     setShowTemplatePicker(true);
     setLoadingTemplatePicker(true);
     try {
-      const data = await api.getPrescricaoTemplates(userId);
+      let data = await api.getPrescricaoTemplates(userId);
+      if (data.length === 0) {
+        await Promise.all(
+          SEED_TEMPLATES.map(t =>
+            api.createPrescricaoTemplate(
+              { ...t, variaveis: [], compartilhado: false, permissaoEdicao: 'somente_criador', criadoPorNome: userName || 'Profissional' },
+              userId
+            )
+          )
+        );
+        data = await api.getPrescricaoTemplates(userId);
+      }
       setTemplatePickerList(data);
     } catch {
       setTemplatePickerList([]);
