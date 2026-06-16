@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Agendamento } from '../types';
+import type { Agendamento, Room } from '../types';
 import { api } from '../lib/api';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 
@@ -59,6 +59,7 @@ export const CalendarioSalas: React.FC<CalendarioSalasProps> = ({
   const [filterSala, setFilterSala] = useState<string>('todas');
   const [detail, setDetail] = useState<Agendamento | null>(null);
   const [canScrollRight, setCanScrollRight] = useState(false);
+  const [registeredRooms, setRegisteredRooms] = useState<Room[]>([]);
   const colorMapRef = useRef(new Map<string, number>());
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -81,6 +82,10 @@ export const CalendarioSalas: React.FC<CalendarioSalasProps> = ({
 
   useEffect(() => { fetchWeek(); }, [fetchWeek]);
 
+  useEffect(() => {
+    api.getRooms(userId).then(setRegisteredRooms).catch(() => {});
+  }, [userId]);
+
   // Merge today's live agendamentos into the loaded set for same-day accuracy
   const allAgendamentos = useMemo(() => {
     const todayStr = today;
@@ -94,9 +99,11 @@ export const CalendarioSalas: React.FC<CalendarioSalasProps> = ({
   );
 
   const salas = useMemo(() => {
-    const set = new Set(visible.map((a) => a.sala).filter(Boolean));
-    return [...set].sort();
-  }, [visible]);
+    return registeredRooms
+      .filter((r) => r.status === 'ativa')
+      .map((r) => r.name)
+      .sort();
+  }, [registeredRooms]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -206,7 +213,9 @@ export const CalendarioSalas: React.FC<CalendarioSalasProps> = ({
         {salasFiltradas.length === 0 ? (
           <div style={{ padding: '48px 24px', textAlign: 'center' }}>
             <p style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>
-              {salas.length === 0 ? 'Sem agendamentos com sala atribuída nesta semana.' : 'Nenhuma sala com este filtro.'}
+              {salas.length === 0
+                ? 'Nenhuma sala cadastrada. Vá em Configurações → Salas de Atendimento para criar salas.'
+                : 'Nenhuma sala com este filtro.'}
             </p>
           </div>
         ) : (

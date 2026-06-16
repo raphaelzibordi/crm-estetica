@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import type { Agendamento, Procedimento, Profissional, StatusJornada } from '../types';
+import type { Agendamento, Procedimento, Profissional, Room, StatusJornada } from '../types';
 import { Clock, UserCheck, UserPlus, CheckCircle, User, Pencil, AlertTriangle } from 'lucide-react';
 import { api } from '../lib/api';
 import { findAgendamentoConflict, getSalasStatus, type SalaStatus } from '../lib/agendaConflict';
@@ -87,6 +87,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
   const [procedimentos, setProcedimentos] = useState<Procedimento[]>([]);
   const [equipe, setEquipe] = useState<Array<{ id: string; nome: string; cargo: string }>>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
   const [showCheckoutModal, setShowCheckoutModal] = useState<string | null>(null);
   const [metodoPagamento, setMetodoPagamento] = useState<Agendamento['metodoPagamento']>('pix');
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
@@ -97,13 +98,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
     (async () => {
       try {
         await api.ensureSeedData(userId).catch(() => {});
-        const [procs, team] = await Promise.all([
+        const [procs, team, loadedRooms] = await Promise.all([
           api.getProcedimentos(userId),
           api.getEquipe(userId, { somenteAtivos: true }).catch(() => []),
+          api.getRooms(userId).catch(() => [] as Room[]),
         ]);
         if (cancelled) return;
         setProcedimentos(procs);
         setEquipe(team.map(m => ({ id: m.id, nome: m.nome, cargo: m.cargo })));
+        setRooms(loadedRooms.filter(r => r.status === 'ativa'));
       } catch (err) {
         console.error('Erro ao carregar dados de acolhimento:', err);
       }
@@ -174,6 +177,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [newTelefone, setNewTelefone] = useState('');
   const [newProcedimento, setNewProcedimento] = useState('');
   const [newProfissionalId, setNewProfissionalId] = useState<string>(OWNER_ID);
+  const [newSala, setNewSala] = useState<string>('');
   const [newHora, setNewHora] = useState('14:30');
   const [newData, setNewData] = useState<string>(() => {
     const d = new Date();
@@ -267,7 +271,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     const proc = procedimentos.find((p) => p.nome === newProcedimento);
     const duracao = proc?.duracaoMinutos ?? 60;
     const valor = proc?.preco ?? 0;
-    const sala = proc?.salaRequerida || 'Cabine 01 - Clínica';
+    const sala = newSala || proc?.salaRequerida || undefined;
     const profSelecionado = profissionais.find((p) => p.id === newProfissionalId);
     const profissional =
       profSelecionado?.nome ||
@@ -304,6 +308,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
     setNewNome('');
     setNewTelefone('');
+    setNewSala('');
     setShowAddModal(false);
   };
 
@@ -770,6 +775,22 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   </select>
                 )}
               </div>
+
+              {rooms.length > 0 && (
+                <div className="form-group">
+                  <label className="form-label">Sala de Atendimento</label>
+                  <select
+                    className="form-select"
+                    value={newSala}
+                    onChange={(e) => setNewSala(e.target.value)}
+                  >
+                    <option value="">Sem sala</option>
+                    {rooms.map((r) => (
+                      <option key={r.id} value={r.name}>{r.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div className="form-group">

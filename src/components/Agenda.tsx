@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import type { Agendamento, Procedimento, Profissional } from '../types';
+import type { Agendamento, Procedimento, Profissional, Room } from '../types';
 import { Users, Clock, Sparkles, ChevronLeft, ChevronRight, CalendarRange, AlertTriangle } from 'lucide-react';
 import { api } from '../lib/api';
 import { findAgendamentoConflict, calcularEncaixeSugestoes, getSalasStatus, type EncaixeSugestao, type SalaStatus } from '../lib/agendaConflict';
@@ -90,6 +90,8 @@ export const Agenda: React.FC<AgendaProps> = ({
   const [procedimentos, setProcedimentos] = useState<Procedimento[]>([]);
   // Equipe ativa vinda do banco (Configurações → Gestão de Equipe)
   const [equipe, setEquipe] = useState<Array<{ id: string; nome: string; cargo: string }>>([]);
+  // Salas cadastradas
+  const [rooms, setRooms] = useState<Room[]>([]);
 
   // Encaixe ideal (visão Hoje)
   const [selectedProcedimento, setSelectedProcedimento] = useState<string>('');
@@ -131,13 +133,15 @@ export const Agenda: React.FC<AgendaProps> = ({
     (async () => {
       try {
         await api.ensureSeedData(userId).catch(() => {});
-        const [procs, team] = await Promise.all([
+        const [procs, team, loadedRooms] = await Promise.all([
           api.getProcedimentos(userId),
           api.getEquipe(userId, { somenteAtivos: true }).catch(() => []),
+          api.getRooms(userId).catch(() => [] as Room[]),
         ]);
         if (cancelled) return;
         setProcedimentos(procs);
         setEquipe(team.map(m => ({ id: m.id, nome: m.nome, cargo: m.cargo })));
+        setRooms(loadedRooms.filter(r => r.status === 'ativa'));
         if (procs.length > 0) {
           setSelectedProcedimento((curr) => curr || procs[0].id);
           setNewProcedimento((curr) => curr || procs[0].nome);
@@ -178,7 +182,10 @@ export const Agenda: React.FC<AgendaProps> = ({
     const endMin = h * 60 + m + matchedProc.duracaoMinutos;
     const horaFim = `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
 
-    const allSalas = [...new Set(procedimentos.map((p) => p.salaRequerida).filter(Boolean))];
+    const allSalas = [...new Set([
+      ...procedimentos.map((p) => p.salaRequerida).filter(Boolean),
+      ...rooms.map((r) => r.name),
+    ])];
     const options = getSalasStatus(allSalas, newData, newHora, horaFim, modalAgendamentos);
     setSalaOptions(options);
 
@@ -191,7 +198,7 @@ export const Agenda: React.FC<AgendaProps> = ({
         options[0];
       return suggested?.sala ?? matchedProc.salaRequerida ?? '';
     });
-  }, [showAddModal, newData, newHora, newProcedimento, modalAgendamentos, procedimentos]);
+  }, [showAddModal, newData, newHora, newProcedimento, modalAgendamentos, procedimentos, rooms]);
 
   // Profissionais = Responsável + equipe ativa.
   const profissionais = useMemo<Profissional[]>(() => {
