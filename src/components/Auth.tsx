@@ -220,7 +220,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           <h1 style={{ fontSize: '28px', color: 'var(--color-text-main)', marginBottom: '8px', fontWeight: 600 }}>Lumina</h1>
           <p style={{ color: 'var(--color-text-muted)', fontSize: '15px' }}>
             {isLogin
-              ? 'Bem-vindo de volta ao seu CRM estético.'
+              ? 'Bem-vindo de volta a sua plataforma de gestão para clínicas.'
               : isEquipe
               ? 'Crie sua conta de acesso como membro da equipe.'
               : passo === 'dados'
