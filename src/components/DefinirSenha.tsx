@@ -48,13 +48,28 @@ export function DefinirSenha({ onSuccess }: Props) {
 
     setLoading(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password: novaSenha });
-      if (error) {
-        setErro(traduzirErro(error.message));
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/set-password`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token}`,
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({ password: novaSenha }),
+        }
+      );
+      const json = await res.json();
+      if (!res.ok || json.error) {
+        setErro(json.error ?? 'Ocorreu um erro ao definir a senha. Tente novamente.');
       } else {
         setSucesso(true);
         setTimeout(() => onSuccess(), 1500);
       }
+    } catch {
+      setErro('Ocorreu um erro ao definir a senha. Tente novamente.');
     } finally {
       setLoading(false);
     }
