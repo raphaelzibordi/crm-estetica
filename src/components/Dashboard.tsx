@@ -271,7 +271,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     const proc = procedimentos.find((p) => p.nome === newProcedimento);
     const duracao = proc?.duracaoMinutos ?? 60;
     const valor = proc?.preco ?? 0;
-    const sala = newSala || proc?.salaRequerida || undefined;
+    const sala = newSala || proc?.salaRequerida || '';
     const profSelecionado = profissionais.find((p) => p.id === newProfissionalId);
     const profissional =
       profSelecionado?.nome ||
