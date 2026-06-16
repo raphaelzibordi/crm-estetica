@@ -432,7 +432,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           className="btn btn-primary"
         >
           <UserPlus size={16} />
-          <span>Acolher nova(o) paciente</span>
+          <span>Nova(o) paciente</span>
         </button>
       </div>
 

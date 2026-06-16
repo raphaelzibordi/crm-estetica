@@ -676,7 +676,7 @@ export const Agenda: React.FC<AgendaProps> = ({
                             className="btn btn-secondary"
                             style={{ padding: '6px 14px', fontSize: '11px', cursor: 'pointer', flexShrink: 0 }}
                           >
-                            Acolher Paciente
+                            Novo Paciente
                           </button>
                         )}
                       </div>

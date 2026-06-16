@@ -1103,7 +1103,7 @@ Próxima consulta: {{proxima_consulta}}
       <div className="prontuario-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
         <div>
           <h1 style={{ fontSize: '28px', color: 'var(--color-text-main)', marginBottom: '6px' }}>
-            Prontuário Estético Visual
+            Prontuário Visual
           </h1>
           <p style={{ color: 'var(--color-text-muted)', fontSize: '14px' }}>
             Consulte o histórico completo de bem-estar de suas clientes, evoluções clínicas e evoluções de fotos.
@@ -1115,7 +1115,7 @@ Próxima consulta: {{proxima_consulta}}
             className="btn btn-primary"
           >
             <UserPlus size={16} />
-            <span>Acolher nova(o) paciente</span>
+            <span>Nova(o) paciente</span>
           </button>
         )}
       </div>
