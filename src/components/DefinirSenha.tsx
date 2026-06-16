@@ -2,14 +2,6 @@ import { useEffect, useState } from 'react';
 import { Lock, Sparkles, ArrowRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
-function traduzirErro(msg: string): string {
-  if (msg.includes('New password should be different')) return 'A nova senha deve ser diferente da senha anterior.';
-  if (msg.includes('Password should be at least')) return 'A senha deve ter pelo menos 6 caracteres.';
-  if (msg.includes('Auth session missing') || msg.includes('session_not_found')) return 'Sessão expirada. Solicite um novo link de acesso.';
-  if (msg.includes('Token has expired') || msg.includes('token_expired')) return 'Link expirado. Solicite um novo convite.';
-  if (msg.includes('Unable to validate')) return 'Não foi possível validar a sessão. Tente novamente.';
-  return 'Ocorreu um erro ao definir a senha. Tente novamente.';
-}
 
 interface Props {
   onSuccess: () => void;
