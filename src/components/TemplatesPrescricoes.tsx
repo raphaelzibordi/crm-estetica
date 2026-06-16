@@ -29,7 +29,7 @@ interface Props {
   userId: string;
   userName?: string;
   forceExpand?: number;
-  sectionRef?: React.RefObject<HTMLDivElement>;
+  sectionRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 const CATEGORIAS: { value: TemplateCategoria; label: string; cor: string; bg: string }[] = [
