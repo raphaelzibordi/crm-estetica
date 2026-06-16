@@ -2396,20 +2396,20 @@ Próxima consulta: {{proxima_consulta}}
                     {templatePickerSearch || templatePickerCat ? 'Nenhum template encontrado' : 'Nenhum template criado ainda'}
                   </p>
                   <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginBottom: '16px' }}>
-                    {templatePickerSearch || templatePickerCat
-                      ? 'Tente ajustar a busca ou categoria.'
-                      : 'Crie templates reutilizáveis de prescrições e orientações para agilizar o preenchimento.'}
+                    {templatePickerSearch
+                      ? 'Tente ajustar o termo de busca.'
+                      : templatePickerCat
+                        ? 'Não há templates nessa categoria ainda.'
+                        : 'Crie templates reutilizáveis de prescrições e orientações para agilizar o preenchimento.'}
                   </p>
-                  {!templatePickerSearch && !templatePickerCat && (
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}
-                      onClick={handleGoToTemplates}
-                    >
-                      <Plus size={14} /> Criar Primeiro Template
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}
+                    onClick={handleGoToTemplates}
+                  >
+                    <Plus size={14} /> {templatePickerSearch || templatePickerCat ? 'Criar Novo Template' : 'Criar Primeiro Template'}
+                  </button>
                 </div>
               )}
               {!loadingTemplatePicker && filteredTemplatesPicker.map(t => (
