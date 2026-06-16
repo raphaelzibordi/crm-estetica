@@ -687,6 +687,7 @@ function AppMain() {
             onDeleteAgendamento={handleDeleteAgendamento}
             userId={effectiveTenantId}
             userName={userName}
+            plano={userPlano}
           />
         )}
 

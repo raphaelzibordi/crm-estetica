@@ -325,6 +325,53 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </span>
             </div>
           ) : null}
+
+          {plano && (
+            <div
+              style={{
+                marginTop: '10px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '4px 10px',
+                borderRadius: '100px',
+                fontSize: '11px',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+                width: 'fit-content',
+                ...(plano === 'pro' ? {
+                  background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(168, 85, 247, 0.08) 100%)',
+                  color: '#8B5CF6',
+                  border: '1px solid rgba(139, 92, 246, 0.25)',
+                } : plano === 'enterprise' ? {
+                  background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(239, 68, 68, 0.08) 100%)',
+                  color: '#D97706',
+                  border: '1px solid rgba(217, 119, 6, 0.25)',
+                } : plano === 'vip' ? {
+                  background: 'linear-gradient(135deg, #1E1E1E 0%, #2D2D2D 100%)',
+                  color: '#F59E0B',
+                  border: '1px solid rgba(245, 158, 11, 0.4)',
+                  boxShadow: '0 2px 8px rgba(245, 158, 11, 0.15)',
+                } : {
+                  background: 'var(--color-primary-light)',
+                  color: 'var(--color-primary)',
+                  border: '1px solid var(--color-border-hover)',
+                })
+              }}
+            >
+              <span
+                style={{
+                  width: '5px',
+                  height: '5px',
+                  borderRadius: '50%',
+                  backgroundColor: 'currentColor',
+                  display: 'inline-block',
+                }}
+              />
+              <span>Plano {plano === 'basico' ? 'Básico' : plano.toUpperCase()}</span>
+            </div>
+          )}
         </div>
       )}
 
