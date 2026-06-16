@@ -103,6 +103,14 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
   const [acolherProfissionalId, setAcolherProfissionalId] = useState<string>(OWNER_ID);
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
 
+  // States for new patient registration modal (without appointment)
+  const [showNovoPacienteModal, setShowNovoPacienteModal] = useState(false);
+  const [novoPacienteNome, setNovoPacienteNome] = useState('');
+  const [novoPacienteTelefone, setNovoPacienteTelefone] = useState('');
+  const [novoPacienteNasc, setNovoPacienteNasc] = useState('');
+  const [novoPacienteEmail, setNovoPacienteEmail] = useState('');
+  const [salvandoNovoPaciente, setSalvandoNovoPaciente] = useState(false);
+
   // States for template picker (US-027)
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [templatePickerList, setTemplatePickerList] = useState<PrescricaoTemplate[]>([]);
@@ -449,6 +457,55 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
       if (e?.code === 'AGENDAMENTO_CONFLITO') {
         setConflictMessage(e.message ?? 'Conflito de horário detectado.');
       }
+    }
+  };
+
+  const handleNovoPacienteSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!novoPacienteNome.trim()) return;
+
+    const rawTelefone = novoPacienteTelefone.replace(/\D/g, '');
+    if (rawTelefone && rawTelefone.length < 10) {
+      alert('Por favor, informe um telefone de contato válido com DDD (mínimo 10 dígitos).');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (novoPacienteEmail && !emailRegex.test(novoPacienteEmail)) {
+      alert('Por favor, insira um e-mail válido.');
+      return;
+    }
+
+    let dbDataNascimento = '';
+    if (novoPacienteNasc) {
+      const parts = novoPacienteNasc.split('/');
+      if (parts.length !== 3 || parts[0].length !== 2 || parts[1].length !== 2 || parts[2].length !== 4) {
+        alert('Por favor, informe a data de nascimento no formato DD/MM/AAAA.');
+        return;
+      }
+      dbDataNascimento = `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+
+    setSalvandoNovoPaciente(true);
+    try {
+      const novo = await api.createCliente({
+        nome: novoPacienteNome.trim(),
+        telefone: novoPacienteTelefone.trim() || undefined,
+        email: novoPacienteEmail.trim() || undefined,
+        dataNascimento: dbDataNascimento || undefined,
+      }, userId);
+      setClientes(prev => [...prev, novo]);
+      setNovoPacienteNome('');
+      setNovoPacienteTelefone('');
+      setNovoPacienteNasc('');
+      setNovoPacienteEmail('');
+      setShowNovoPacienteModal(false);
+      setActiveClienteId(novo.id);
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao cadastrar paciente.');
+    } finally {
+      setSalvandoNovoPaciente(false);
     }
   };
 
@@ -1085,8 +1142,94 @@ Próxima consulta: {{proxima_consulta}}
 
   if (clientes.length === 0) {
     return (
-      <div style={{ padding: '40px', textAlign: 'center', color: 'var(--color-text-muted)' }}>
-        Nenhuma cliente cadastrada no seu perfil ainda. Crie novos agendamentos para registrar clientes.
+      <div style={{ animation: 'fadeIn 0.4s ease-out' }}>
+        <div className="prontuario-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+          <div>
+            <h1 style={{ fontSize: '28px', color: 'var(--color-text-main)', marginBottom: '6px' }}>
+              Prontuário Visual
+            </h1>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: '14px' }}>
+              Consulte o histórico completo de bem-estar de suas clientes, evoluções clínicas e evoluções de fotos.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowNovoPacienteModal(true)}
+            className="btn btn-primary"
+          >
+            <UserPlus size={16} />
+            <span>Nova(o) paciente</span>
+          </button>
+        </div>
+        <div className="card" style={{ padding: '48px 32px', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+          <User size={48} style={{ margin: '0 auto 16px', display: 'block', opacity: 0.2 }} />
+          <p style={{ fontSize: '15px', fontWeight: 500, marginBottom: '8px' }}>Nenhuma paciente cadastrada</p>
+          <p style={{ fontSize: '13px' }}>Clique em "Nova(o) paciente" para começar a cadastrar.</p>
+        </div>
+        {showNovoPacienteModal && (
+          <div
+            className="modal-overlay"
+            style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, animation: 'fadeIn 0.2s ease-out' }}
+            onClick={() => setShowNovoPacienteModal(false)}
+          >
+            <div
+              className="card"
+              style={{ maxWidth: '440px', width: '92%', padding: '32px' }}
+              onClick={e => e.stopPropagation()}
+            >
+              <h3 style={{ marginBottom: '20px' }}>Cadastrar Paciente</h3>
+              <form onSubmit={handleNovoPacienteSubmit}>
+                <div className="form-group">
+                  <label className="form-label">Nome *</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={novoPacienteNome}
+                    onChange={e => setNovoPacienteNome(e.target.value)}
+                    placeholder="Ex: Amanda Santos"
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Telefone</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={novoPacienteTelefone}
+                    onChange={e => setNovoPacienteTelefone(formatTelefone(e.target.value))}
+                    placeholder="(XX) 9XXXX-XXXX"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Data de Nascimento</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={novoPacienteNasc}
+                    onChange={e => setNovoPacienteNasc(formatDataNascimento(e.target.value))}
+                    placeholder="DD/MM/AAAA"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">E-mail</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={novoPacienteEmail}
+                    onChange={e => setNovoPacienteEmail(e.target.value)}
+                    placeholder="exemplo@email.com"
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
+                  <button type="button" onClick={() => setShowNovoPacienteModal(false)} className="btn btn-outline">Cancelar</button>
+                  <button type="submit" className="btn btn-primary" disabled={salvandoNovoPaciente || !novoPacienteNome.trim()}>
+                    <UserPlus size={15} />
+                    {salvandoNovoPaciente ? 'Salvando...' : 'Cadastrar'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -1109,15 +1252,13 @@ Próxima consulta: {{proxima_consulta}}
             Consulte o histórico completo de bem-estar de suas clientes, evoluções clínicas e evoluções de fotos.
           </p>
         </div>
-        {onAddAgendamento && (
-          <button
-            onClick={() => setShowAcolherModal(true)}
-            className="btn btn-primary"
-          >
-            <UserPlus size={16} />
-            <span>Nova(o) paciente</span>
-          </button>
-        )}
+        <button
+          onClick={() => setShowNovoPacienteModal(true)}
+          className="btn btn-primary"
+        >
+          <UserPlus size={16} />
+          <span>Nova(o) paciente</span>
+        </button>
       </div>
 
       <div className={`prontuario-grid${activeClienteId ? ' prontuario-grid--selected' : ''}`} style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '32px', alignItems: 'start' }}>
@@ -2562,6 +2703,73 @@ Próxima consulta: {{proxima_consulta}}
                 <button type="submit" className="btn btn-primary" disabled={!acolherProcedimento}>
                   <UserPlus size={15} />
                   Confirmar Agendamento
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* New patient registration modal (no appointment required) */}
+      {showNovoPacienteModal && (
+        <div
+          className="modal-overlay"
+          style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, animation: 'fadeIn 0.2s ease-out' }}
+          onClick={() => setShowNovoPacienteModal(false)}
+        >
+          <div
+            className="card"
+            style={{ maxWidth: '440px', width: '92%', padding: '32px' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 style={{ marginBottom: '20px' }}>Cadastrar Paciente</h3>
+            <form onSubmit={handleNovoPacienteSubmit}>
+              <div className="form-group">
+                <label className="form-label">Nome *</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={novoPacienteNome}
+                  onChange={e => setNovoPacienteNome(e.target.value)}
+                  placeholder="Ex: Amanda Santos"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Telefone</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={novoPacienteTelefone}
+                  onChange={e => setNovoPacienteTelefone(formatTelefone(e.target.value))}
+                  placeholder="(XX) 9XXXX-XXXX"
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Data de Nascimento</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={novoPacienteNasc}
+                  onChange={e => setNovoPacienteNasc(formatDataNascimento(e.target.value))}
+                  placeholder="DD/MM/AAAA"
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">E-mail</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={novoPacienteEmail}
+                  onChange={e => setNovoPacienteEmail(e.target.value)}
+                  placeholder="exemplo@email.com"
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
+                <button type="button" onClick={() => setShowNovoPacienteModal(false)} className="btn btn-outline">Cancelar</button>
+                <button type="submit" className="btn btn-primary" disabled={salvandoNovoPaciente || !novoPacienteNome.trim()}>
+                  <UserPlus size={15} />
+                  {salvandoNovoPaciente ? 'Salvando...' : 'Cadastrar'}
                 </button>
               </div>
             </form>
