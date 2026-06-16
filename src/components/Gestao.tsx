@@ -15,7 +15,12 @@ import { EstoqueAvancado } from './EstoqueAvancado';
 import { ContasFinanceiras } from './ContasFinanceiras';
 import { Rentabilidade } from './Rentabilidade';
 
-interface GestaoProps { userId: string; userName?: string; unidadeId?: string | null; }
+interface GestaoProps {
+  userId: string;
+  userName?: string;
+  unidadeId?: string | null;
+  plano?: string | null;
+}
 
 const EMPTY_FECHAMENTO: FechamentoFinanceiro = { faturamentoTotal: 0, comissoesPagas: 0, formasPagamento: [] };
 
@@ -81,7 +86,26 @@ function diasNoIntervalo(start: string, end: string): number {
 
 
 
-export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor', unidadeId }) => {
+// Requisitos de plano por aba (0=basico, 1=pro, 2=enterprise)
+const TAB_PLAN_REQ: Record<ActiveTab, number> = {
+  dashboard: 0,
+  financeiro: 0,
+  contas: 1,
+  estoque: 1,
+  procedimentos: 0,
+  faltas: 1,
+  comissoes: 1,
+  repassos: 1,
+  ocupacao: 1,
+  salas: 1,
+  rentabilidade: 1,
+};
+
+const PLAN_LEVELS: Record<string, number> = { basico: 0, pro: 1, enterprise: 2, vip: 2 };
+
+export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor', unidadeId, plano }) => {
+  const planLevel = PLAN_LEVELS[plano ?? 'basico'] ?? 0;
+
   const [tab, setTab] = useState<ActiveTab>('dashboard');
 
   // Tabs scroll fade indicator
@@ -119,6 +143,13 @@ export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor', uni
   const [pPreco, setPPreco] = useState('');
   const [pDuracao, setPDuracao] = useState('60');
 
+  // Validar que a aba ativa é acessível no plano atual
+  useEffect(() => {
+    if (TAB_PLAN_REQ[tab] > planLevel) {
+      setTab('dashboard');
+    }
+  }, [plano, planLevel]);
+
   useEffect(() => { loadProcedimentos(); }, [userId]);
 
   // Recarrega financeiro sempre que o range mudar (filtro temporal global)
@@ -126,15 +157,20 @@ export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor', uni
 
   // Auto-scroll da aba ativa para o centro do container ao trocar de tab
   const TAB_ORDER: ActiveTab[] = ['dashboard', 'financeiro', 'contas', 'estoque', 'procedimentos', 'faltas', 'comissoes', 'repassos', 'ocupacao', 'salas', 'rentabilidade'];
+
+  // Filtrar abas acessíveis no plano atual
+  const visibleTabs = useMemo(() => TAB_ORDER.filter(t => TAB_PLAN_REQ[t] <= planLevel), [planLevel]);
+
   useEffect(() => {
     const el = tabsRef.current;
     if (!el) return;
-    const idx = TAB_ORDER.indexOf(tab);
+    const idx = visibleTabs.indexOf(tab);
+    if (idx < 0) return; // tab não está visível
     const btn = el.children[idx] as HTMLElement;
     if (!btn) return;
     const left = btn.offsetLeft - el.clientWidth / 2 + btn.offsetWidth / 2;
     el.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
-  }, [tab]);
+  }, [tab, visibleTabs]);
 
   const loadFinanceiro = async (inicio: string, fim: string) => {
     try {
@@ -250,40 +286,62 @@ export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor', uni
         </div>
         <div style={{ position: 'relative' }}>
         <div className="gestao-tabs" ref={tabsRef} onScroll={handleTabsScroll} style={{ display: 'flex', gap: '4px', background: '#f8f8f6', border: '1px solid var(--color-border)', borderRadius: '10px', padding: '4px' }}>
-          <button style={tabStyle('dashboard')} onClick={() => setTab('dashboard')}>
-            <LayoutDashboard size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Dashboard
-          </button>
-          <button style={tabStyle('financeiro')} onClick={() => setTab('financeiro')}>
-            <DollarSign size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Financeiro
-          </button>
-          <button style={tabStyle('contas')} onClick={() => setTab('contas')}>
-            <Wallet size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Contas
-          </button>
-          <button style={tabStyle('estoque')} onClick={() => setTab('estoque')}>
-            <Package size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Estoque
-            {criticos > 0 && <span style={{ marginLeft: 6, background: '#ef4444', color: '#fff', borderRadius: '10px', padding: '1px 6px', fontSize: '10px' }}>{criticos}</span>}
-          </button>
-          <button style={tabStyle('procedimentos')} onClick={() => setTab('procedimentos')}>
-            <Stethoscope size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Procedimentos
-          </button>
-          <button style={tabStyle('faltas')} onClick={() => setTab('faltas')}>
-            <BarChart3 size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Faltas & Ausências
-          </button>
-          <button style={tabStyle('comissoes')} onClick={() => setTab('comissoes')}>
-            <TrendingUp size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Comissões
-          </button>
-          <button style={tabStyle('repassos')} onClick={() => setTab('repassos')}>
-            <Receipt size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Repassos
-          </button>
-          <button style={tabStyle('ocupacao')} onClick={() => setTab('ocupacao')}>
-            <Activity size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Ocupação
-          </button>
-          <button style={tabStyle('salas')} onClick={() => setTab('salas')}>
-            <BarChart3 size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Salas
-          </button>
-          <button style={tabStyle('rentabilidade')} onClick={() => setTab('rentabilidade')}>
-            <TrendingUp size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Rentabilidade
-          </button>
+          {visibleTabs.includes('dashboard') && (
+            <button style={tabStyle('dashboard')} onClick={() => setTab('dashboard')}>
+              <LayoutDashboard size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Dashboard
+            </button>
+          )}
+          {visibleTabs.includes('financeiro') && (
+            <button style={tabStyle('financeiro')} onClick={() => setTab('financeiro')}>
+              <DollarSign size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Financeiro
+            </button>
+          )}
+          {visibleTabs.includes('contas') && (
+            <button style={tabStyle('contas')} onClick={() => setTab('contas')}>
+              <Wallet size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Contas
+            </button>
+          )}
+          {visibleTabs.includes('estoque') && (
+            <button style={tabStyle('estoque')} onClick={() => setTab('estoque')}>
+              <Package size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Estoque
+              {criticos > 0 && <span style={{ marginLeft: 6, background: '#ef4444', color: '#fff', borderRadius: '10px', padding: '1px 6px', fontSize: '10px' }}>{criticos}</span>}
+            </button>
+          )}
+          {visibleTabs.includes('procedimentos') && (
+            <button style={tabStyle('procedimentos')} onClick={() => setTab('procedimentos')}>
+              <Stethoscope size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Procedimentos
+            </button>
+          )}
+          {visibleTabs.includes('faltas') && (
+            <button style={tabStyle('faltas')} onClick={() => setTab('faltas')}>
+              <BarChart3 size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Faltas & Ausências
+            </button>
+          )}
+          {visibleTabs.includes('comissoes') && (
+            <button style={tabStyle('comissoes')} onClick={() => setTab('comissoes')}>
+              <TrendingUp size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Comissões
+            </button>
+          )}
+          {visibleTabs.includes('repassos') && (
+            <button style={tabStyle('repassos')} onClick={() => setTab('repassos')}>
+              <Receipt size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Repassos
+            </button>
+          )}
+          {visibleTabs.includes('ocupacao') && (
+            <button style={tabStyle('ocupacao')} onClick={() => setTab('ocupacao')}>
+              <Activity size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Ocupação
+            </button>
+          )}
+          {visibleTabs.includes('salas') && (
+            <button style={tabStyle('salas')} onClick={() => setTab('salas')}>
+              <BarChart3 size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Salas
+            </button>
+          )}
+          {visibleTabs.includes('rentabilidade') && (
+            <button style={tabStyle('rentabilidade')} onClick={() => setTab('rentabilidade')}>
+              <TrendingUp size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Rentabilidade
+            </button>
+          )}
         </div>
         {tabsShowFade && (
           <div

@@ -30,11 +30,16 @@ interface ProntuarioProps {
   unidadeId?: string | null;
   pacienteCompartilhado?: boolean;
   permissoes?: import('../types').Permissoes | null;
+  plano?: string | null;
 }
 
-export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userId, onAddAgendamento, userName, unidadeId, pacienteCompartilhado, permissoes }) => {
+const PRONTUARIO_PLAN_LEVELS: Record<string, number> = { basico: 0, pro: 1, enterprise: 2, vip: 2 };
+
+export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userId, onAddAgendamento, userName, unidadeId, pacienteCompartilhado, permissoes, plano }) => {
   const pode = (acao: 'ver' | 'criar' | 'editar' | 'deletar') =>
     !permissoes || !!(permissoes['prontuario']?.[acao]);
+  const planLevel = PRONTUARIO_PLAN_LEVELS[plano ?? 'basico'] ?? 0;
+  const isPro = planLevel >= 1;
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [activeClienteId, setActiveClienteId] = useState<string>(selectedClienteId || '');
   const [evolucoes, setEvolucoes] = useState<EvolucaoClinica[]>([]);
@@ -1128,12 +1133,12 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
                           <h2 style={{ fontSize: '22px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>
                             {currentCliente.nome}
                           </h2>
-                          {lgpdConsentido === true && (
+                          {isPro && lgpdConsentido === true && (
                             <span title="Consentimento LGPD ativo" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 600, color: 'var(--color-success)', background: '#e8f5e9', padding: '2px 8px', borderRadius: '100px', whiteSpace: 'nowrap', flexShrink: 0 }}>
                               <ShieldCheck size={12} /> LGPD
                             </span>
                           )}
-                          {lgpdConsentido === false && (
+                          {isPro && lgpdConsentido === false && (
                             <button
                               onClick={() => setShowConsentimento(true)}
                               title="Sem consentimento LGPD — clique para coletar"
@@ -1265,7 +1270,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
           )}
 
           {/* US-028 (CA-03): Resumo do histórico clínico gerado por IA — exibido no topo do prontuário */}
-          {currentCliente && (
+          {currentCliente && isPro && (
             <div className="card" style={{ padding: '24px', background: 'linear-gradient(135deg, #f5f3ff 0%, #ffffff 100%)', border: '1px solid #ddd6fe' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
@@ -1304,7 +1309,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
           )}
 
           {/* US-028 (CA-01/CA-02/CA-04/CA-05): Gravação de consulta com transcrição e estruturação por IA */}
-          {currentCliente && (
+          {currentCliente && isPro && (
             <div className="card" style={{ padding: '24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
                 <Mic size={18} style={{ color: 'var(--color-primary)' }} />
@@ -1656,7 +1661,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
           )}
 
           {/* Anamnese Digital (US-023) */}
-          {currentCliente && (
+          {currentCliente && isPro && (
             <AnamneseDigital
               clienteId={activeClienteId}
               clienteNome={currentCliente.nome}
@@ -1667,7 +1672,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
           )}
 
           {/* Assinatura Digital de Documentos (US-025) */}
-          {currentCliente && (
+          {currentCliente && isPro && (
             <AssinaturaDigital
               clienteId={activeClienteId}
               clienteNome={currentCliente.nome}
@@ -1677,7 +1682,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
           )}
 
           {/* Plano de Tratamento Multi-Etapas (US-026) */}
-          {currentCliente && (
+          {currentCliente && isPro && (
             <PlanoTratamento
               clienteId={activeClienteId}
               clienteNome={currentCliente.nome}
@@ -1687,7 +1692,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
           )}
 
           {/* Templates de Prescrições (US-027) */}
-          {currentCliente && (
+          {currentCliente && isPro && (
             <TemplatesPrescricoes
               clienteId={activeClienteId}
               clienteNome={currentCliente.nome}
@@ -2705,7 +2710,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
       )}
 
       {/* Modal de consentimento LGPD */}
-      {showConsentimento && currentCliente && (
+      {showConsentimento && currentCliente && isPro && (
         <ConsentimentoLGPD
           clienteId={currentCliente.id}
           clienteNome={currentCliente.nome}

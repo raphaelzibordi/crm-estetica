@@ -702,6 +702,7 @@ function AppMain() {
             onDeleteAgendamento={handleDeleteAgendamento}
             onOpenProntuario={handleOpenProntuario}
             permissoes={userPermissoes}
+            plano={userPlano}
           />
         )}
 
@@ -714,6 +715,7 @@ function AppMain() {
             unidadeId={currentUnidadeId}
             pacienteCompartilhado={pacienteCompartilhado}
             permissoes={userPermissoes}
+            plano={userPlano}
           />
         )}
 
@@ -764,7 +766,7 @@ function AppMain() {
         )}
 
         {currentTab === 'gestao' && (userRole === 'dono' || userPermissoes?.['gestao']?.ver) && (
-          <Gestao userId={effectiveTenantId} userName={userName} unidadeId={currentUnidadeId} />
+          <Gestao userId={effectiveTenantId} userName={userName} unidadeId={currentUnidadeId} plano={userPlano} />
         )}
 
         {currentTab === 'salas' && (userRole === 'dono' || userPermissoes?.['salas']?.ver) && (

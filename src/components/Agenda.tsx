@@ -17,6 +17,7 @@ interface AgendaProps {
   onDeleteAgendamento?: (id: string) => Promise<void>;
   onOpenProntuario?: (clienteId: string) => void;
   permissoes?: import('../types').Permissoes | null;
+  plano?: string | null;
 }
 
 type AgendaView = 'hoje' | 'semana' | 'ano';
@@ -71,6 +72,7 @@ export const Agenda: React.FC<AgendaProps> = ({
   onDeleteAgendamento,
   onOpenProntuario,
   permissoes,
+  plano,
 }) => {
   const pode = (acao: 'ver' | 'criar' | 'editar' | 'deletar') =>
     !permissoes || !!(permissoes['agenda']?.[acao]);
@@ -993,7 +995,7 @@ export const Agenda: React.FC<AgendaProps> = ({
                 </select>
               </div>
 
-              {salaOptions.length > 0 && (
+              {salaOptions.length > 0 && plano && plano !== 'basico' && (
                 <div className="form-group">
                   <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     Sala de Atendimento
