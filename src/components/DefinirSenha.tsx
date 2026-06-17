@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 
 
 interface Props {
-  onSuccess: () => void;
+  onSuccess: () => void | Promise<void>;
 }
 
 export function DefinirSenha({ onSuccess }: Props) {

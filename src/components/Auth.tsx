@@ -74,7 +74,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     setResetLoading(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(emailReset.trim(), {
-        redirectTo: window.location.origin,
+        redirectTo: `${window.location.origin}/definir-senha`,
       });
       if (error) {
         setResetError(humanizeError(error).message);

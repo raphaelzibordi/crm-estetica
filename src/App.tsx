@@ -192,9 +192,24 @@ function AppMain() {
 
       const { data } = supabase.auth.onAuthStateChange((event, nextSession) => {
         if (event === 'PASSWORD_RECOVERY') {
-          setSession(nextSession);
-          setRecoveryMode(true);
-          window.history.replaceState(null, '', '/definir-senha');
+          // Verifica se ESTA aba é a que abriu o link de recovery.
+          // O Supabase faz broadcast do evento para todas as abas abertas via BroadcastChannel.
+          // Se esta aba não tem o token de recovery na URL, é sync entre abas — mata a sessão local.
+          const searchParams = new URLSearchParams(window.location.search);
+          const hashParams = new URLSearchParams(window.location.hash.substring(1));
+          const isThisTheRecoveryTab =
+            window.location.pathname === '/definir-senha' ||
+            hashParams.get('type') === 'recovery' ||
+            searchParams.has('code');
+
+          if (isThisTheRecoveryTab) {
+            setSession(nextSession);
+            setRecoveryMode(true);
+            window.history.replaceState(null, '', '/definir-senha');
+          } else {
+            // Aba errada recebeu o broadcast — limpa apenas localmente sem invalidar o recovery.
+            supabase.auth.signOut({ scope: 'local' });
+          }
           return;
         }
 
@@ -627,8 +642,11 @@ function AppMain() {
   if (recoveryMode) {
     return (
       <DefinirSenha
-        onSuccess={() => {
+        onSuccess={async () => {
+          // Encerra a sessão de recovery para forçar novo login com a senha nova.
+          await supabase.auth.signOut();
           setRecoveryMode(false);
+          setSession(null);
           window.history.replaceState(null, '', '/');
         }}
       />
