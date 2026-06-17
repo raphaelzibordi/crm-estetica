@@ -35,6 +35,13 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
+  // Fluxo de redefinição de senha
+  const [esqueciSenha, setEsqueciSenha] = useState(false);
+  const [emailReset, setEmailReset] = useState('');
+  const [resetEnviado, setResetEnviado] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+
   // Form states
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -59,6 +66,26 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     setEmail(''); setPassword(''); setNomeClinica('');
     setTelefone(''); setEndereco(''); setIsEquipe(false);
     setPasso('dados'); setPlanoCadastro('pro'); setPeriodicidade('mensal');
+  };
+
+  const handleRedefinirSenha = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetError(null);
+    setResetLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(emailReset.trim(), {
+        redirectTo: window.location.origin,
+      });
+      if (error) {
+        setResetError(humanizeError(error).message);
+      } else {
+        setResetEnviado(true);
+      }
+    } catch {
+      setResetError('Ocorreu um erro ao enviar o link. Tente novamente.');
+    } finally {
+      setResetLoading(false);
+    }
   };
 
   const validarDadosDono = (): string | null => {
@@ -219,7 +246,9 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           </div>
           <h1 style={{ fontSize: '28px', color: 'var(--color-text-main)', marginBottom: '8px', fontWeight: 600 }}>Lumina</h1>
           <p style={{ color: 'var(--color-text-muted)', fontSize: '15px' }}>
-            {isLogin
+            {esqueciSenha
+              ? 'Informe seu e-mail cadastrado para receber o link de redefinição de senha.'
+              : isLogin
               ? 'Bem-vindo de volta a sua plataforma de gestão para clínicas.'
               : isEquipe
               ? 'Crie sua conta de acesso como membro da equipe.'
@@ -228,7 +257,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
               : 'Escolha o plano ideal para a sua clínica.'}
           </p>
           {/* Indicador de passo para donos */}
-          {isCadastroDono && (
+          {!esqueciSenha && isCadastroDono && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 16 }}>
               {(['dados', 'plano'] as const).map((p, i) => (
                 <React.Fragment key={p}>
@@ -261,8 +290,73 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           </div>
         )}
 
+        {/* ── TELA: REDEFINIR SENHA ── */}
+        {esqueciSenha && (
+          <>
+            {resetError && (
+              <div style={{ padding: '12px', backgroundColor: '#FEE2E2', color: '#991B1B', borderRadius: '6px', fontSize: '13px', marginBottom: '24px', textAlign: 'center' }}>
+                {resetError}
+              </div>
+            )}
+            {resetEnviado ? (
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ padding: '20px 16px', backgroundColor: '#ECFDF5', color: '#065F46', borderRadius: '8px', fontSize: '15px', fontWeight: 600, marginBottom: '8px' }}>
+                  Link enviado com sucesso!
+                </div>
+                <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginBottom: '24px', lineHeight: 1.6 }}>
+                  Se este e-mail estiver cadastrado no Lumina, você receberá em instantes um link para redefinir sua senha. Verifique também sua caixa de spam.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { setEsqueciSenha(false); setResetEnviado(false); setEmailReset(''); setResetError(null); }}
+                  style={{ background: 'none', border: 'none', color: 'var(--color-primary)', fontSize: '14px', cursor: 'pointer', padding: 0, fontWeight: 600 }}
+                >
+                  ← Voltar ao login
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleRedefinirSenha} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">E-mail cadastrado</label>
+                  <div style={{ position: 'relative' }}>
+                    <Mail size={16} style={{ position: 'absolute', left: '12px', top: '14px', color: 'var(--color-text-muted)' }} />
+                    <input
+                      type="email"
+                      className="form-input"
+                      style={{ paddingLeft: '40px' }}
+                      placeholder="seu@email.com"
+                      value={emailReset}
+                      onChange={e => setEmailReset(e.target.value)}
+                      required
+                      autoFocus
+                    />
+                  </div>
+                </div>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ width: '100%', marginTop: '8px', padding: '14px', fontSize: '15px' }}
+                  disabled={resetLoading}
+                >
+                  {resetLoading ? 'Enviando...' : 'Enviar link de redefinição'}
+                  {!resetLoading && <ArrowRight size={18} style={{ marginLeft: '8px' }} />}
+                </button>
+                <div style={{ textAlign: 'center', marginTop: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => { setEsqueciSenha(false); setResetError(null); setEmailReset(''); }}
+                    style={{ background: 'none', border: 'none', color: 'var(--color-primary)', fontSize: '13px', cursor: 'pointer', padding: 0, fontWeight: 500 }}
+                  >
+                    ← Voltar ao login
+                  </button>
+                </div>
+              </form>
+            )}
+          </>
+        )}
+
         {/* ── PASSO 2: SELEÇÃO DE PLANO (fora do form) ── */}
-        {isCadastroDono && passo === 'plano' && (
+        {!esqueciSenha && isCadastroDono && passo === 'plano' && (
           <div>
             {/* Banner 30 dias grátis */}
             <div style={{
@@ -395,7 +489,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
         )}
 
         {/* ── FORM: login / equipe / passo 1 do dono ── */}
-        {(!isCadastroDono || passo === 'dados') && (
+        {!esqueciSenha && (!isCadastroDono || passo === 'dados') && (
           <form onSubmit={isCadastroDono ? (e) => { e.preventDefault(); handleContinuarParaPlano(); } : handleAuth}
             style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
@@ -472,6 +566,18 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
               </div>
             </div>
 
+            {isLogin && (
+              <div style={{ textAlign: 'right', marginTop: '-4px' }}>
+                <button
+                  type="button"
+                  onClick={() => { setEsqueciSenha(true); setError(null); setInfo(null); setEmailReset(email); }}
+                  style={{ background: 'none', border: 'none', color: 'var(--color-primary)', fontSize: '13px', cursor: 'pointer', padding: 0, fontWeight: 500 }}
+                >
+                  Esqueceu sua senha?
+                </button>
+              </div>
+            )}
+
             <button
               type="submit"
               className="btn btn-primary"
@@ -491,7 +597,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
         )}
 
         {/* Link login / cadastro */}
-        {passo === 'dados' && (
+        {!esqueciSenha && passo === 'dados' && (
           <div style={{ marginTop: '32px', textAlign: 'center', fontSize: '14px', color: 'var(--color-text-muted)' }}>
             {isLogin ? 'Ainda não possui uma conta? ' : 'Já faz parte do Lumina? '}
             <button
