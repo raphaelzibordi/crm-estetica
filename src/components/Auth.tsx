@@ -73,11 +73,20 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     setResetError(null);
     setResetLoading(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(emailReset.trim(), {
-        redirectTo: `${window.location.origin}/definir-senha`,
-      });
-      if (error) {
-        setResetError(humanizeError(error).message);
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/auth/v1/recover`,
+        {
+          method: 'POST',
+          headers: {
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email: emailReset.trim() }),
+        }
+      );
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        setResetError(json?.message ?? 'Ocorreu um erro ao enviar o link. Tente novamente.');
       } else {
         setResetEnviado(true);
       }
