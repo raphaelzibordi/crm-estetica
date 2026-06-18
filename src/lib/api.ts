@@ -1,4 +1,4 @@
-﻿import { supabase } from './supabase';
+import { supabase } from './supabase';
 import { ApiError, humanizeError } from './errors';
 import { findAgendamentoConflict, getSalasStatus } from './agendaConflict';
 import { chamarLLMEstruturacao, chamarLLMResumoClinico, calcularIdade } from './ia';
@@ -104,6 +104,18 @@ import type {
   MetricasUnidade,
   PainelRede,
 } from '../types';
+
+export async function getFeatureFlags() {
+  const { data, error } = await supabase.from('feature_flags').select('id, enabled_for_plans');
+  if (error) {
+    console.error('Erro ao buscar feature flags:', error);
+    return [];
+  }
+  return data.map((row: any) => ({
+    id: row.id,
+    enabledForPlans: row.enabled_for_plans
+  }));
+}
 
 async function requireUserId(passedUserId?: string): Promise<string> {
   if (passedUserId) return passedUserId;

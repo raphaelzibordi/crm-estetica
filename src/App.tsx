@@ -25,7 +25,7 @@ import { CalendarioSalas } from './components/CalendarioSalas';
 import { DefinirSenha } from './components/DefinirSenha';
 import type { Agendamento, StatusJornada, UserRole, Unidade, Permissoes } from './types';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
-import { api } from './lib/api';
+import { api, getFeatureFlags } from './lib/api';
 import { ApiError, isUnauthorized } from './lib/errors';
 
 // Detecta se a URL atual é uma página pública de agendamento (/agenda/:slug)
@@ -112,6 +112,7 @@ function AppMain() {
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [selectedClienteId, setSelectedClienteId] = useState<string | null>(null);
   const [onlineBookingAlert, setOnlineBookingAlert] = useState<string | null>(null);
+  const [featureFlags, setFeatureFlags] = useState<{ id: string; enabledForPlans: Record<string, boolean> }[]>([]);
 
   // Nível mínimo de plano exigido por aba (deve espelhar Sidebar.tsx)
   const TAB_MIN_PLAN: Record<string, number> = { basico: 0, pro: 1, enterprise: 2, vip: 2 };
@@ -130,9 +131,15 @@ function AppMain() {
       }
     }
     if (userRole === 'dono' && userPlano != null) {
-      const planLevel = TAB_MIN_PLAN[userPlano] ?? 0;
-      const required = TAB_PLAN_REQ[tab] ?? 0;
-      if (planLevel < required) return;
+      // Se a aba tiver uma feature flag, verifica a flag ao invés do nível mínimo
+      const flag = featureFlags.find(f => f.id === tab);
+      if (flag) {
+        if (!flag.enabledForPlans[userPlano]) return;
+      } else {
+        const planLevel = TAB_MIN_PLAN[userPlano] ?? 0;
+        const required = TAB_PLAN_REQ[tab] ?? 0;
+        if (planLevel < required) return;
+      }
     }
     if (tab === 'prontuario') setSelectedClienteId(null);
     setCurrentTab(tab);
@@ -187,6 +194,8 @@ function AppMain() {
       } finally {
         setLoading(false);
       }
+      
+      getFeatureFlags().then(flags => setFeatureFlags(flags));
 
       const { data } = supabase.auth.onAuthStateChange((event, nextSession) => {
         if (event === 'PASSWORD_RECOVERY') {
@@ -676,6 +685,7 @@ function AppMain() {
         onSwitchUnidade={setCurrentUnidadeId}
         permissoes={userPermissoes}
         plano={userPlano}
+        featureFlags={featureFlags}
       />
 
       <main className="main-content">

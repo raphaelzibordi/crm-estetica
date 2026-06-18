@@ -41,6 +41,7 @@ interface SidebarProps {
   unidades?: Unidade[];
   currentUnidadeId?: string | null;
   onSwitchUnidade?: (unidadeId: string | null) => void;
+  featureFlags?: { id: string; enabledForPlans: Record<string, boolean> }[];
 }
 
 // Ordem numérica dos planos para comparação de nível mínimo
@@ -74,6 +75,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   unidades = [],
   currentUnidadeId,
   onSwitchUnidade,
+  featureFlags = [],
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -91,6 +93,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (userRole === 'dono') {
       // Enquanto o plano ainda não foi carregado, exibe tudo para evitar flash
       if (plano == null) return true;
+      
+      // Se tiver feature flag para este módulo, ela manda na visibilidade
+      const flag = featureFlags.find(f => f.id === item.id);
+      if (flag) {
+        return flag.enabledForPlans[plano] === true;
+      }
+
+      // Senão, fallback pro plano mínimo estático
       const planLevel = PLAN_ORDER[plano] ?? 0;
       const required = PLAN_ORDER[item.minPlan] ?? 0;
       return planLevel >= required;
