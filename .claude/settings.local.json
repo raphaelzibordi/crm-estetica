@@ -82,7 +82,8 @@
       "Bash(nslookup app.luminaclin.com)",
       "Bash(ipconfig /flushdns)",
       "Bash(nslookup app.luminaclin.com 8.8.8.8)",
-      "Bash(nslookup e03e76c72b72f0ca.vercel-dns-017.com 8.8.8.8)"
+      "Bash(nslookup e03e76c72b72f0ca.vercel-dns-017.com 8.8.8.8)",
+      "Bash(xargs grep -l \"style=\")"
     ]
   }
 }

@@ -80,7 +80,7 @@ export const HistoricoPresenca: React.FC<HistoricoPresencaProps> = ({ clienteId,
 
       {/* Summary Stats */}
       {risco && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+        <div className="historico-stats-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
           <div style={{
             padding: '12px 14px',
             background: 'var(--color-primary-light)',

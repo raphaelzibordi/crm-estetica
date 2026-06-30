@@ -1272,7 +1272,7 @@ Próxima consulta: {{proxima_consulta}}
         </button>
       </div>
 
-      <div className={`prontuario-grid${activeClienteId ? ' prontuario-grid--selected' : ''}`} style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '32px', alignItems: 'start' }}>
+      <div className={`prontuario-grid${activeClienteId ? ' prontuario-grid--selected' : ''}`}>
 
         {/* Left Side: Client Selector */}
         <div className="card prontuario-left-panel" style={{ padding: '20px' }}>
@@ -2019,7 +2019,7 @@ Próxima consulta: {{proxima_consulta}}
               <form onSubmit={handleSavePhotos} className="card" style={{ padding: '20px', border: '1px solid var(--color-border)', backgroundColor: '#FAFBFB', marginBottom: '24px', animation: 'fadeIn 0.3s ease-out' }}>
                 <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text-main)' }}>Nova Comparação Antes / Depois</h4>
 
-                <div className="prontuario-foto-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '16px' }}>
+                <div className="prontuario-foto-grid" style={{ marginBottom: '16px' }}>
                   {/* Foto Antes */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <label className="form-label" style={{ fontSize: '12px' }}>
@@ -2182,7 +2182,19 @@ Próxima consulta: {{proxima_consulta}}
           )}
 
           {/* Histórico e Nova Evolução */}
-          <div className="prontuario-hist-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px', alignItems: 'start' }}>
+          {/* Âncora tablet: visível apenas em tablet (CSS display:none no desktop/mobile).
+              Permite chegar ao formulário sem scrollar pela timeline de evoluções. */}
+          <div className="prontuario-evolucao-anchor">
+            <button
+              type="button"
+              className="prontuario-evolucao-anchor-btn"
+              onClick={() => document.getElementById('form-nova-evolucao')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            >
+              <Edit2 size={13} />
+              Registrar nova evolução ↓
+            </button>
+          </div>
+          <div className="prontuario-hist-grid">
 
             {/* Timeline of Evolutions */}
             <div className="card" style={{ padding: '32px' }}>
