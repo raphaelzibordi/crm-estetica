@@ -668,6 +668,7 @@ export interface Orcamento {
   leadId: string | null;
   nomeCliente: string;
   telefone: string;
+  email: string;
   profissionalId: string | null;
   profissionalNome: string | null;
   dataEnvio: string;    // YYYY-MM-DD

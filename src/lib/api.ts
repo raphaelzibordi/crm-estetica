@@ -4364,6 +4364,7 @@ export const api = {
       leadId?: string | null;
       nomeCliente: string;
       telefone?: string;
+      email?: string;
       profissionalId?: string | null;
       profissionalNome?: string | null;
       dataEnvio: string;
@@ -4383,6 +4384,7 @@ export const api = {
         lead_id:           payload.leadId ?? null,
         nome_cliente:      payload.nomeCliente,
         telefone:          payload.telefone ?? '',
+        email:             payload.email ?? null,
         profissional_id:   payload.profissionalId ?? null,
         profissional_nome: payload.profissionalNome ?? null,
         data_envio:        payload.dataEnvio,
@@ -6164,6 +6166,7 @@ function mapOrcamento(row: any): Orcamento {
     leadId:           row.lead_id ?? null,
     nomeCliente:      row.nome_cliente ?? '',
     telefone:         row.telefone ?? '',
+    email:            row.email ?? '',
     profissionalId:   row.profissional_id ?? null,
     profissionalNome: row.profissional_nome ?? null,
     dataEnvio:        row.data_envio ?? '',

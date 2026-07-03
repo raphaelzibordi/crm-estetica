@@ -10,6 +10,7 @@ import type {
   FunilEtapa, FunilEtapaTipo, Lead, LeadAutomacao, LeadHistorico, LeadOrigem,
 } from '../types';
 import { RankingPacientes } from './RankingPacientes';
+import { formatTelefone, emailValido, telefoneValido } from '../lib/validation';
 
 // ── Utilitários ───────────────────────────────────────────────────────
 
@@ -19,25 +20,6 @@ function diasDesde(iso: string): number {
 
 function formatData(iso: string): string {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
-}
-
-function formatTelefone(valor: string): string {
-  const digitos = valor.replace(/\D/g, '').slice(0, 11);
-  if (digitos.length <= 2) return digitos.replace(/^(\d*)/, '($1');
-  if (digitos.length <= 6) return digitos.replace(/^(\d{2})(\d*)/, '($1) $2');
-  if (digitos.length <= 10) return digitos.replace(/^(\d{2})(\d{4})(\d*)/, '($1) $2-$3');
-  return digitos.replace(/^(\d{2})(\d{5})(\d*)/, '($1) $2-$3');
-}
-
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-function emailValido(email: string): boolean {
-  return email.trim() === '' || EMAIL_REGEX.test(email.trim());
-}
-
-function telefoneValido(telefone: string): boolean {
-  const digitos = telefone.replace(/\D/g, '');
-  return digitos.length === 0 || digitos.length === 10 || digitos.length === 11;
 }
 
 const ORIGENS: { value: LeadOrigem; label: string }[] = [

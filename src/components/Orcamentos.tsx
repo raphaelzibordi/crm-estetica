@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { escapeHtml } from '../lib/escapeHtml';
+import { formatTelefone, emailValido, telefoneValido } from '../lib/validation';
 import type {
   Orcamento,
   OrcamentoFollowupConfig,
@@ -98,6 +99,7 @@ interface ItemForm {
 interface OrcamentoForm {
   nomeCliente: string;
   telefone: string;
+  email: string;
   clienteId: string | null;
   leadId: string | null;
   profissionalId: string | null;
@@ -117,6 +119,7 @@ interface FollowupForm {
 const EMPTY_FORM: OrcamentoForm = {
   nomeCliente:      '',
   telefone:         '',
+  email:            '',
   clienteId:        null,
   leadId:           null,
   profissionalId:   null,
@@ -238,6 +241,8 @@ export const Orcamentos: React.FC<OrcamentosProps> = ({ userId, userName, onConv
   const handleSaveOrcamento = async () => {
     if (!form.nomeCliente.trim()) { alert('Informe o nome do cliente.'); return; }
     if (!form.validade) { alert('Informe a data de validade.'); return; }
+    if (!telefoneValido(form.telefone)) { alert('Telefone incompleto.'); return; }
+    if (!emailValido(form.email)) { alert('E-mail inválido.'); return; }
     const itensValidos = form.itens.filter((it) => it.descricao.trim());
     if (itensValidos.length === 0) { alert('Adicione ao menos um item ao orçamento.'); return; }
 
@@ -249,6 +254,7 @@ export const Orcamentos: React.FC<OrcamentosProps> = ({ userId, userName, onConv
           leadId:           form.leadId,
           nomeCliente:      form.nomeCliente,
           telefone:         form.telefone,
+          email:            form.email,
           profissionalId:   form.profissionalId,
           profissionalNome: form.profissionalNome || null,
           dataEnvio:        form.dataEnvio,
@@ -886,7 +892,13 @@ export const Orcamentos: React.FC<OrcamentosProps> = ({ userId, userName, onConv
                     <button
                       key={c.id}
                       onClick={() => {
-                        setForm((f) => ({ ...f, nomeCliente: c.nome, clienteId: c.id, telefone: c.telefone || f.telefone }));
+                        setForm((f) => ({
+                          ...f,
+                          nomeCliente: c.nome,
+                          clienteId: c.id,
+                          telefone: c.telefone ? formatTelefone(c.telefone) : f.telefone,
+                          email: c.email || f.email,
+                        }));
                         setClienteBusca('');
                         setClienteSugestoes([]);
                       }}
@@ -908,24 +920,47 @@ export const Orcamentos: React.FC<OrcamentosProps> = ({ userId, userName, onConv
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
                 <Label>Telefone</Label>
-                <input value={form.telefone} onChange={(e) => setForm((f) => ({ ...f, telefone: e.target.value }))} placeholder="(11) 99999-9999" style={inputStyle} />
+                <input
+                  value={form.telefone}
+                  onChange={(e) => setForm((f) => ({ ...f, telefone: formatTelefone(e.target.value) }))}
+                  placeholder="(11) 99999-9999"
+                  inputMode="numeric"
+                  style={!telefoneValido(form.telefone) ? { ...inputStyle, borderColor: '#EF4444' } : inputStyle}
+                />
+                {!telefoneValido(form.telefone) && (
+                  <span style={{ fontSize: 11, color: '#EF4444' }}>Telefone incompleto</span>
+                )}
               </div>
               <div>
-                <Label>Profissional</Label>
-                <select
-                  value={form.profissionalId ?? ''}
-                  onChange={(e) => {
-                    const m = equipe.find((eq) => eq.id === e.target.value);
-                    setForm((f) => ({ ...f, profissionalId: e.target.value || null, profissionalNome: m?.nome ?? '' }));
-                  }}
-                  style={inputStyle}
-                >
-                  <option value="">Selecionar...</option>
-                  {equipe.filter((m) => m.ativo).map((m) => (
-                    <option key={m.id} value={m.id}>{m.nome}</option>
-                  ))}
-                </select>
+                <Label>E-mail{!form.clienteId ? ' (paciente novo)' : ''}</Label>
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                  placeholder="contato@email.com"
+                  style={!emailValido(form.email) ? { ...inputStyle, borderColor: '#EF4444' } : inputStyle}
+                />
+                {!emailValido(form.email) && (
+                  <span style={{ fontSize: 11, color: '#EF4444' }}>E-mail inválido</span>
+                )}
               </div>
+            </div>
+
+            <div>
+              <Label>Profissional</Label>
+              <select
+                value={form.profissionalId ?? ''}
+                onChange={(e) => {
+                  const m = equipe.find((eq) => eq.id === e.target.value);
+                  setForm((f) => ({ ...f, profissionalId: e.target.value || null, profissionalNome: m?.nome ?? '' }));
+                }}
+                style={inputStyle}
+              >
+                <option value="">Selecionar...</option>
+                {equipe.filter((m) => m.ativo).map((m) => (
+                  <option key={m.id} value={m.id}>{m.nome}</option>
+                ))}
+              </select>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -1001,7 +1036,11 @@ export const Orcamentos: React.FC<OrcamentosProps> = ({ userId, userName, onConv
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 8 }}>
               <button onClick={() => setShowModal(false)} style={btnSecondary}>Cancelar</button>
-              <button onClick={handleSaveOrcamento} disabled={saving} style={btnPrimary}>
+              <button
+                onClick={handleSaveOrcamento}
+                disabled={saving || !telefoneValido(form.telefone) || !emailValido(form.email)}
+                style={btnPrimary}
+              >
                 {saving ? 'Salvando...' : 'Salvar Orçamento'}
               </button>
             </div>
