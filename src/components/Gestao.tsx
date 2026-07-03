@@ -695,7 +695,7 @@ export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor', uni
 
       {/* ── TAB: ESTOQUE ────────────────────────────────────────────────── */}
       {tab === 'estoque' && (
-        <EstoqueAvancado userId={userId} onDataChange={setEstoque} />
+        <EstoqueAvancado userId={userId} onDataChange={setEstoque} procedimentos={procedimentos} />
       )}
 
       {/* ── TAB: PROCEDIMENTOS ──────────────────────────────────────────── */}

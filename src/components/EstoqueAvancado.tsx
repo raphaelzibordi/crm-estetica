@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import type { ItemEstoque, EstoqueVinculo, EstoqueMovimento } from '../types';
+import type { ItemEstoque, EstoqueVinculo, EstoqueMovimento, Procedimento } from '../types';
 import {
   Package, Plus, Edit2, Trash2, X, Check, AlertTriangle,
   ArrowUp, ArrowDown, RefreshCw,
@@ -10,6 +10,7 @@ import { api } from '../lib/api';
 interface Props {
   userId: string;
   onDataChange?: (items: ItemEstoque[]) => void;
+  procedimentos?: Procedimento[];
 }
 
 type InnerTab = 'produtos' | 'vinculos' | 'historico' | 'relatorio';
@@ -46,7 +47,7 @@ function tipoBadge(tipo: string) {
   );
 }
 
-export const EstoqueAvancado: React.FC<Props> = ({ userId, onDataChange }) => {
+export const EstoqueAvancado: React.FC<Props> = ({ userId, onDataChange, procedimentos = [] }) => {
   const [tab, setTab] = useState<InnerTab>('produtos');
 
   // ── Data ──
@@ -759,7 +760,10 @@ export const EstoqueAvancado: React.FC<Props> = ({ userId, onDataChange }) => {
               </div>
               <div className="form-group">
                 <label className="form-label">Procedimento *</label>
-                <input className="form-input" value={vProc} onChange={e => setVProc(e.target.value)} placeholder="Ex: Toxina Botulínica 50U" required />
+                <select className="form-select" value={vProc} onChange={e => setVProc(e.target.value)} required>
+                  <option value="">Selecione…</option>
+                  {procedimentos.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)}
+                </select>
               </div>
               <div className="form-group">
                 <label className="form-label">Quantidade consumida por sessão *</label>
