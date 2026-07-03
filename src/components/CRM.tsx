@@ -21,6 +21,25 @@ function formatData(iso: string): string {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
 }
 
+function formatTelefone(valor: string): string {
+  const digitos = valor.replace(/\D/g, '').slice(0, 11);
+  if (digitos.length <= 2) return digitos.replace(/^(\d*)/, '($1');
+  if (digitos.length <= 6) return digitos.replace(/^(\d{2})(\d*)/, '($1) $2');
+  if (digitos.length <= 10) return digitos.replace(/^(\d{2})(\d{4})(\d*)/, '($1) $2-$3');
+  return digitos.replace(/^(\d{2})(\d{5})(\d*)/, '($1) $2-$3');
+}
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function emailValido(email: string): boolean {
+  return email.trim() === '' || EMAIL_REGEX.test(email.trim());
+}
+
+function telefoneValido(telefone: string): boolean {
+  const digitos = telefone.replace(/\D/g, '');
+  return digitos.length === 0 || digitos.length === 10 || digitos.length === 11;
+}
+
 const ORIGENS: { value: LeadOrigem; label: string }[] = [
   { value: 'instagram', label: 'Instagram' },
   { value: 'google',    label: 'Google' },
@@ -229,6 +248,7 @@ export const CRM: React.FC<CRMProps> = ({ userId, userName, onConvertidoAgendar,
 
   const salvarLead = async () => {
     if (!leadForm.nome.trim()) return;
+    if (!telefoneValido(leadForm.telefone) || !emailValido(leadForm.email)) return;
     setSavingLead(true);
     try {
       if (leadModal.lead) {
@@ -519,9 +539,14 @@ export const CRM: React.FC<CRMProps> = ({ userId, userName, onConvertidoAgendar,
                   <input
                     className="form-input"
                     value={leadForm.telefone}
-                    onChange={(e) => setLeadForm((f) => ({ ...f, telefone: e.target.value }))}
+                    onChange={(e) => setLeadForm((f) => ({ ...f, telefone: formatTelefone(e.target.value) }))}
                     placeholder="(11) 99999-9999"
+                    inputMode="numeric"
+                    style={!telefoneValido(leadForm.telefone) ? { borderColor: '#EF4444' } : undefined}
                   />
+                  {!telefoneValido(leadForm.telefone) && (
+                    <span style={{ fontSize: '11px', color: '#EF4444' }}>Telefone incompleto</span>
+                  )}
                 </div>
                 <div className="form-group">
                   <label className="form-label">E-mail</label>
@@ -531,7 +556,11 @@ export const CRM: React.FC<CRMProps> = ({ userId, userName, onConvertidoAgendar,
                     value={leadForm.email}
                     onChange={(e) => setLeadForm((f) => ({ ...f, email: e.target.value }))}
                     placeholder="contato@email.com"
+                    style={!emailValido(leadForm.email) ? { borderColor: '#EF4444' } : undefined}
                   />
+                  {!emailValido(leadForm.email) && (
+                    <span style={{ fontSize: '11px', color: '#EF4444' }}>E-mail inválido</span>
+                  )}
                 </div>
               </div>
               <div className="form-group">
@@ -585,7 +614,7 @@ export const CRM: React.FC<CRMProps> = ({ userId, userName, onConvertidoAgendar,
                 <button
                   className="btn btn-primary"
                   onClick={salvarLead}
-                  disabled={savingLead || !leadForm.nome.trim()}
+                  disabled={savingLead || !leadForm.nome.trim() || !telefoneValido(leadForm.telefone) || !emailValido(leadForm.email)}
                 >
                   {savingLead ? 'Salvando...' : leadModal.lead ? 'Salvar' : 'Criar Lead'}
                 </button>
