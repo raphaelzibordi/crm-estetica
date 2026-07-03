@@ -62,14 +62,12 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
   const [bookingProcedimentos, setBookingProcedimentos] = useState<Procedimento[]>([]);
 
   // ── Confirmações automáticas state ──
-  const [confirmacao, setConfirmacao] = useState<ConfirmacaoSettings>({
+  const [, setConfirmacao] = useState<ConfirmacaoSettings>({
     confirmacaoHabilitada: true,
     confirmacaoMetodoPadrao: 'whatsapp',
     confirmacaoHorasAntes: 48,
     confirmacaoHorasAntes2: 2,
   });
-  const [savingConfirmacao, setSavingConfirmacao] = useState(false);
-  const [confirmacaoOk, setConfirmacaoOk] = useState(false);
 
   // ── Equipe state ──
   const [equipe, setEquipe] = useState<MembroEquipe[]>([]);
@@ -314,17 +312,6 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
       alert(`Erro: ${err?.message || err}`);
       setEquipe(prev => prev.map(m => m.id === id ? { ...m, bookingVisivel: !visivel } : m));
     }
-  };
-
-  const handleSaveConfirmacao = async () => {
-    setSavingConfirmacao(true);
-    try {
-      await api.updateConfirmacaoSettings(confirmacao, userId);
-      setConfirmacaoOk(true);
-      setTimeout(() => setConfirmacaoOk(false), 3000);
-    } catch (err: any) {
-      alert(`Erro ao salvar: ${err?.message || err}`);
-    } finally { setSavingConfirmacao(false); }
   };
 
   const handleDeleteMembro = async (id: string) => {
