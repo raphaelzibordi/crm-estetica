@@ -182,10 +182,12 @@ export const Agenda: React.FC<AgendaProps> = ({
     const endMin = h * 60 + m + matchedProc.duracaoMinutos;
     const horaFim = `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
 
-    const allSalas = [...new Set([
-      ...procedimentos.map((p) => p.salaRequerida).filter(Boolean),
-      ...rooms.map((r) => r.name),
-    ])];
+    const allSalas = matchedProc.salaIds && matchedProc.salaIds.length > 0
+      ? [...new Set(rooms.filter((r) => matchedProc.salaIds!.includes(r.id)).map((r) => r.name))]
+      : [...new Set([
+          ...procedimentos.map((p) => p.salaRequerida).filter(Boolean),
+          ...rooms.map((r) => r.name),
+        ])];
     const options = getSalasStatus(allSalas, newData, newHora, horaFim, modalAgendamentos);
     setSalaOptions(options);
 
@@ -219,16 +221,33 @@ export const Agenda: React.FC<AgendaProps> = ({
     ];
   }, [equipe, userName]);
 
+  // Procedimento selecionado no modal "Acolher Paciente" (por nome, com fallback ao 1º cadastrado).
+  const newModalProc = useMemo(
+    () =>
+      procedimentos.find((p) => p.nome === newProcedimento) ||
+      procedimentos.find((p) => p.nome.toLowerCase().includes(newProcedimento.toLowerCase())) ||
+      procedimentos[0],
+    [procedimentos, newProcedimento]
+  );
+
+  // Profissionais habilitados para o procedimento selecionado (todos, se nada configurado).
+  const profissionaisFiltrados = useMemo<Profissional[]>(() => {
+    const ids = newModalProc?.profissionalIds;
+    if (!ids || ids.length === 0) return profissionais;
+    const filtrados = profissionais.filter((p) => ids.includes(p.id));
+    return filtrados.length > 0 ? filtrados : profissionais;
+  }, [profissionais, newModalProc]);
+
   // Mantém as seleções consistentes com a lista atual.
   useEffect(() => {
     if (profissionais.length === 0) return;
-    if (!profissionais.some(p => p.id === newProfissionalId)) {
-      setNewProfissionalId(profissionais[0].id);
+    if (!profissionaisFiltrados.some(p => p.id === newProfissionalId)) {
+      setNewProfissionalId(profissionaisFiltrados[0].id);
     }
     if (!profissionais.some(p => p.id === selectedProfessional)) {
       setSelectedProfessional(profissionais[0].id);
     }
-  }, [profissionais, newProfissionalId, selectedProfessional]);
+  }, [profissionais, profissionaisFiltrados, newProfissionalId, selectedProfessional]);
 
   const formatTelefone = (value: string) => {
     const numbersOnly = value.replace(/\D/g, '');
@@ -1043,11 +1062,11 @@ export const Agenda: React.FC<AgendaProps> = ({
 
               <div className="form-group">
                 <label className="form-label">Profissional Responsável</label>
-                {profissionais.length === 1 ? (
+                {profissionaisFiltrados.length === 1 ? (
                   <input
                     type="text"
                     className="form-input"
-                    value={`${profissionais[0].nome} (${profissionais[0].cargo})`}
+                    value={`${profissionaisFiltrados[0].nome} (${profissionaisFiltrados[0].cargo})`}
                     readOnly
                     title="Apenas o responsável está cadastrado. Adicione membros em Configurações → Equipe."
                   />
@@ -1057,7 +1076,7 @@ export const Agenda: React.FC<AgendaProps> = ({
                     value={newProfissionalId}
                     onChange={(e) => setNewProfissionalId(e.target.value)}
                   >
-                    {profissionais.map((p) => (
+                    {profissionaisFiltrados.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.nome} — {p.cargo}
                       </option>

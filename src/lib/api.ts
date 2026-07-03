@@ -1985,13 +1985,70 @@ export const api = {
   async getProcedimentos(userId?: string): Promise<Procedimento[]> {
     return run(async () => {
       const uid = await requireUserId(userId);
-      const { data, error } = await supabase
-        .from('procedimentos')
-        .select('*')
-        .eq('user_id', uid)
-        .order('nome');
+      const [{ data, error }, { data: salasRel }, { data: profRel }] = await Promise.all([
+        supabase.from('procedimentos').select('*').eq('user_id', uid).order('nome'),
+        supabase.from('procedimento_salas').select('procedimento_id, room_id').eq('user_id', uid),
+        supabase.from('procedimento_profissionais').select('procedimento_id, profissional_id').eq('user_id', uid),
+      ]);
       if (error) throw error;
-      return (data ?? []).map(mapProcedimento);
+      return (data ?? []).map((row) => {
+        const p = mapProcedimento(row);
+        p.salaIds = (salasRel ?? []).filter((r) => r.procedimento_id === row.id).map((r) => r.room_id);
+        p.profissionalIds = (profRel ?? []).filter((r) => r.procedimento_id === row.id).map((r) => r.profissional_id);
+        return p;
+      });
+    });
+  },
+
+  async setProcedimentoSalas(procedimentoId: string, roomIds: string[], userId?: string): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { error: delError } = await supabase
+        .from('procedimento_salas')
+        .delete()
+        .eq('user_id', uid)
+        .eq('procedimento_id', procedimentoId);
+      if (delError) throw delError;
+      if (roomIds.length === 0) return;
+      const { error: insError } = await supabase
+        .from('procedimento_salas')
+        .insert(roomIds.map((roomId) => ({ user_id: uid, procedimento_id: procedimentoId, room_id: roomId })));
+      if (insError) throw insError;
+    });
+  },
+
+  async setProcedimentoProfissionais(procedimentoId: string, profissionalIds: string[], userId?: string): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { error: delError } = await supabase
+        .from('procedimento_profissionais')
+        .delete()
+        .eq('user_id', uid)
+        .eq('procedimento_id', procedimentoId);
+      if (delError) throw delError;
+      if (profissionalIds.length === 0) return;
+      const { error: insError } = await supabase
+        .from('procedimento_profissionais')
+        .insert(profissionalIds.map((profissionalId) => ({ user_id: uid, procedimento_id: procedimentoId, profissional_id: profissionalId })));
+      if (insError) throw insError;
+    });
+  },
+
+  // Edita a associação a partir do lado da sala (mesma tabela procedimento_salas).
+  async setRoomProcedimentos(roomId: string, procedimentoIds: string[], userId?: string): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { error: delError } = await supabase
+        .from('procedimento_salas')
+        .delete()
+        .eq('user_id', uid)
+        .eq('room_id', roomId);
+      if (delError) throw delError;
+      if (procedimentoIds.length === 0) return;
+      const { error: insError } = await supabase
+        .from('procedimento_salas')
+        .insert(procedimentoIds.map((procedimentoId) => ({ user_id: uid, procedimento_id: procedimentoId, room_id: roomId })));
+      if (insError) throw insError;
     });
   },
 
@@ -2019,7 +2076,16 @@ export const api = {
         .select()
         .single();
       if (error) throw error;
-      return mapProcedimento(data);
+      const created = mapProcedimento(data);
+      if (procedimento.salaIds !== undefined) {
+        await this.setProcedimentoSalas(created.id, procedimento.salaIds, uid);
+        created.salaIds = procedimento.salaIds;
+      }
+      if (procedimento.profissionalIds !== undefined) {
+        await this.setProcedimentoProfissionais(created.id, procedimento.profissionalIds, uid);
+        created.profissionalIds = procedimento.profissionalIds;
+      }
+      return created;
     });
   },
 
@@ -2039,15 +2105,17 @@ export const api = {
       if (updates.salaRequerida !== undefined) dbUpdates.sala_requerida = updates.salaRequerida;
       if (updates.profissionalResponsavel !== undefined)
         dbUpdates.profissional_responsavel = updates.profissionalResponsavel;
-      const { data, error } = await supabase
-        .from('procedimentos')
-        .update(dbUpdates)
-        .eq('id', id)
-        .eq('user_id', uid)
-        .select()
-        .single();
+      if (updates.salaIds !== undefined) await this.setProcedimentoSalas(id, updates.salaIds, uid);
+      if (updates.profissionalIds !== undefined) await this.setProcedimentoProfissionais(id, updates.profissionalIds, uid);
+      const query = supabase.from('procedimentos');
+      const { data, error } = Object.keys(dbUpdates).length > 0
+        ? await query.update(dbUpdates).eq('id', id).eq('user_id', uid).select().single()
+        : await query.select().eq('id', id).eq('user_id', uid).single();
       if (error) throw error;
-      return mapProcedimento(data);
+      const updated = mapProcedimento(data);
+      if (updates.salaIds !== undefined) updated.salaIds = updates.salaIds;
+      if (updates.profissionalIds !== undefined) updated.profissionalIds = updates.profissionalIds;
+      return updated;
     });
   },
 

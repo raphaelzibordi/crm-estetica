@@ -84,7 +84,10 @@
       "Bash(nslookup app.luminaclin.com 8.8.8.8)",
       "Bash(nslookup e03e76c72b72f0ca.vercel-dns-017.com 8.8.8.8)",
       "Bash(xargs grep -l \"style=\")",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(find . -maxdepth 1 -name \"*.sql\")",
+      "Bash(ls src *)",
+      "mcp__84ef42a8-55c6-42bb-9150-d4040d81915a__list_tables"
     ]
   }
 }

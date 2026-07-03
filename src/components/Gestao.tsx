@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import type { Agendamento, FechamentoFinanceiro, ItemEstoque, Procedimento } from '../types';
+import type { Agendamento, FechamentoFinanceiro, ItemEstoque, MembroEquipe, Procedimento } from '../types';
 import {
   AlertTriangle, DollarSign, Wallet, LayoutDashboard,
   Edit2, Trash2, X, Check, Package, Stethoscope,
@@ -23,6 +23,7 @@ interface GestaoProps {
 }
 
 const EMPTY_FECHAMENTO: FechamentoFinanceiro = { faturamentoTotal: 0, comissoesPagas: 0, formasPagamento: [] };
+const OWNER_ID = '__owner__';
 
 type ActiveTab = 'dashboard' | 'financeiro' | 'contas' | 'estoque' | 'procedimentos' | 'faltas' | 'comissoes' | 'repassos' | 'ocupacao' | 'salas' | 'rentabilidade';
 
@@ -121,6 +122,7 @@ export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor', uni
   const [financeiro, setFinanceiro] = useState<FechamentoFinanceiro>(EMPTY_FECHAMENTO);
   const [realizadosNoPeriodo, setRealizadosNoPeriodo] = useState<Agendamento[]>([]);
   const [procedimentos, setProcedimentos] = useState<Procedimento[]>([]);
+  const [equipe, setEquipe] = useState<MembroEquipe[]>([]);
 
   // ── Filtro de período (Financeiro) ──
   const [periodoPreset, setPeriodoPreset] = useState<PresetPeriodo>('hoje');
@@ -142,6 +144,7 @@ export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor', uni
   const [pDesc, setPDesc] = useState('');
   const [pPreco, setPPreco] = useState('');
   const [pDuracao, setPDuracao] = useState('60');
+  const [pProfissionalIds, setPProfissionalIds] = useState<string[]>([]);
 
   // Validar que a aba ativa é acessível no plano atual
   useEffect(() => {
@@ -150,7 +153,7 @@ export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor', uni
     }
   }, [plano, planLevel]);
 
-  useEffect(() => { loadProcedimentos(); }, [userId]);
+  useEffect(() => { loadProcedimentos(); loadEquipe(); }, [userId]);
 
   // Recarrega financeiro sempre que o range mudar (filtro temporal global)
   useEffect(() => { loadFinanceiro(rangeStart, rangeEnd); }, [userId, rangeStart, rangeEnd]);
@@ -212,15 +215,32 @@ export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor', uni
     } catch (e) { console.error('Erro ao carregar procedimentos', e); }
   };
 
+  const loadEquipe = async () => {
+    try {
+      setEquipe(await api.getEquipe(userId, { somenteAtivos: true }));
+    } catch (e) { console.error('Erro ao carregar equipe', e); }
+  };
+
+  const profissionaisDisponiveis = useMemo(
+    () => [{ id: OWNER_ID, nome: userName || 'Responsável da Clínica' }, ...equipe.map(m => ({ id: m.id, nome: m.nome }))],
+    [equipe, userName]
+  );
+
   // ─── PROCEDIMENTO HANDLERS ───────────────────────────────────────────────
   const openProcModal = (p?: Procedimento) => {
     if (p) {
       setEditingProcId(p.id); setPNome(p.nome); setPDesc(p.descricao || '');
       setPPreco(String(p.preco)); setPDuracao(String(p.duracaoMinutos));
+      setPProfissionalIds(p.profissionalIds ?? []);
     } else {
       setEditingProcId(null); setPNome(''); setPDesc(''); setPPreco(''); setPDuracao('60');
+      setPProfissionalIds([]);
     }
     setShowProcModal(true);
+  };
+
+  const toggleProfissionalSelecionado = (id: string) => {
+    setPProfissionalIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
   const handleSaveProc = async (e: React.FormEvent) => {
@@ -233,6 +253,7 @@ export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor', uni
       validadeDias: 90,
       salaRequerida: 'Cabine 01',
       profissionalResponsavel: '',
+      profissionalIds: pProfissionalIds,
     };
     try {
       if (editingProcId) {
@@ -850,6 +871,24 @@ export const Gestao: React.FC<GestaoProps> = ({ userId, userName = 'Gestor', uni
                 <div className="form-group">
                   <label className="form-label">Duração (min)</label>
                   <input className="form-input" type="number" min="15" step="15" value={pDuracao} onChange={e => setPDuracao(e.target.value)} />
+                </div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Profissionais habilitados</label>
+                <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: '8px' }}>
+                  Deixe todos desmarcados para permitir qualquer profissional.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '160px', overflowY: 'auto' }}>
+                  {profissionaisDisponiveis.map(p => (
+                    <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--color-border)', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={pProfissionalIds.includes(p.id)}
+                        onChange={() => toggleProfissionalSelecionado(p.id)}
+                      />
+                      <span style={{ fontSize: '13px' }}>{p.nome}</span>
+                    </label>
+                  ))}
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '8px' }}>

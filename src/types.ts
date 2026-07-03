@@ -180,6 +180,8 @@ export interface Procedimento {
   salaRequerida: string;
   profissionalResponsavel: string;
   bookingVisivel?: boolean;
+  salaIds?: string[]; // rooms.id[] compatíveis com o procedimento
+  profissionalIds?: string[]; // equipe.id[] (ou '__owner__') habilitados a realizar o procedimento
 }
 
 export interface MembroEquipe {

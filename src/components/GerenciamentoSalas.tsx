@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import type { Room } from '../types';
+import type { Procedimento, Room } from '../types';
 import { api } from '../lib/api';
-import { Plus, Pencil, Trash2, DoorOpen, AlertTriangle } from 'lucide-react';
+import { Plus, Pencil, Trash2, DoorOpen, AlertTriangle, Stethoscope } from 'lucide-react';
 
 interface GerenciamentoSalasProps {
   userId: string;
@@ -15,6 +15,7 @@ export const GerenciamentoSalas: React.FC<GerenciamentoSalasProps> = ({ userId, 
   const pode = (acao: 'ver' | 'criar' | 'editar' | 'deletar') =>
     !permissoes || !!(permissoes['salas']?.[acao]);
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [procedimentos, setProcedimentos] = useState<Procedimento[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFiltro, setStatusFiltro] = useState<StatusFiltro>('todas');
 
@@ -30,11 +31,20 @@ export const GerenciamentoSalas: React.FC<GerenciamentoSalasProps> = ({ userId, 
   // Delete state
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  // Modal de associação Sala <-> Procedimentos
+  const [procModalRoom, setProcModalRoom] = useState<Room | null>(null);
+  const [procModalSelected, setProcModalSelected] = useState<string[]>([]);
+  const [procModalSaving, setProcModalSaving] = useState(false);
+
   const load = async () => {
     setLoading(true);
     try {
-      const data = await api.getRooms(userId);
-      setRooms(data);
+      const [roomsData, procsData] = await Promise.all([
+        api.getRooms(userId),
+        api.getProcedimentos(userId),
+      ]);
+      setRooms(roomsData);
+      setProcedimentos(procsData);
     } catch {
       // silent — empty list
     } finally {
@@ -43,6 +53,41 @@ export const GerenciamentoSalas: React.FC<GerenciamentoSalasProps> = ({ userId, 
   };
 
   useEffect(() => { load(); }, [userId]);
+
+  const openProcAssociacao = (room: Room) => {
+    setProcModalRoom(room);
+    setProcModalSelected(procedimentos.filter((p) => p.salaIds?.includes(room.id)).map((p) => p.id));
+  };
+
+  const toggleProcSelecionado = (procedimentoId: string) => {
+    setProcModalSelected((prev) =>
+      prev.includes(procedimentoId) ? prev.filter((id) => id !== procedimentoId) : [...prev, procedimentoId]
+    );
+  };
+
+  const handleSaveProcAssociacao = async () => {
+    if (!procModalRoom) return;
+    setProcModalSaving(true);
+    try {
+      await api.setRoomProcedimentos(procModalRoom.id, procModalSelected, userId);
+      setProcedimentos((prev) =>
+        prev.map((p) => {
+          const jaTinha = p.salaIds?.includes(procModalRoom.id) ?? false;
+          const deveTer = procModalSelected.includes(p.id);
+          if (jaTinha === deveTer) return p;
+          const salaIds = deveTer
+            ? [...(p.salaIds ?? []), procModalRoom.id]
+            : (p.salaIds ?? []).filter((id) => id !== procModalRoom.id);
+          return { ...p, salaIds };
+        })
+      );
+      setProcModalRoom(null);
+    } catch (err: any) {
+      alert(err?.message ?? 'Erro ao associar procedimentos.');
+    } finally {
+      setProcModalSaving(false);
+    }
+  };
 
   const openCreate = () => {
     setFormName('');
@@ -168,7 +213,7 @@ export const GerenciamentoSalas: React.FC<GerenciamentoSalasProps> = ({ userId, 
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid var(--color-border)' }}>
-                  {['Nome', 'Descrição', 'Status', 'Criada em', 'Ações'].map((h) => (
+                  {['Nome', 'Descrição', 'Procedimentos', 'Status', 'Criada em', 'Ações'].map((h) => (
                     <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -178,6 +223,12 @@ export const GerenciamentoSalas: React.FC<GerenciamentoSalasProps> = ({ userId, 
                   <tr key={room.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
                     <td style={{ padding: '12px', fontWeight: 600, color: 'var(--color-text-main)' }}>{room.name}</td>
                     <td style={{ padding: '12px', color: 'var(--color-text-muted)' }}>{room.description || '—'}</td>
+                    <td style={{ padding: '12px', color: 'var(--color-text-muted)', maxWidth: '220px' }}>
+                      {(() => {
+                        const nomes = procedimentos.filter((p) => p.salaIds?.includes(room.id)).map((p) => p.nome);
+                        return nomes.length > 0 ? nomes.join(', ') : '—';
+                      })()}
+                    </td>
                     <td style={{ padding: '12px' }}>
                       <button
                         onClick={() => handleToggleStatus(room)}
@@ -194,6 +245,16 @@ export const GerenciamentoSalas: React.FC<GerenciamentoSalasProps> = ({ userId, 
                     </td>
                     <td style={{ padding: '12px' }}>
                       <div style={{ display: 'flex', gap: '6px' }}>
+                        {pode('editar') && (
+                          <button
+                            onClick={() => openProcAssociacao(room)}
+                            className="btn btn-outline"
+                            style={{ padding: '4px 10px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                            title="Associar procedimentos"
+                          >
+                            <Stethoscope size={12} /> Procedimentos
+                          </button>
+                        )}
                         <button
                           onClick={() => openEdit(room)}
                           className="btn btn-outline"
@@ -295,6 +356,42 @@ export const GerenciamentoSalas: React.FC<GerenciamentoSalasProps> = ({ userId, 
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Associar Procedimentos à sala */}
+      {procModalRoom && (
+        <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div className="card" style={{ maxWidth: '440px', width: '92%', padding: '32px' }}>
+            <h3 style={{ marginBottom: '6px' }}>Procedimentos — {procModalRoom.name}</h3>
+            <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginBottom: '16px' }}>
+              Selecione quais procedimentos podem ocorrer nesta sala.
+            </p>
+            {procedimentos.length === 0 ? (
+              <p style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
+                Nenhum procedimento cadastrado. Cadastre em Gestão &gt; Procedimentos.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '320px', overflowY: 'auto' }}>
+                {procedimentos.map((p) => (
+                  <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--color-border)', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={procModalSelected.includes(p.id)}
+                      onChange={() => toggleProcSelecionado(p.id)}
+                    />
+                    <span style={{ fontSize: '13px' }}>{p.nome}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '20px' }}>
+              <button type="button" className="btn btn-outline" onClick={() => setProcModalRoom(null)} disabled={procModalSaving}>Cancelar</button>
+              <button type="button" className="btn btn-primary" onClick={handleSaveProcAssociacao} disabled={procModalSaving}>
+                {procModalSaving ? 'Salvando…' : 'Salvar'}
+              </button>
+            </div>
           </div>
         </div>
       )}
