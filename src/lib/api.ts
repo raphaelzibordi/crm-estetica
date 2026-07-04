@@ -1,13 +1,12 @@
 import { supabase } from './supabase';
 import { ApiError, humanizeError } from './errors';
-import { findAgendamentoConflict, getSalasStatus } from './agendaConflict';
+import { findAgendamentoConflict, getSalasStatus, type SalaStatus as RoomSalaStatus } from './agendaConflict';
 import { chamarLLMEstruturacao, chamarLLMResumoClinico, calcularIdade } from './ia';
 import type {
   Agendamento,
   AnamneseCampo,
   ContaReceber,
   Sala,
-  SalaStatus,
   ContaReceberStatus,
   CrcAcao,
   CrcAcaoContexto,
@@ -1103,17 +1102,17 @@ export const api = {
     horaInicio: string,
     horaFim: string,
     ignoreAgendamentoId?: string
-  ): Promise<SalaStatus[]> {
+  ): Promise<RoomSalaStatus[]> {
     return run(async () => {
       const uid = await requireUserId(userId);
 
-      const [salaRes, aptRes] = await Promise.all([
+      const [roomRes, aptRes] = await Promise.all([
         supabase
-          .from('salas')
+          .from('rooms')
           .select('*')
           .eq('user_id', uid)
-          .eq('ativo', true)
-          .order('nome'),
+          .eq('status', 'ativa')
+          .order('name'),
         (() => {
           let q = supabase
             .from('agendamentos')
@@ -1129,7 +1128,7 @@ export const api = {
         })(),
       ]);
 
-      if (salaRes.error) throw salaRes.error;
+      if (roomRes.error) throw roomRes.error;
       if (aptRes.error) throw aptRes.error;
 
       const ocupadasMap = new Map<string, string>();
@@ -1139,10 +1138,10 @@ export const api = {
         }
       }
 
-      return (salaRes.data ?? []).map(mapSala).map((sala) => ({
-        sala,
-        disponivel: !ocupadasMap.has(sala.id),
-        ocupadaPor: ocupadasMap.get(sala.id),
+      return (roomRes.data ?? []).map((r: any) => ({
+        sala: r.name as string,
+        disponivel: !ocupadasMap.has(r.id),
+        ocupadaPor: ocupadasMap.get(r.id),
       }));
     });
   },

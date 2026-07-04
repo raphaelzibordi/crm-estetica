@@ -166,7 +166,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
     api.getEquipe(userId, { somenteAtivos: true }, unidadeId ?? undefined)
       .then(members => setEquipe(members.map(m => ({ id: m.id, nome: m.nome, cargo: m.cargo }))))
       .catch(() => {});
-    api.getSalas(userId).then(setRooms).catch(() => {});
+    api.getRooms(userId).then(setRooms).catch(() => {});
   }, [userId, unidadeId]);
 
   // Sync selectedClienteId prop → state (handles navigation while component is already mounted)
