@@ -2795,20 +2795,18 @@ export const api = {
       // Nunca semear dados em nome de outra conta.
       const { data: authData } = await supabase.auth.getUser();
       if (authData?.user?.id && authData.user.id !== uid) return;
-      const [{ count: procCount }, { count: tplCount }, { count: salaCount }] = await Promise.all([
-        supabase.from('procedimentos').select('id', { count: 'exact', head: true }).eq('user_id', uid),
-        supabase.from('templates_mensagens').select('id', { count: 'exact', head: true }).eq('user_id', uid),
-        supabase.from('salas').select('id', { count: 'exact', head: true }).eq('user_id', uid),
-      ]);
 
-      if ((salaCount ?? 0) === 0) {
-        await supabase.from('salas').insert([
-          { user_id: uid, nome: 'Cabine 01 - Clínica', descricao: 'Sala para procedimentos médicos estéticos', ativo: true },
-          { user_id: uid, nome: 'Cabine 02 - Tecnologias', descricao: 'Sala para equipamentos de tecnologia estética', ativo: true },
-          { user_id: uid, nome: 'Cabine 03 - Facial', descricao: 'Sala dedicada a tratamentos faciais', ativo: true },
+      // Checks sequenciais (não paralelos) para evitar race condition
+      const { count: roomCount } = await supabase.from('rooms').select('id', { count: 'exact', head: true }).eq('user_id', uid);
+      if ((roomCount ?? 0) === 0) {
+        await supabase.from('rooms').insert([
+          { user_id: uid, name: 'Cabine 01 - Clínica', description: 'Sala para procedimentos médicos estéticos', status: 'ativa' },
+          { user_id: uid, name: 'Cabine 02 - Tecnologias', description: 'Sala para equipamentos de tecnologia estética', status: 'ativa' },
+          { user_id: uid, name: 'Cabine 03 - Facial', description: 'Sala dedicada a tratamentos faciais', status: 'ativa' },
         ]);
       }
 
+      const { count: procCount } = await supabase.from('procedimentos').select('id', { count: 'exact', head: true }).eq('user_id', uid);
       if ((procCount ?? 0) === 0) {
         await supabase.from('procedimentos').insert([
           { user_id: uid, nome: 'Toxina Botulínica (Botox)', duracao_minutos: 45, validade_dias: 120, preco: 1200, sala_requerida: 'Cabine 01 - Clínica', profissional_responsavel: 'Dra. Helena Martins' },
@@ -2819,6 +2817,7 @@ export const api = {
         ]);
       }
 
+      const { count: tplCount } = await supabase.from('templates_mensagens').select('id', { count: 'exact', head: true }).eq('user_id', uid);
       if ((tplCount ?? 0) === 0) {
         await supabase.from('templates_mensagens').insert([
           { user_id: uid, titulo: 'Retorno de Toxina Botulínica (120 dias)', gatilho: 'Vencimento do efeito do procedimento', texto: 'Olá, {nome}. Como você está? ✨ Há cerca de 4 meses cuidamos do seu rosto com a Toxina Botulínica. O efeito protetor da musculatura costuma atenuar por agora. O que acha de reservarmos um momento esta semana para uma avaliação e mantermos sua expressão sempre descansada e rejuvenescida?' },

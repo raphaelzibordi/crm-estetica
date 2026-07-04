@@ -64,6 +64,8 @@ const MESES = [
 // Horários da agenda
 const HOUR_LIST = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
 
+const normName = (s: string): string => (s || '').trim().toLocaleLowerCase('pt-BR');
+
 export const Agenda: React.FC<AgendaProps> = ({
   userId,
   userName,
@@ -317,6 +319,10 @@ export const Agenda: React.FC<AgendaProps> = ({
       }
     }
 
+    // Map sala name to room ID
+    const salaRoom = rooms.find((r) => r.name === salaEscolhida);
+    const roomId = salaRoom?.id || null;
+
     try {
       await onAddAgendamento(
         {
@@ -328,6 +334,7 @@ export const Agenda: React.FC<AgendaProps> = ({
           procedimento: newProcedimento,
           profissional: profissionalNome,
           sala: salaEscolhida,
+          roomId: roomId,
           status: 'agendada',
           valor: price
         },
@@ -456,6 +463,20 @@ export const Agenda: React.FC<AgendaProps> = ({
       .filter((a) => a.horaInicio.split(':')[0] === slotHour)
       .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
   };
+
+  // Quando a clínica tem mais de uma sala ativa, a grade do dia mostra a
+  // ocupação sala a sala (ex: Sala A ocupada às 10h não deve esconder que
+  // a Sala B está livre no mesmo horário).
+  const multiSala = rooms.length > 1;
+  const roomNames = useMemo(() => new Set(rooms.map((r) => normName(r.name))), [rooms]);
+
+  const getAgendamentosForSlotESala = (time: string, salaName: string): Agendamento[] =>
+    getAgendamentosForSlot(time).filter((a) => normName(a.sala) === normName(salaName));
+
+  // Agendamentos do slot cuja sala não corresponde a nenhuma sala ativa cadastrada
+  // (sala excluída/inativada ou sem sala definida) — exibidos à parte para não se perder.
+  const getAgendamentosSemSalaAtiva = (time: string): Agendamento[] =>
+    getAgendamentosForSlot(time).filter((a) => !roomNames.has(normName(a.sala)));
 
   const handleEncaixeIdeal = () => {
     const proc = procedimentos.find((p) => p.id === selectedProcedimento);
@@ -629,8 +650,169 @@ export const Agenda: React.FC<AgendaProps> = ({
               </div>
             </div>
 
+            {multiSala && (
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '16px' }}>
+                {rooms.map((r) => (
+                  <span key={r.id} className="badge badge-neutral" style={{ fontSize: '11px' }}>
+                    {r.name}
+                  </span>
+                ))}
+              </div>
+            )}
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {HOUR_LIST.map((slot) => {
+              {multiSala ? HOUR_LIST.map((slot) => {
+                const semSalaAtiva = getAgendamentosSemSalaAtiva(slot);
+                return (
+                  <div
+                    key={slot}
+                    className="agenda-slot"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'stretch',
+                      padding: '16px',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 'var(--border-radius-md)',
+                      backgroundColor: '#FFFFFF',
+                      transition: 'var(--transition-smooth)',
+                      gap: '12px',
+                    }}
+                  >
+                    <div
+                      className="agenda-slot-anchor"
+                      style={{ width: '70px', flexShrink: 0, fontSize: '14px', fontWeight: 600, color: 'var(--color-text-muted)' }}
+                    >
+                      {slot}
+                    </div>
+
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0 }}>
+                      {rooms.map((room) => {
+                        const roomItems = getAgendamentosForSlotESala(slot, room.name);
+                        const roomEmpty = roomItems.length === 0;
+                        return (
+                          <div
+                            key={room.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: roomEmpty ? 'center' : 'flex-start',
+                              gap: '10px',
+                              padding: '8px 10px',
+                              border: '1px solid var(--color-border)',
+                              borderRadius: 'var(--border-radius-sm)',
+                              backgroundColor: roomEmpty ? 'var(--color-success-light)' : '#FAFBFB',
+                              flexWrap: 'wrap',
+                            }}
+                          >
+                            <div
+                              title={room.name}
+                              style={{
+                                width: '110px',
+                                flexShrink: 0,
+                                fontSize: '12px',
+                                fontWeight: 700,
+                                color: 'var(--color-text-main)',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {room.name}
+                            </div>
+
+                            {roomEmpty ? (
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flex: 1, gap: '8px', flexWrap: 'wrap' }}>
+                                <span style={{ color: 'var(--color-success)', fontWeight: 500, fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                  <Sparkles size={12} /> Disponível
+                                </span>
+                                {pode('criar') && (
+                                  <button
+                                    onClick={() => {
+                                      setNewData(toISODate(cursor));
+                                      setNewHora(slot);
+                                      setNewNome('');
+                                      setNewTelefone('');
+                                      setNewSala(room.name);
+                                      setConflictMessage(null);
+                                      setShowAddModal(true);
+                                    }}
+                                    className="btn btn-secondary"
+                                    style={{ padding: '4px 12px', fontSize: '11px', cursor: 'pointer', flexShrink: 0 }}
+                                  >
+                                    Novo Paciente
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0 }}>
+                                {roomItems.map((booked) => (
+                                  <div
+                                    key={booked.id}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'flex-start',
+                                      justifyContent: 'space-between',
+                                      gap: '10px',
+                                      flexWrap: 'wrap',
+                                    }}
+                                  >
+                                    <div style={{ minWidth: 0, flex: 1 }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                        <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-primary)' }}>
+                                          {booked.horaInicio.substring(0, 5)}
+                                        </span>
+                                        <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                                          até {booked.horaFim.substring(0, 5)}
+                                        </span>
+                                      </div>
+                                      <div style={{ fontWeight: 600, fontSize: '13px', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {booked.clienteNome}
+                                      </div>
+                                      <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', display: 'flex', gap: '10px', marginTop: '4px', flexWrap: 'wrap' }}>
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                          <Clock size={11} /> {booked.procedimento}
+                                        </span>
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                          <Users size={11} /> {booked.profissional}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                                      <span className={`badge ${booked.status === 'finalizada' ? 'badge-neutral' : 'badge-sage'}`}>
+                                        {booked.status}
+                                      </span>
+                                      {booked.status !== 'finalizada' && pode('deletar') && (
+                                        <button
+                                          onClick={() => handleCancelAgendamento(booked.id)}
+                                          className="btn btn-outline"
+                                          style={{ padding: '4px 10px', fontSize: '11px', borderColor: '#E53E3E', color: '#E53E3E', cursor: 'pointer' }}
+                                          title="Cancelar Atendimento"
+                                        >
+                                          Cancelar
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      {semSalaAtiva.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px 10px', border: '1px dashed var(--color-border)', borderRadius: 'var(--border-radius-sm)' }}>
+                          <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)' }}>Sem sala ativa vinculada</span>
+                          {semSalaAtiva.map((booked) => (
+                            <div key={booked.id} style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                              {booked.horaInicio.substring(0, 5)}–{booked.horaFim.substring(0, 5)} · {booked.clienteNome} ({booked.profissional})
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              }) : HOUR_LIST.map((slot) => {
                 const slotItems = getAgendamentosForSlot(slot);
                 const isEmpty = slotItems.length === 0;
                 return (
