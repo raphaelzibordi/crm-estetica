@@ -88,7 +88,13 @@
       "Bash(find . -maxdepth 1 -name \"*.sql\")",
       "Bash(ls src *)",
       "mcp__84ef42a8-55c6-42bb-9150-d4040d81915a__list_tables",
-      "Bash(echo \"EXIT:$?\")"
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(npx eslint *)",
+      "Bash(git stash *)",
+      "Bash(ls -la .claude)",
+      "Bash(find . -maxdepth 1 -iname \"*.md\")",
+      "Bash(find . -maxdepth 2 -iname \"*doc*\" -not -path \"*/node_modules/*\")",
+      "Bash(find . -path \"*/.claude/skills*\" -not -path \"*/node_modules/*\")"
     ]
   }
 }

@@ -321,7 +321,7 @@ export const Agenda: React.FC<AgendaProps> = ({
 
     // Map sala name to room ID
     const salaRoom = rooms.find((r) => r.name === salaEscolhida);
-    const roomId = salaRoom?.id || null;
+    const roomId = salaRoom?.id;
 
     try {
       await onAddAgendamento(
