@@ -186,10 +186,7 @@ export const Agenda: React.FC<AgendaProps> = ({
 
     const allSalas = matchedProc.salaIds && matchedProc.salaIds.length > 0
       ? [...new Set(rooms.filter((r) => matchedProc.salaIds!.includes(r.id)).map((r) => r.name))]
-      : [...new Set([
-          ...procedimentos.map((p) => p.salaRequerida).filter(Boolean),
-          ...rooms.map((r) => r.name),
-        ])];
+      : [...new Set(rooms.map((r) => r.name))];
     const options = getSalasStatus(allSalas, newData, newHora, horaFim, modalAgendamentos);
     setSalaOptions(options);
 
