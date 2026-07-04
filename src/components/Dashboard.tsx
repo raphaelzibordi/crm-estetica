@@ -9,7 +9,7 @@ const OWNER_ID = '__owner__';
 
 interface DashboardProps {
   agendamentos: Agendamento[];
-  onUpdateStatus: (id: string, newStatus: StatusJornada, extras?: { metodoPagamento?: Agendamento['metodoPagamento']; valor?: number }) => void;
+  onUpdateStatus: (id: string, newStatus: StatusJornada, extras?: { metodoPagamento?: Agendamento['metodoPagamento']; valor?: number; procedimentos?: Agendamento['procedimentos'] }) => void;
   onUpdateAgendamentoDados?: (id: string, updates: { data?: string; horaInicio?: string; horaFim?: string; procedimento?: string; profissional?: string; sala?: string }) => void;
   onOpenProntuario: (clienteId: string) => void;
   onAddAgendamento: (
@@ -96,7 +96,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [rooms, setRooms] = useState<Room[]>([]);
   const [showCheckoutModal, setShowCheckoutModal] = useState<string | null>(null);
   const [metodoPagamento, setMetodoPagamento] = useState<Agendamento['metodoPagamento']>('pix');
-  const [valorCheckout, setValorCheckout] = useState<string>('');
+  const [checkoutItens, setCheckoutItens] = useState<Array<{ procedimentoId: string; nome: string; preco: number; duracaoMinutos: number; valorCobrado: string }>>([]);
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
   const [registrarPresencaAgendamento, setRegistrarPresencaAgendamento] = useState<Agendamento | null>(null);
 
@@ -743,7 +743,23 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                 <button
                                   onClick={() => {
                                     setMetodoPagamento('pix');
-                                    setValorCheckout(String(item.valor ?? ''));
+                                    setCheckoutItens(
+                                      item.procedimentos && item.procedimentos.length > 0
+                                        ? item.procedimentos.map((p) => ({
+                                            procedimentoId: p.procedimentoId,
+                                            nome: p.nome,
+                                            preco: p.preco,
+                                            duracaoMinutos: p.duracaoMinutos,
+                                            valorCobrado: String(p.valorCobrado ?? p.preco ?? ''),
+                                          }))
+                                        : [{
+                                            procedimentoId: '',
+                                            nome: item.procedimento,
+                                            preco: item.valor,
+                                            duracaoMinutos: 0,
+                                            valorCobrado: String(item.valor ?? ''),
+                                          }]
+                                    );
                                     setShowCheckoutModal(item.id);
                                   }}
                                   className="btn btn-primary"
@@ -1178,31 +1194,45 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </p>
 
             <div className="form-group">
-              <label className="form-label">Valor Cobrado (R$)</label>
-              <div style={{ position: 'relative' }}>
-                <span style={{
-                  position: 'absolute',
-                  left: '12px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  color: 'var(--color-text-muted)',
-                  fontWeight: 600,
-                  fontSize: '14px',
-                  pointerEvents: 'none',
-                }}>R$</span>
-                <input
-                  type="number"
-                  className="form-input"
-                  style={{ paddingLeft: '36px' }}
-                  value={valorCheckout}
-                  min="0"
-                  step="0.01"
-                  placeholder="0,00"
-                  onChange={(e) => setValorCheckout(e.target.value)}
-                />
+              <label className="form-label">Valor Cobrado por Procedimento (R$)</label>
+              {checkoutItens.map((item, idx) => (
+                <div key={item.procedimentoId || idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                  <span style={{ flex: 1, fontSize: '13px', color: 'var(--color-text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.nome}</span>
+                  <div style={{ position: 'relative', width: '130px', flexShrink: 0 }}>
+                    <span style={{
+                      position: 'absolute',
+                      left: '10px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      color: 'var(--color-text-muted)',
+                      fontWeight: 600,
+                      fontSize: '13px',
+                      pointerEvents: 'none',
+                    }}>R$</span>
+                    <input
+                      type="number"
+                      className="form-input"
+                      style={{ paddingLeft: '32px' }}
+                      value={item.valorCobrado}
+                      min="0"
+                      step="0.01"
+                      placeholder="0,00"
+                      onChange={(e) => {
+                        const novoValor = e.target.value;
+                        setCheckoutItens((prev) => prev.map((it, i) => i === idx ? { ...it, valorCobrado: novoValor } : it));
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '8px', borderTop: '1px solid var(--color-border)', marginTop: '4px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-main)' }}>Total</span>
+                <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text-main)' }}>
+                  R$ {checkoutItens.reduce((sum, it) => sum + (parseFloat(it.valorCobrado) || 0), 0).toLocaleString('pt-BR')}
+                </span>
               </div>
               <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
-                Edite o valor caso haja desconto ou ajuste antes de finalizar.
+                Edite o valor de cada procedimento caso haja desconto ou ajuste antes de finalizar.
               </p>
             </div>
 
@@ -1232,10 +1262,21 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 type="button"
                 onClick={() => {
                   if (showCheckoutModal) {
-                    const valorFinal = parseFloat(valorCheckout);
+                    const itensValidos = checkoutItens.filter((it) => it.procedimentoId);
+                    const procedimentosFinal = itensValidos.length > 0
+                      ? itensValidos.map((it) => ({
+                          procedimentoId: it.procedimentoId,
+                          nome: it.nome,
+                          duracaoMinutos: it.duracaoMinutos,
+                          preco: it.preco,
+                          valorCobrado: parseFloat(it.valorCobrado) || 0,
+                        }))
+                      : undefined;
+                    const valorFinal = checkoutItens.reduce((sum, it) => sum + (parseFloat(it.valorCobrado) || 0), 0);
                     onUpdateStatus(showCheckoutModal, 'finalizada', {
                       metodoPagamento,
-                      valor: isNaN(valorFinal) ? undefined : valorFinal,
+                      valor: valorFinal,
+                      procedimentos: procedimentosFinal,
                     });
                   }
                   setShowCheckoutModal(null);

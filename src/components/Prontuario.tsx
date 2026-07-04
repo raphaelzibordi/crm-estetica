@@ -3,6 +3,8 @@ import type { Agendamento, Cliente, EvolucaoClinica, GaleriaItem, GravacaoConsul
 import { FileText, Camera, Plus, Trash2, Edit2, User, CalendarPlus, UserPlus, AlertTriangle, Calendar, ChevronLeft, ChevronRight, LayoutTemplate, Search, ShieldCheck, ShieldAlert, Mic, Square, Sparkles, Trash } from 'lucide-react';
 import { api } from '../lib/api';
 import { type SalaStatus } from '../lib/agendaConflict';
+import { buildProcedimentosAgendados, sumDuracao, sumValor, joinNomes } from '../lib/procedimentoUtils';
+import ProcedimentoMultiSelect from './ProcedimentoMultiSelect';
 import { criarMotorTranscricao } from '../lib/ia';
 import { escapeHtml } from '../lib/escapeHtml';
 import { HistoricoPresenca } from './HistoricoPresenca';
@@ -98,7 +100,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
   const [showAgendarConfirm, setShowAgendarConfirm] = useState(false);
   const [agendarData, setAgendarData] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [agendarHora, setAgendarHora] = useState('14:30');
-  const [agendarProcedimento, setAgendarProcedimento] = useState('');
+  const [agendarProcedimentoIds, setAgendarProcedimentoIds] = useState<string[]>([]);
   const [agendarSala, setAgendarSala] = useState('');
   const [agendarSalaOptions, setAgendarSalaOptions] = useState<SalaStatus[]>([]);
   const [agendarProfissionalId, setAgendarProfissionalId] = useState<string>(OWNER_ID);
@@ -109,7 +111,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
   const [showAcolherModal, setShowAcolherModal] = useState(false);
   const [acolherNome, setAcolherNome] = useState('');
   const [acolherTelefone, setAcolherTelefone] = useState('');
-  const [acolherProcedimento, setAcolherProcedimento] = useState('');
+  const [acolherProcedimentoIds, setAcolherProcedimentoIds] = useState<string[]>([]);
   const [acolherData, setAcolherData] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [acolherHora, setAcolherHora] = useState('14:30');
   const [acolherProfissionalId, setAcolherProfissionalId] = useState<string>(OWNER_ID);
@@ -238,26 +240,32 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
 
   useEffect(() => {
     if (procedimentos.length > 0) {
-      if (!agendarProcedimento) setAgendarProcedimento(procedimentos[0].nome);
-      if (!acolherProcedimento) setAcolherProcedimento(procedimentos[0].nome);
+      if (agendarProcedimentoIds.length === 0) setAgendarProcedimentoIds([procedimentos[0].id]);
+      if (acolherProcedimentoIds.length === 0) setAcolherProcedimentoIds([procedimentos[0].id]);
     }
-  }, [procedimentos, agendarProcedimento, acolherProcedimento]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [procedimentos]);
+
+  const agendarItens = useMemo(
+    () => buildProcedimentosAgendados(procedimentos, agendarProcedimentoIds),
+    [procedimentos, agendarProcedimentoIds]
+  );
 
   useEffect(() => {
-    if (!showAgendarModal || !agendarData || !agendarHora || !agendarProcedimento) {
+    if (!showAgendarModal || !agendarData || !agendarHora || agendarItens.length === 0) {
       setAgendarSalaOptions([]);
       return;
     }
-    const proc = procedimentos.find(p => p.nome === agendarProcedimento);
+    const proc = procedimentos.find(p => p.id === agendarItens[0].procedimentoId);
     if (!proc) return;
-    const duracao = proc.duracaoMinutos ?? 60;
+    const duracao = sumDuracao(agendarItens);
     const hFim = addMinutesToTime(agendarHora, duracao);
 
     api.getSalasDisponiveis(userId, agendarData, agendarHora, hFim).then(statusList => {
       const allSalasNames = proc.salaIds && proc.salaIds.length > 0
         ? new Set(rooms.filter(r => proc.salaIds!.includes(r.id)).map(r => r.name))
         : new Set(rooms.map(r => r.name));
-      
+
       const options = statusList.filter(s => allSalasNames.has(s.sala));
       setAgendarSalaOptions(options);
 
@@ -270,7 +278,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
         return suggested?.sala ?? proc.salaRequerida ?? '';
       });
     }).catch(() => {});
-  }, [showAgendarModal, agendarData, agendarHora, agendarProcedimento, procedimentos, rooms, userId]);
+  }, [showAgendarModal, agendarData, agendarHora, agendarItens, procedimentos, rooms, userId]);
 
   useEffect(() => {
     if (profissionais.length > 0) {
@@ -454,8 +462,9 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
 
   const handleAgendarConfirm = async () => {
     if (!currentCliente || !onAddAgendamento) return;
-    const proc = procedimentos.find(p => p.nome === agendarProcedimento);
-    const duracao = proc?.duracaoMinutos ?? 60;
+    const itens = agendarItens;
+    const duracao = sumDuracao(itens);
+    const proc = procedimentos.find(p => p.id === itens[0]?.procedimentoId);
     const profSelecionado = profissionais.find(p => p.id === agendarProfissionalId);
     try {
       await onAddAgendamento(
@@ -467,9 +476,10 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
           horaFim: addMinutesToTime(agendarHora, duracao),
           profissional: profSelecionado?.nome ?? userName ?? 'Responsável da Clínica',
           sala: agendarSala || proc?.salaRequerida || '',
-          procedimento: agendarProcedimento,
+          procedimento: joinNomes(itens),
+          procedimentos: itens,
           status: 'agendada',
-          valor: proc?.preco ?? 0,
+          valor: sumValor(itens),
         },
         { telefone: currentCliente.telefone || undefined }
       );
@@ -493,8 +503,9 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
       return;
     }
 
-    const proc = procedimentos.find((p) => p.nome === acolherProcedimento);
-    const duracao = proc?.duracaoMinutos ?? 60;
+    const itens = buildProcedimentosAgendados(procedimentos, acolherProcedimentoIds);
+    const duracao = sumDuracao(itens);
+    const proc = procedimentos.find((p) => p.id === itens[0]?.procedimentoId);
     const profSelecionado = profissionais.find((p) => p.id === acolherProfissionalId);
 
     try {
@@ -507,9 +518,10 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
           horaFim: addMinutesToTime(acolherHora, duracao),
           profissional: profSelecionado?.nome ?? userName ?? 'Responsável da Clínica',
           sala: proc?.salaRequerida || '',
-          procedimento: acolherProcedimento,
+          procedimento: joinNomes(itens),
+          procedimentos: itens,
           status: 'agendada',
-          valor: proc?.preco ?? 0,
+          valor: sumValor(itens),
         },
         { telefone: acolherTelefone.trim() || undefined }
       );
@@ -2815,20 +2827,12 @@ Próxima consulta: {{proxima_consulta}}
               </div>
 
               <div className="form-group">
-                <label className="form-label">Procedimento</label>
-                <select
-                  className="form-select"
-                  value={acolherProcedimento}
-                  onChange={e => setAcolherProcedimento(e.target.value)}
-                >
-                  {procedimentos.length === 0 ? (
-                    <option value="">Cadastre procedimentos primeiro</option>
-                  ) : (
-                    procedimentos.map(p => (
-                      <option key={p.id} value={p.nome}>{p.nome} — R$ {p.preco.toLocaleString('pt-BR')}</option>
-                    ))
-                  )}
-                </select>
+                <label className="form-label">Procedimento(s)</label>
+                <ProcedimentoMultiSelect
+                  procedimentos={procedimentos}
+                  selectedIds={acolherProcedimentoIds}
+                  onChange={setAcolherProcedimentoIds}
+                />
               </div>
 
               <div className="form-group">
@@ -2884,7 +2888,7 @@ Próxima consulta: {{proxima_consulta}}
 
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
                 <button type="button" onClick={() => setShowAcolherModal(false)} className="btn btn-outline">Cancelar</button>
-                <button type="submit" className="btn btn-primary" disabled={!acolherProcedimento}>
+                <button type="submit" className="btn btn-primary" disabled={acolherProcedimentoIds.length === 0}>
                   <UserPlus size={15} />
                   Confirmar Agendamento
                 </button>
@@ -3052,16 +3056,12 @@ Próxima consulta: {{proxima_consulta}}
 
             <form onSubmit={handleAgendarSubmit}>
               <div className="form-group">
-                <label className="form-label">Procedimento</label>
-                <select className="form-select" value={agendarProcedimento} onChange={e => setAgendarProcedimento(e.target.value)}>
-                  {procedimentos.length === 0 ? (
-                    <option value="">Cadastre procedimentos primeiro</option>
-                  ) : (
-                    procedimentos.map(p => (
-                      <option key={p.id} value={p.nome}>{p.nome} — R$ {p.preco.toLocaleString('pt-BR')}</option>
-                    ))
-                  )}
-                </select>
+                <label className="form-label">Procedimento(s)</label>
+                <ProcedimentoMultiSelect
+                  procedimentos={procedimentos}
+                  selectedIds={agendarProcedimentoIds}
+                  onChange={setAgendarProcedimentoIds}
+                />
               </div>
 
               <div className="form-group">
@@ -3152,7 +3152,7 @@ Próxima consulta: {{proxima_consulta}}
 
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '24px' }}>
                 <button type="button" onClick={() => setShowAgendarModal(false)} className="btn btn-outline">Cancelar</button>
-                <button type="submit" className="btn btn-primary" disabled={!agendarProcedimento}>
+                <button type="submit" className="btn btn-primary" disabled={agendarProcedimentoIds.length === 0}>
                   <CalendarPlus size={15} />
                   Revisar Agendamento
                 </button>
@@ -3164,16 +3164,16 @@ Próxima consulta: {{proxima_consulta}}
 
       {/* Appointment confirmation modal */}
       {showAgendarConfirm && currentCliente && (() => {
-        const proc = procedimentos.find(p => p.nome === agendarProcedimento);
-        const duracao = proc?.duracaoMinutos ?? 60;
+        const itens = agendarItens;
+        const duracao = sumDuracao(itens);
         const profSelecionado = profissionais.find(p => p.id === agendarProfissionalId);
         const profNome = profSelecionado?.nome ?? userName ?? 'Responsável da Clínica';
         const horaFim = addMinutesToTime(agendarHora, duracao);
         const dataFormatada = agendarData
           ? new Date(agendarData + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
           : '';
-        const row = (label: string, value: string) => (
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '8px 0', borderBottom: '1px solid var(--color-border)' }}>
+        const row = (label: string, value: string, key?: string) => (
+          <div key={key ?? label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '8px 0', borderBottom: '1px solid var(--color-border)' }}>
             <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', flexShrink: 0 }}>{label}</span>
             <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-main)', textAlign: 'right' }}>{value}</span>
           </div>
@@ -3206,11 +3206,11 @@ Próxima consulta: {{proxima_consulta}}
 
               {/* Summary rows */}
               <div style={{ marginBottom: '24px' }}>
-                {row('Procedimento', agendarProcedimento)}
+                {itens.map((item) => row('Procedimento', `${item.nome} — R$ ${item.preco.toLocaleString('pt-BR')}`, item.procedimentoId))}
                 {row('Profissional', profNome)}
                 {row('Data', dataFormatada)}
                 {row('Horário', `${agendarHora} – ${horaFim} (${duracao} min)`)}
-                {proc && row('Valor', `R$ ${proc.preco.toLocaleString('pt-BR')}`)}
+                {row('Valor Total', `R$ ${sumValor(itens).toLocaleString('pt-BR')}`)}
               </div>
 
               {/* Actions */}

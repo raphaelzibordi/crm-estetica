@@ -444,7 +444,7 @@ function AppMain() {
   const handleUpdateStatus = async (
     id: string,
     newStatus: StatusJornada,
-    extras?: { metodoPagamento?: Agendamento['metodoPagamento']; valor?: number }
+    extras?: { metodoPagamento?: Agendamento['metodoPagamento']; valor?: number; procedimentos?: Agendamento['procedimentos'] }
   ) => {
     const horaAgora = new Date().toLocaleTimeString('pt-BR', {
       hour: '2-digit',
@@ -467,6 +467,9 @@ function AppMain() {
         if (newStatus === 'finalizada' && extras?.valor !== undefined) {
           updated.valor = extras.valor;
         }
+        if (newStatus === 'finalizada' && extras?.procedimentos !== undefined) {
+          updated.procedimentos = extras.procedimentos;
+        }
         return updated;
       })
     );
@@ -483,14 +486,24 @@ function AppMain() {
       if (newStatus === 'finalizada' && extras?.valor !== undefined) {
         updates.valor = extras.valor;
       }
+      if (newStatus === 'finalizada' && extras?.procedimentos !== undefined) {
+        updates.procedimentos = extras.procedimentos;
+      }
       await api.updateAgendamentoStatus(id, updates, tenantId || session?.user.id);
       if (newStatus === 'finalizada') {
         const ag = agendamentos.find(a => a.id === id);
-        if (ag?.procedimento) {
+        const nomesProcedimentos = extras?.procedimentos && extras.procedimentos.length > 0
+          ? extras.procedimentos.map(p => p.nome)
+          : ag?.procedimentos && ag.procedimentos.length > 0
+          ? ag.procedimentos.map(p => p.nome)
+          : ag?.procedimento
+          ? [ag.procedimento]
+          : [];
+        for (const nome of nomesProcedimentos) {
           api.baixarEstoqueCheckout(
             id,
-            ag.procedimento,
-            ag.profissional || '',
+            nome,
+            ag?.profissional || '',
             tenantId || session?.user.id || '',
           ).catch(err => console.warn('[estoque] Baixa automática falhou:', err));
         }

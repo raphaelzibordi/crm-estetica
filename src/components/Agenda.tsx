@@ -3,6 +3,8 @@ import type { Agendamento, Procedimento, Profissional, Room } from '../types';
 import { Users, Clock, Sparkles, ChevronLeft, ChevronRight, CalendarRange, AlertTriangle } from 'lucide-react';
 import { api } from '../lib/api';
 import { findAgendamentoConflict, calcularEncaixeSugestoes, getSalasStatus, type EncaixeSugestao, type SalaStatus } from '../lib/agendaConflict';
+import { buildProcedimentosAgendados, sumDuracao, sumValor, joinNomes } from '../lib/procedimentoUtils';
+import ProcedimentoMultiSelect from './ProcedimentoMultiSelect';
 
 const OWNER_ID = '__owner__';
 
@@ -96,7 +98,7 @@ export const Agenda: React.FC<AgendaProps> = ({
   const [rooms, setRooms] = useState<Room[]>([]);
 
   // Encaixe ideal (visão Hoje)
-  const [selectedProcedimento, setSelectedProcedimento] = useState<string>('');
+  const [selectedProcedimentoIds, setSelectedProcedimentoIds] = useState<string[]>([]);
   const [selectedProfessional, setSelectedProfessional] = useState<string>(OWNER_ID);
   const [sugestoes, setSugestoes] = useState<EncaixeSugestao[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
@@ -109,7 +111,7 @@ export const Agenda: React.FC<AgendaProps> = ({
   const [showAddModal, setShowAddModal] = useState(false);
   const [newNome, setNewNome] = useState('');
   const [newTelefone, setNewTelefone] = useState('');
-  const [newProcedimento, setNewProcedimento] = useState('');
+  const [newProcedimentoIds, setNewProcedimentoIds] = useState<string[]>([]);
   const [newData, setNewData] = useState('');
   const [newHora, setNewHora] = useState('');
   const [newProfissionalId, setNewProfissionalId] = useState<string>(OWNER_ID);
@@ -145,8 +147,8 @@ export const Agenda: React.FC<AgendaProps> = ({
         setEquipe(team.map(m => ({ id: m.id, nome: m.nome, cargo: m.cargo })));
         setRooms(loadedRooms.filter(r => r.status === 'ativa'));
         if (procs.length > 0) {
-          setSelectedProcedimento((curr) => curr || procs[0].id);
-          setNewProcedimento((curr) => curr || procs[0].nome);
+          setSelectedProcedimentoIds((curr) => curr.length > 0 ? curr : [procs[0].id]);
+          setNewProcedimentoIds((curr) => curr.length > 0 ? curr : [procs[0].id]);
         }
       } catch (err) {
         console.error('Erro ao carregar dados da agenda:', err);
@@ -171,17 +173,19 @@ export const Agenda: React.FC<AgendaProps> = ({
     return () => { cancelled = true; };
   }, [showAddModal, newData, agendamentos, userId]);
 
+  const newItens = useMemo(
+    () => buildProcedimentosAgendados(procedimentos, newProcedimentoIds),
+    [procedimentos, newProcedimentoIds]
+  );
+
   // Auto-compute sala options whenever relevant modal fields change.
   useEffect(() => {
-    if (!showAddModal || !newData || !newHora) { setSalaOptions([]); return; }
-    const matchedProc =
-      procedimentos.find((p) => p.nome === newProcedimento) ||
-      procedimentos.find((p) => p.nome.toLowerCase().includes(newProcedimento.toLowerCase())) ||
-      procedimentos[0];
+    if (!showAddModal || !newData || !newHora || newItens.length === 0) { setSalaOptions([]); return; }
+    const matchedProc = procedimentos.find((p) => p.id === newItens[0].procedimentoId);
     if (!matchedProc) { setSalaOptions([]); return; }
 
     const [h, m] = newHora.split(':').map((x) => parseInt(x, 10));
-    const endMin = h * 60 + m + matchedProc.duracaoMinutos;
+    const endMin = h * 60 + m + sumDuracao(newItens);
     const horaFim = `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
 
     const allSalas = matchedProc.salaIds && matchedProc.salaIds.length > 0
@@ -199,7 +203,7 @@ export const Agenda: React.FC<AgendaProps> = ({
         options[0];
       return suggested?.sala ?? matchedProc.salaRequerida ?? '';
     });
-  }, [showAddModal, newData, newHora, newProcedimento, modalAgendamentos, procedimentos, rooms]);
+  }, [showAddModal, newData, newHora, newItens, modalAgendamentos, procedimentos, rooms]);
 
   // Profissionais = Responsável + equipe ativa.
   const profissionais = useMemo<Profissional[]>(() => {
@@ -220,13 +224,10 @@ export const Agenda: React.FC<AgendaProps> = ({
     ];
   }, [equipe, userName]);
 
-  // Procedimento selecionado no modal "Acolher Paciente" (por nome, com fallback ao 1º cadastrado).
+  // Procedimento (primeiro selecionado) no modal "Acolher Paciente" — usado para sala/profissionais compatíveis.
   const newModalProc = useMemo(
-    () =>
-      procedimentos.find((p) => p.nome === newProcedimento) ||
-      procedimentos.find((p) => p.nome.toLowerCase().includes(newProcedimento.toLowerCase())) ||
-      procedimentos[0],
-    [procedimentos, newProcedimento]
+    () => procedimentos.find((p) => p.id === newItens[0]?.procedimentoId) || procedimentos[0],
+    [procedimentos, newItens]
   );
 
   // Profissionais habilitados para o procedimento selecionado (todos, se nada configurado).
@@ -273,15 +274,14 @@ export const Agenda: React.FC<AgendaProps> = ({
       return;
     }
 
-    const matchedProc =
-      procedimentos.find((p) => p.nome.toLowerCase().includes(newProcedimento.toLowerCase())) ||
-      procedimentos[0];
-    if (!matchedProc) {
+    const itens = newItens;
+    const matchedProc = procedimentos.find((p) => p.id === itens[0]?.procedimentoId) || procedimentos[0];
+    if (!matchedProc || itens.length === 0) {
       alert('Cadastre ao menos um procedimento antes de criar o agendamento.');
       return;
     }
-    const duration = matchedProc.duracaoMinutos;
-    const price = matchedProc.preco;
+    const duration = sumDuracao(itens);
+    const price = sumValor(itens);
 
     const [h, m] = newHora.split(':').map((x) => parseInt(x, 10));
     const totalMin = h * 60 + m + duration;
@@ -328,7 +328,8 @@ export const Agenda: React.FC<AgendaProps> = ({
           data: newData,
           horaInicio: newHora,
           horaFim: endStr,
-          procedimento: newProcedimento,
+          procedimento: joinNomes(itens),
+          procedimentos: itens,
           profissional: profissionalNome,
           sala: salaEscolhida,
           roomId: roomId,
@@ -337,7 +338,7 @@ export const Agenda: React.FC<AgendaProps> = ({
         },
         { telefone: newTelefone }
       );
-      
+
       setShowAddModal(false);
       setNewNome('');
       setNewTelefone('');
@@ -475,15 +476,21 @@ export const Agenda: React.FC<AgendaProps> = ({
   const getAgendamentosSemSalaAtiva = (time: string): Agendamento[] =>
     getAgendamentosForSlot(time).filter((a) => !roomNames.has(normName(a.sala)));
 
+  const selectedItens = useMemo(
+    () => buildProcedimentosAgendados(procedimentos, selectedProcedimentoIds),
+    [procedimentos, selectedProcedimentoIds]
+  );
+
   const handleEncaixeIdeal = () => {
-    const proc = procedimentos.find((p) => p.id === selectedProcedimento);
+    if (selectedItens.length === 0) return;
+    const proc = procedimentos.find((p) => p.id === selectedItens[0].procedimentoId);
     if (!proc) return;
     setLoadingEncaixe(true);
     setHasSearched(true);
     const sugs = calcularEncaixeSugestoes(
       agendamentosDoDia,
       profissionais,
-      proc.duracaoMinutos,
+      sumDuracao(selectedItens),
       proc.salaRequerida,
       selectedProfessional,
     );
@@ -492,11 +499,10 @@ export const Agenda: React.FC<AgendaProps> = ({
   };
 
   const agendarSugerido = (sug: EncaixeSugestao) => {
-    const proc = procedimentos.find((p) => p.id === selectedProcedimento);
-    if (!proc) return;
+    if (selectedItens.length === 0) return;
     setNewData(toISODate(cursor));
     setNewHora(sug.hora);
-    setNewProcedimento(proc.nome);
+    setNewProcedimentoIds(selectedProcedimentoIds);
     setNewProfissionalId(sug.profissionalId);
     setNewNome('');
     setNewTelefone('');
@@ -959,12 +965,12 @@ export const Agenda: React.FC<AgendaProps> = ({
               </p>
 
               <div className="form-group">
-                <label className="form-label">Procedimento Pretendido</label>
-                <select className="form-select" value={selectedProcedimento} onChange={(e) => setSelectedProcedimento(e.target.value)}>
-                  {procedimentos.map((p) => (
-                    <option key={p.id} value={p.id}>{p.nome}</option>
-                  ))}
-                </select>
+                <label className="form-label">Procedimento(s) Pretendido(s)</label>
+                <ProcedimentoMultiSelect
+                  procedimentos={procedimentos}
+                  selectedIds={selectedProcedimentoIds}
+                  onChange={setSelectedProcedimentoIds}
+                />
               </div>
 
               <div className="form-group">
@@ -1188,16 +1194,12 @@ export const Agenda: React.FC<AgendaProps> = ({
               </div>
 
               <div className="form-group">
-                <label className="form-label">Procedimento</label>
-                <select
-                  className="form-select"
-                  value={newProcedimento}
-                  onChange={(e) => { setNewProcedimento(e.target.value); setNewSala(''); }}
-                >
-                  {procedimentos.map((p) => (
-                    <option key={p.id} value={p.nome}>{p.nome}</option>
-                  ))}
-                </select>
+                <label className="form-label">Procedimento(s)</label>
+                <ProcedimentoMultiSelect
+                  procedimentos={procedimentos}
+                  selectedIds={newProcedimentoIds}
+                  onChange={(ids) => { setNewProcedimentoIds(ids); setNewSala(''); }}
+                />
               </div>
 
               {salaOptions.length > 0 && plano && plano !== 'basico' && (

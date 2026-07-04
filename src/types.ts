@@ -148,6 +148,14 @@ export interface SalaStatus {
   ocupadaPor?: string;
 }
 
+export interface ProcedimentoAgendado {
+  procedimentoId: string;
+  nome: string;
+  duracaoMinutos: number;
+  preco: number;
+  valorCobrado?: number; // editável no checkout; default = preco até finalizar
+}
+
 export interface Agendamento {
   id: string;
   clienteId: string;
@@ -159,7 +167,8 @@ export interface Agendamento {
   profissional: string;
   sala: string;
   roomId?: string; // SALA-002: FK para salas.id
-  procedimento: string;
+  procedimento: string; // nomes concatenados (display/legado) — derivado de `procedimentos`
+  procedimentos?: ProcedimentoAgendado[]; // quebra por procedimento (duração/valor somados no `procedimento`/`valor` acima)
   status: StatusJornada;
   tempoEsperaMinutos?: number; // Tempo de espera na clínica
   horarioChegada?: string;

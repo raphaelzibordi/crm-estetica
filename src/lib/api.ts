@@ -189,6 +189,7 @@ function mapAgendamento(row: any): Agendamento {
     sala: row.salas?.nome ?? row.sala ?? '',
     roomId: row.room_id ?? undefined,
     procedimento: row.procedimento ?? '',
+    procedimentos: Array.isArray(row.procedimentos) ? row.procedimentos : [],
     status: (row.status as StatusJornada) ?? 'agendada',
     tempoEsperaMinutos: row.tempo_espera_minutos ?? undefined,
     horarioChegada: row.horario_chegada ?? undefined,
@@ -793,6 +794,7 @@ export const api = {
             sala: agendamento.sala,
             room_id: agendamento.roomId ?? null,
             procedimento: agendamento.procedimento,
+            procedimentos: agendamento.procedimentos ?? [],
             status: agendamento.status,
             tempo_espera_minutos: agendamento.tempoEsperaMinutos ?? null,
             horario_chegada: agendamento.horarioChegada ?? null,
@@ -823,6 +825,8 @@ export const api = {
         dbUpdates.metodo_pagamento = updates.metodoPagamento;
       if (updates.valor !== undefined)
         dbUpdates.valor = updates.valor;
+      if (updates.procedimentos !== undefined)
+        dbUpdates.procedimentos = updates.procedimentos;
 
       const { data, error } = await supabase
         .from('agendamentos')
@@ -841,13 +845,20 @@ export const api = {
           .eq('user_id', uid);
 
         // US-034: calcula e registra comissão automaticamente no checkout
-        await calcularComissaoCheckout(uid, {
-          id: data.id,
-          profissional: data.profissional ?? '',
-          procedimento: data.procedimento ?? '',
-          valor: Number(data.valor ?? 0),
-          data: data.data,
-        });
+        // (uma vez por procedimento, para agendamentos com mais de um)
+        const itensComissao: Array<{ nome: string; valor: number }> = Array.isArray(data.procedimentos) && data.procedimentos.length > 0
+          ? data.procedimentos.map((item: any) => ({ nome: item.nome, valor: Number(item.valorCobrado ?? item.preco ?? 0) }))
+          : [{ nome: data.procedimento ?? '', valor: Number(data.valor ?? 0) }];
+
+        for (const item of itensComissao) {
+          await calcularComissaoCheckout(uid, {
+            id: data.id,
+            profissional: data.profissional ?? '',
+            procedimento: item.nome,
+            valor: item.valor,
+            data: data.data,
+          });
+        }
       }
 
       return mapAgendamento(data);

@@ -77,6 +77,9 @@ create table if not exists public.agendamentos (
 -- Coluna metodo_pagamento adicionada em versões posteriores; garantir idempotência
 alter table public.agendamentos add column if not exists metodo_pagamento text;
 
+-- Coluna procedimentos (multi-procedimento por agendamento) adicionada em versões posteriores; garantir idempotência
+alter table public.agendamentos add column if not exists procedimentos jsonb default '[]'::jsonb;
+
 alter table public.agendamentos enable row level security;
 
 drop policy if exists "Users can manage their own appointments" on public.agendamentos;
