@@ -813,6 +813,8 @@ export const api = {
         dbUpdates.tempo_espera_minutos = updates.tempoEsperaMinutos;
       if (updates.metodoPagamento !== undefined)
         dbUpdates.metodo_pagamento = updates.metodoPagamento;
+      if (updates.valor !== undefined)
+        dbUpdates.valor = updates.valor;
 
       const { data, error } = await supabase
         .from('agendamentos')

@@ -444,7 +444,7 @@ function AppMain() {
   const handleUpdateStatus = async (
     id: string,
     newStatus: StatusJornada,
-    extras?: { metodoPagamento?: Agendamento['metodoPagamento'] }
+    extras?: { metodoPagamento?: Agendamento['metodoPagamento']; valor?: number }
   ) => {
     const horaAgora = new Date().toLocaleTimeString('pt-BR', {
       hour: '2-digit',
@@ -464,6 +464,9 @@ function AppMain() {
         } else if (newStatus === 'finalizada' && extras?.metodoPagamento) {
           updated.metodoPagamento = extras.metodoPagamento;
         }
+        if (newStatus === 'finalizada' && extras?.valor !== undefined) {
+          updated.valor = extras.valor;
+        }
         return updated;
       })
     );
@@ -476,6 +479,9 @@ function AppMain() {
       }
       if (newStatus === 'finalizada' && extras?.metodoPagamento) {
         updates.metodoPagamento = extras.metodoPagamento;
+      }
+      if (newStatus === 'finalizada' && extras?.valor !== undefined) {
+        updates.valor = extras.valor;
       }
       await api.updateAgendamentoStatus(id, updates, tenantId || session?.user.id);
       if (newStatus === 'finalizada') {

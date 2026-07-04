@@ -9,7 +9,7 @@ const OWNER_ID = '__owner__';
 
 interface DashboardProps {
   agendamentos: Agendamento[];
-  onUpdateStatus: (id: string, newStatus: StatusJornada, extras?: { metodoPagamento?: Agendamento['metodoPagamento'] }) => void;
+  onUpdateStatus: (id: string, newStatus: StatusJornada, extras?: { metodoPagamento?: Agendamento['metodoPagamento']; valor?: number }) => void;
   onUpdateAgendamentoDados?: (id: string, updates: { data?: string; horaInicio?: string; horaFim?: string; procedimento?: string; profissional?: string; sala?: string }) => void;
   onOpenProntuario: (clienteId: string) => void;
   onAddAgendamento: (
@@ -96,6 +96,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [rooms, setRooms] = useState<Room[]>([]);
   const [showCheckoutModal, setShowCheckoutModal] = useState<string | null>(null);
   const [metodoPagamento, setMetodoPagamento] = useState<Agendamento['metodoPagamento']>('pix');
+  const [valorCheckout, setValorCheckout] = useState<string>('');
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
   const [registrarPresencaAgendamento, setRegistrarPresencaAgendamento] = useState<Agendamento | null>(null);
 
@@ -742,6 +743,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                 <button
                                   onClick={() => {
                                     setMetodoPagamento('pix');
+                                    setValorCheckout(String(item.valor ?? ''));
                                     setShowCheckoutModal(item.id);
                                   }}
                                   className="btn btn-primary"
@@ -1172,8 +1174,37 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div className="card" style={{ maxWidth: '420px', width: '92%', padding: '32px' }}>
             <h3 style={{ marginBottom: '8px' }}>Finalizar Atendimento</h3>
             <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '20px' }}>
-              Selecione a forma de pagamento utilizada para concluir o checkout.
+              Confirme o valor cobrado e selecione a forma de pagamento para concluir o checkout.
             </p>
+
+            <div className="form-group">
+              <label className="form-label">Valor Cobrado (R$)</label>
+              <div style={{ position: 'relative' }}>
+                <span style={{
+                  position: 'absolute',
+                  left: '12px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: 'var(--color-text-muted)',
+                  fontWeight: 600,
+                  fontSize: '14px',
+                  pointerEvents: 'none',
+                }}>R$</span>
+                <input
+                  type="number"
+                  className="form-input"
+                  style={{ paddingLeft: '36px' }}
+                  value={valorCheckout}
+                  min="0"
+                  step="0.01"
+                  placeholder="0,00"
+                  onChange={(e) => setValorCheckout(e.target.value)}
+                />
+              </div>
+              <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+                Edite o valor caso haja desconto ou ajuste antes de finalizar.
+              </p>
+            </div>
 
             <div className="form-group">
               <label className="form-label">Forma de Pagamento</label>
@@ -1201,7 +1232,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 type="button"
                 onClick={() => {
                   if (showCheckoutModal) {
-                    onUpdateStatus(showCheckoutModal, 'finalizada', { metodoPagamento });
+                    const valorFinal = parseFloat(valorCheckout);
+                    onUpdateStatus(showCheckoutModal, 'finalizada', {
+                      metodoPagamento,
+                      valor: isNaN(valorFinal) ? undefined : valorFinal,
+                    });
                   }
                   setShowCheckoutModal(null);
                 }}
