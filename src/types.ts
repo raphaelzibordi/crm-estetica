@@ -58,6 +58,7 @@ export interface Cliente {
   tags: string[]; // ex: ['Pele Seca', 'Premium', 'Indicação']
   // Dados cadastrais complementares
   cpf?: string;
+  cep?: string;
   endereco?: string;
   // Resumo do histórico clínico gerado por IA (US-028 / CA-03)
   resumoClinicoIA: string | null;

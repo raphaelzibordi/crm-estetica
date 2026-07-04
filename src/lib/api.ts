@@ -138,6 +138,7 @@ function mapCliente(row: any): Cliente {
     statusRetencao: (row.status_retencao as Cliente['statusRetencao']) ?? 'em_dia',
     tags: Array.isArray(row.tags) ? row.tags : [],
     cpf: row.cpf ?? undefined,
+    cep: row.cep ?? undefined,
     endereco: row.endereco ?? undefined,
     resumoClinicoIA: row.resumo_clinico_ia ?? null,
     resumoClinicoIAGeradoEm: row.resumo_clinico_ia_gerado_em ?? null,
@@ -649,6 +650,7 @@ export const api = {
             status_retencao: cliente.statusRetencao ?? 'em_dia',
             tags: cliente.tags ?? [],
             cpf: cliente.cpf ?? null,
+            cep: cliente.cep ?? null,
             endereco: cliente.endereco ?? null,
             unidade_id: cliente.unidadeId ?? null,
           },
@@ -674,6 +676,7 @@ export const api = {
       if (updates.statusRetencao !== undefined) dbUpdates.status_retencao = updates.statusRetencao;
       if (updates.tags !== undefined) dbUpdates.tags = updates.tags;
       if (updates.cpf !== undefined) dbUpdates.cpf = updates.cpf || null;
+      if (updates.cep !== undefined) dbUpdates.cep = updates.cep || null;
       if (updates.endereco !== undefined) dbUpdates.endereco = updates.endereco || null;
       if (updates.unidadeId !== undefined) dbUpdates.unidade_id = updates.unidadeId;
 

@@ -87,6 +87,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
   const [editTelefone, setEditTelefone] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editCpf, setEditCpf] = useState('');
+  const [editCep, setEditCep] = useState('');
   const [editEndereco, setEditEndereco] = useState('');
   const [editFotoFile, setEditFotoFile] = useState<string>('');
   const profileFileInputRef = React.useRef<HTMLInputElement>(null);
@@ -117,6 +118,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
   const [novoPacienteNasc, setNovoPacienteNasc] = useState('');
   const [novoPacienteEmail, setNovoPacienteEmail] = useState('');
   const [novoPacienteCpf, setNovoPacienteCpf] = useState('');
+  const [novoPacienteCep, setNovoPacienteCep] = useState('');
   const [novoPacienteEndereco, setNovoPacienteEndereco] = useState('');
   const [salvandoNovoPaciente, setSalvandoNovoPaciente] = useState(false);
 
@@ -259,6 +261,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
       setEditTelefone(currentCliente.telefone || '');
       setEditEmail(currentCliente.email || '');
       setEditCpf(currentCliente.cpf || '');
+      setEditCep(currentCliente.cep || '');
       setEditEndereco(currentCliente.endereco || '');
       setEditFotoFile('');
       setIsEditing(false);
@@ -397,6 +400,13 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
     return `${truncated.slice(0, 3)}.${truncated.slice(3, 6)}.${truncated.slice(6, 9)}-${truncated.slice(9)}`;
   };
 
+  const formatCep = (value: string) => {
+    const numbersOnly = value.replace(/\D/g, '');
+    const truncated = numbersOnly.slice(0, 8);
+    if (truncated.length <= 5) return truncated;
+    return `${truncated.slice(0, 5)}-${truncated.slice(5)}`;
+  };
+
   const scrollCarousel = (dir: 'left' | 'right') => {
     carouselRef.current?.scrollBy({ left: dir === 'right' ? 240 : -240, behavior: 'smooth' });
   };
@@ -531,6 +541,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
         email: novoPacienteEmail.trim() || undefined,
         dataNascimento: dbDataNascimento || undefined,
         cpf: novoPacienteCpf.trim() || undefined,
+        cep: novoPacienteCep.trim() || undefined,
         endereco: novoPacienteEndereco.trim() || undefined,
         unidadeId: unidadeParaNovoCadastro,
       }, userId);
@@ -540,6 +551,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
       setNovoPacienteNasc('');
       setNovoPacienteEmail('');
       setNovoPacienteCpf('');
+      setNovoPacienteCep('');
       setNovoPacienteEndereco('');
       setShowNovoPacienteModal(false);
       setActiveClienteId(novo.id);
@@ -589,6 +601,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
         telefone: editTelefone,
         email: editEmail,
         cpf: editCpf.trim() || undefined,
+        cep: editCep.trim() || undefined,
         endereco: editEndereco.trim() || undefined,
       };
       if (editFotoFile) {
@@ -1281,6 +1294,16 @@ Próxima consulta: {{proxima_consulta}}
                   />
                 </div>
                 <div className="form-group">
+                  <label className="form-label">CEP</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={novoPacienteCep}
+                    onChange={e => setNovoPacienteCep(formatCep(e.target.value))}
+                    placeholder="00000-000"
+                  />
+                </div>
+                <div className="form-group">
                   <label className="form-label">Endereço</label>
                   <input
                     type="text"
@@ -1467,8 +1490,9 @@ Próxima consulta: {{proxima_consulta}}
                           <span>Nasc: {currentCliente.dataNascimento ? currentCliente.dataNascimento.split('-').reverse().join('/') : 'N/A'}</span>
                           <span>Contato: {currentCliente.telefone || 'N/A'}</span>
                           <span>E-mail: {currentCliente.email || 'N/A'}</span>
-                          {currentCliente.cpf && <span>CPF: {currentCliente.cpf}</span>}
-                          {currentCliente.endereco && <span>Endereço: {currentCliente.endereco}</span>}
+                          <span>CPF: {currentCliente.cpf || 'N/A'}</span>
+                          <span>CEP: {currentCliente.cep || 'N/A'}</span>
+                          <span>Endereço: {currentCliente.endereco || 'N/A'}</span>
                         </div>
                       </div>
                       <div className="prontuario-actions" style={{ display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0 }}>
@@ -1563,6 +1587,18 @@ Próxima consulta: {{proxima_consulta}}
                               value={editCpf}
                               onChange={(e) => setEditCpf(formatCpf(e.target.value))}
                               placeholder="000.000.000-00"
+                            />
+                          </div>
+
+                          <div className="prontuario-edit-field" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-main)', whiteSpace: 'nowrap' }}>CEP:</span>
+                            <input
+                              type="text"
+                              className="form-input"
+                              style={{ width: '100px', padding: '6px 10px', fontSize: '12px', borderRadius: '4px' }}
+                              value={editCep}
+                              onChange={(e) => setEditCep(formatCep(e.target.value))}
+                              placeholder="00000-000"
                             />
                           </div>
 
@@ -2887,6 +2923,16 @@ Próxima consulta: {{proxima_consulta}}
                   value={novoPacienteCpf}
                   onChange={e => setNovoPacienteCpf(formatCpf(e.target.value))}
                   placeholder="000.000.000-00"
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">CEP</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={novoPacienteCep}
+                  onChange={e => setNovoPacienteCep(formatCep(e.target.value))}
+                  placeholder="00000-000"
                 />
               </div>
               <div className="form-group">
