@@ -1162,7 +1162,7 @@ export const Agenda: React.FC<AgendaProps> = ({
           zIndex: 1000
         }}>
           <div className="card" style={{ maxWidth: '440px', width: '92%', padding: '32px' }}>
-            <h3 style={{ marginBottom: '20px' }}>Acolher Paciente</h3>
+            <h3 style={{ marginBottom: '20px' }}>Agendar Paciente</h3>
             <form onSubmit={handleCreate}>
               <div className="form-group">
                 <label className="form-label">Nome da(o) Paciente</label>
@@ -1296,7 +1296,7 @@ export const Agenda: React.FC<AgendaProps> = ({
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary">
-                  Acolher
+                  Agendar
                 </button>
               </div>
             </form>

@@ -2755,7 +2755,7 @@ Próxima consulta: {{proxima_consulta}}
             style={{ maxWidth: '440px', width: '92%', padding: '32px' }}
             onClick={e => e.stopPropagation()}
           >
-            <h3 style={{ marginBottom: '20px' }}>Acolher Paciente</h3>
+            <h3 style={{ marginBottom: '20px' }}>Agendar Paciente</h3>
             <form onSubmit={handleAcolherSubmit}>
               <div className="form-group">
                 <label className="form-label">Nome da Paciente</label>
