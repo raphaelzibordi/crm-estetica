@@ -86,6 +86,8 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
   const [editNasc, setEditNasc] = useState('');
   const [editTelefone, setEditTelefone] = useState('');
   const [editEmail, setEditEmail] = useState('');
+  const [editCpf, setEditCpf] = useState('');
+  const [editEndereco, setEditEndereco] = useState('');
   const [editFotoFile, setEditFotoFile] = useState<string>('');
   const profileFileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -114,6 +116,8 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
   const [novoPacienteTelefone, setNovoPacienteTelefone] = useState('');
   const [novoPacienteNasc, setNovoPacienteNasc] = useState('');
   const [novoPacienteEmail, setNovoPacienteEmail] = useState('');
+  const [novoPacienteCpf, setNovoPacienteCpf] = useState('');
+  const [novoPacienteEndereco, setNovoPacienteEndereco] = useState('');
   const [salvandoNovoPaciente, setSalvandoNovoPaciente] = useState(false);
 
   // States for template picker (US-027)
@@ -254,6 +258,8 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
       setEditNasc(formattedNasc);
       setEditTelefone(currentCliente.telefone || '');
       setEditEmail(currentCliente.email || '');
+      setEditCpf(currentCliente.cpf || '');
+      setEditEndereco(currentCliente.endereco || '');
       setEditFotoFile('');
       setIsEditing(false);
     }
@@ -382,6 +388,15 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
     }
   };
 
+  const formatCpf = (value: string) => {
+    const numbersOnly = value.replace(/\D/g, '');
+    const truncated = numbersOnly.slice(0, 11);
+    if (truncated.length <= 3) return truncated;
+    if (truncated.length <= 6) return `${truncated.slice(0, 3)}.${truncated.slice(3)}`;
+    if (truncated.length <= 9) return `${truncated.slice(0, 3)}.${truncated.slice(3, 6)}.${truncated.slice(6)}`;
+    return `${truncated.slice(0, 3)}.${truncated.slice(3, 6)}.${truncated.slice(6, 9)}-${truncated.slice(9)}`;
+  };
+
   const scrollCarousel = (dir: 'left' | 'right') => {
     carouselRef.current?.scrollBy({ left: dir === 'right' ? 240 : -240, behavior: 'smooth' });
   };
@@ -481,6 +496,12 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
       return;
     }
 
+    const rawCpf = novoPacienteCpf.replace(/\D/g, '');
+    if (rawCpf && rawCpf.length !== 11) {
+      alert('CPF inválido. Informe os 11 dígitos completos.');
+      return;
+    }
+
     let dbDataNascimento = '';
     if (novoPacienteNasc) {
       const parts = novoPacienteNasc.split('/');
@@ -509,6 +530,8 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
         telefone: novoPacienteTelefone.trim() || undefined,
         email: novoPacienteEmail.trim() || undefined,
         dataNascimento: dbDataNascimento || undefined,
+        cpf: novoPacienteCpf.trim() || undefined,
+        endereco: novoPacienteEndereco.trim() || undefined,
         unidadeId: unidadeParaNovoCadastro,
       }, userId);
       setClientes(prev => [...prev, novo]);
@@ -516,6 +539,8 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
       setNovoPacienteTelefone('');
       setNovoPacienteNasc('');
       setNovoPacienteEmail('');
+      setNovoPacienteCpf('');
+      setNovoPacienteEndereco('');
       setShowNovoPacienteModal(false);
       setActiveClienteId(novo.id);
     } catch (err) {
@@ -551,12 +576,20 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
       return;
     }
 
+    const rawCpf = editCpf.replace(/\D/g, '');
+    if (rawCpf && rawCpf.length !== 11) {
+      alert('CPF inválido. Informe os 11 dígitos completos.');
+      return;
+    }
+
     try {
       const payload: Partial<Cliente> = {
         nome: editNome,
         dataNascimento: dbDataNascimento || '',
         telefone: editTelefone,
-        email: editEmail
+        email: editEmail,
+        cpf: editCpf.trim() || undefined,
+        endereco: editEndereco.trim() || undefined,
       };
       if (editFotoFile) {
         payload.fotoUrl = editFotoFile;
@@ -1191,7 +1224,7 @@ Próxima consulta: {{proxima_consulta}}
           >
             <div
               className="card"
-              style={{ maxWidth: '440px', width: '92%', padding: '32px' }}
+              style={{ maxWidth: '480px', width: '92%', padding: '32px', maxHeight: '90vh', overflowY: 'auto' }}
               onClick={e => e.stopPropagation()}
             >
               <h3 style={{ marginBottom: '20px' }}>Cadastrar Paciente</h3>
@@ -1235,6 +1268,26 @@ Próxima consulta: {{proxima_consulta}}
                     value={novoPacienteEmail}
                     onChange={e => setNovoPacienteEmail(e.target.value)}
                     placeholder="exemplo@email.com"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">CPF</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={novoPacienteCpf}
+                    onChange={e => setNovoPacienteCpf(formatCpf(e.target.value))}
+                    placeholder="000.000.000-00"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Endereço</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={novoPacienteEndereco}
+                    onChange={e => setNovoPacienteEndereco(e.target.value)}
+                    placeholder="Rua, número, bairro, cidade"
                   />
                 </div>
                 <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
@@ -1414,6 +1467,8 @@ Próxima consulta: {{proxima_consulta}}
                           <span>Nasc: {currentCliente.dataNascimento ? currentCliente.dataNascimento.split('-').reverse().join('/') : 'N/A'}</span>
                           <span>Contato: {currentCliente.telefone || 'N/A'}</span>
                           <span>E-mail: {currentCliente.email || 'N/A'}</span>
+                          {currentCliente.cpf && <span>CPF: {currentCliente.cpf}</span>}
+                          {currentCliente.endereco && <span>Endereço: {currentCliente.endereco}</span>}
                         </div>
                       </div>
                       <div className="prontuario-actions" style={{ display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0 }}>
@@ -1494,6 +1549,32 @@ Próxima consulta: {{proxima_consulta}}
                               value={editEmail}
                               onChange={(e) => setEditEmail(e.target.value)}
                               placeholder="exemplo@email.com"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="prontuario-edit-fields" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+                          <div className="prontuario-edit-field" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-main)', whiteSpace: 'nowrap' }}>CPF:</span>
+                            <input
+                              type="text"
+                              className="form-input"
+                              style={{ width: '140px', padding: '6px 10px', fontSize: '12px', borderRadius: '4px' }}
+                              value={editCpf}
+                              onChange={(e) => setEditCpf(formatCpf(e.target.value))}
+                              placeholder="000.000.000-00"
+                            />
+                          </div>
+
+                          <div className="prontuario-edit-field" style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1 }}>
+                            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-main)', whiteSpace: 'nowrap' }}>Endereço:</span>
+                            <input
+                              type="text"
+                              className="form-input"
+                              style={{ width: '220px', padding: '6px 10px', fontSize: '12px', borderRadius: '4px' }}
+                              value={editEndereco}
+                              onChange={(e) => setEditEndereco(e.target.value)}
+                              placeholder="Rua, número, bairro, cidade"
                             />
                           </div>
                         </div>
@@ -2752,7 +2833,7 @@ Próxima consulta: {{proxima_consulta}}
         >
           <div
             className="card"
-            style={{ maxWidth: '440px', width: '92%', padding: '32px' }}
+            style={{ maxWidth: '480px', width: '92%', padding: '32px', maxHeight: '90vh', overflowY: 'auto' }}
             onClick={e => e.stopPropagation()}
           >
             <h3 style={{ marginBottom: '20px' }}>Cadastrar Paciente</h3>
@@ -2796,6 +2877,26 @@ Próxima consulta: {{proxima_consulta}}
                   value={novoPacienteEmail}
                   onChange={e => setNovoPacienteEmail(e.target.value)}
                   placeholder="exemplo@email.com"
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">CPF</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={novoPacienteCpf}
+                  onChange={e => setNovoPacienteCpf(formatCpf(e.target.value))}
+                  placeholder="000.000.000-00"
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Endereço</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={novoPacienteEndereco}
+                  onChange={e => setNovoPacienteEndereco(e.target.value)}
+                  placeholder="Rua, número, bairro, cidade"
                 />
               </div>
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>

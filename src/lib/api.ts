@@ -137,6 +137,8 @@ function mapCliente(row: any): Cliente {
     dataUltimaVisita: row.data_ultima_visita ?? '',
     statusRetencao: (row.status_retencao as Cliente['statusRetencao']) ?? 'em_dia',
     tags: Array.isArray(row.tags) ? row.tags : [],
+    cpf: row.cpf ?? undefined,
+    endereco: row.endereco ?? undefined,
     resumoClinicoIA: row.resumo_clinico_ia ?? null,
     resumoClinicoIAGeradoEm: row.resumo_clinico_ia_gerado_em ?? null,
     unidadeId: row.unidade_id ?? null,
@@ -646,6 +648,8 @@ export const api = {
             data_ultima_visita: cliente.dataUltimaVisita || null,
             status_retencao: cliente.statusRetencao ?? 'em_dia',
             tags: cliente.tags ?? [],
+            cpf: cliente.cpf ?? null,
+            endereco: cliente.endereco ?? null,
             unidade_id: cliente.unidadeId ?? null,
           },
         ])
@@ -669,6 +673,8 @@ export const api = {
         dbUpdates.data_ultima_visita = updates.dataUltimaVisita || null;
       if (updates.statusRetencao !== undefined) dbUpdates.status_retencao = updates.statusRetencao;
       if (updates.tags !== undefined) dbUpdates.tags = updates.tags;
+      if (updates.cpf !== undefined) dbUpdates.cpf = updates.cpf || null;
+      if (updates.endereco !== undefined) dbUpdates.endereco = updates.endereco || null;
       if (updates.unidadeId !== undefined) dbUpdates.unidade_id = updates.unidadeId;
 
       const { data, error } = await supabase

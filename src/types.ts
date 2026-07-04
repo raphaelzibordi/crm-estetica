@@ -56,6 +56,9 @@ export interface Cliente {
   dataUltimaVisita: string;
   statusRetencao: 'em_dia' | 'alerta_retencao' | 'ausente';
   tags: string[]; // ex: ['Pele Seca', 'Premium', 'Indicação']
+  // Dados cadastrais complementares
+  cpf?: string;
+  endereco?: string;
   // Resumo do histórico clínico gerado por IA (US-028 / CA-03)
   resumoClinicoIA: string | null;
   resumoClinicoIAGeradoEm: string | null;
