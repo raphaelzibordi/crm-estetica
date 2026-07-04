@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import type { Agendamento, Procedimento, Profissional, Room, StatusJornada } from '../types';
+import type { Agendamento, Procedimento, Profissional, Room, StatusJornada, Unidade } from '../types';
 import { Clock, UserCheck, UserPlus, CheckCircle, User, Pencil, AlertTriangle } from 'lucide-react';
 import { api } from '../lib/api';
 import { findAgendamentoConflict, getSalasStatus, type SalaStatus } from '../lib/agendaConflict';
@@ -20,6 +20,8 @@ interface DashboardProps {
   userId?: string;
   userName?: string;
   plano?: string | null;
+  unidadeId?: string | null;
+  unidades?: Unidade[];
 }
 
 function addMinutesToTime(hhmm: string, minutes: number): string {
@@ -82,7 +84,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
   userId,
   userName,
   plano,
+  unidadeId,
+  unidades,
 }) => {
+  const unidadesAtivas = (unidades ?? []).filter(u => u.ativo);
+  const unidadeParaNovoCadastro = unidadeId ?? (unidadesAtivas.length === 1 ? unidadesAtivas[0].id : null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
   const [procedimentos, setProcedimentos] = useState<Procedimento[]>([]);
@@ -317,6 +323,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         telefone: cadastrarTelefone.trim() || undefined,
         email: cadastrarEmail.trim() || undefined,
         dataNascimento: dbDataNascimento || undefined,
+        unidadeId: unidadeParaNovoCadastro,
       }, userId);
       setCadastrarNome('');
       setCadastrarTelefone('');

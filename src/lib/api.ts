@@ -139,6 +139,7 @@ function mapCliente(row: any): Cliente {
     tags: Array.isArray(row.tags) ? row.tags : [],
     resumoClinicoIA: row.resumo_clinico_ia ?? null,
     resumoClinicoIAGeradoEm: row.resumo_clinico_ia_gerado_em ?? null,
+    unidadeId: row.unidade_id ?? null,
   };
 }
 
@@ -222,6 +223,7 @@ function mapEvolucao(row: any): EvolucaoClinica {
     assinadoPor: row.assinado_por ?? null,
     assinaturaHash: row.assinatura_hash ?? null,
     aditamentoDe: row.aditamento_de ?? null,
+    unidadeId: row.unidade_id ?? null,
   };
 }
 
@@ -643,6 +645,7 @@ export const api = {
             data_ultima_visita: cliente.dataUltimaVisita || null,
             status_retencao: cliente.statusRetencao ?? 'em_dia',
             tags: cliente.tags ?? [],
+            unidade_id: cliente.unidadeId ?? null,
           },
         ])
         .select()
@@ -665,6 +668,7 @@ export const api = {
         dbUpdates.data_ultima_visita = updates.dataUltimaVisita || null;
       if (updates.statusRetencao !== undefined) dbUpdates.status_retencao = updates.statusRetencao;
       if (updates.tags !== undefined) dbUpdates.tags = updates.tags;
+      if (updates.unidadeId !== undefined) dbUpdates.unidade_id = updates.unidadeId;
 
       const { data, error } = await supabase
         .from('clientes')
@@ -1149,7 +1153,7 @@ export const api = {
 
   async createEvolucao(
     clienteId: string,
-    evolucao: Omit<EvolucaoClinica, 'id' | 'assinadoEm' | 'assinadoPor' | 'assinaturaHash' | 'aditamentoDe'> & { aditamentoDe?: string | null },
+    evolucao: Omit<EvolucaoClinica, 'id' | 'assinadoEm' | 'assinadoPor' | 'assinaturaHash' | 'aditamentoDe' | 'unidadeId'> & { aditamentoDe?: string | null; unidadeId?: string | null },
     userId?: string
   ): Promise<EvolucaoClinica> {
     return run(async () => {
@@ -1172,6 +1176,7 @@ export const api = {
             relato_natural: evolucao.relatoNatural,
             observacoes_tecnicas: evolucao.observacoesTecnicas,
             aditamento_de: evolucao.aditamentoDe ?? null,
+            unidade_id: evolucao.unidadeId ?? null,
           },
         ])
         .select()
@@ -6104,6 +6109,28 @@ export const api = {
         .single();
       if (error) throw error;
       return mapUnidade(data);
+    });
+  },
+
+  // Atribui à unidade informada os cadastros pré-existentes (clientes/agendamentos)
+  // que ainda não pertencem a nenhuma unidade — usado ao converter a clínica
+  // avulsa na primeira unidade de uma rede recém-criada.
+  async atribuirCadastrosOrfaosAUnidade(unidadeId: string, userId?: string): Promise<void> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const { error: errClientes } = await supabase
+        .from('clientes')
+        .update({ unidade_id: unidadeId })
+        .eq('user_id', uid)
+        .is('unidade_id', null);
+      if (errClientes) throw errClientes;
+
+      const { error: errAgendamentos } = await supabase
+        .from('agendamentos')
+        .update({ unidade_id: unidadeId })
+        .eq('user_id', uid)
+        .is('unidade_id', null);
+      if (errAgendamentos) throw errAgendamentos;
     });
   },
 

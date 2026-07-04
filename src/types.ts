@@ -59,6 +59,8 @@ export interface Cliente {
   // Resumo do histórico clínico gerado por IA (US-028 / CA-03)
   resumoClinicoIA: string | null;
   resumoClinicoIAGeradoEm: string | null;
+  // US-048: clínica/unidade à qual o cadastro da paciente pertence
+  unidadeId: string | null;
 }
 
 export interface EvolucaoClinica {
@@ -73,6 +75,8 @@ export interface EvolucaoClinica {
   assinadoPor: string | null;      // nome do profissional que assinou
   assinaturaHash: string | null;   // hash SHA-256 do conteúdo + identidade + timestamp
   aditamentoDe: string | null;     // id do registro original quando esta entrada é uma correção/aditamento
+  // US-048: clínica/unidade onde o atendimento foi realizado
+  unidadeId: string | null;
 }
 
 // ── IA no Prontuário: gravação, transcrição e estruturação (US-028) ──

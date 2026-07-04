@@ -236,13 +236,16 @@ const RedeModal: React.FC<RedeModalProps> = ({ clinicaAtual, onSave, onClose }) 
       });
       // Auto-cria a clínica atual como primeira unidade se solicitado
       if (incluirClinica && clinicaAtual?.nomeClinica) {
-        await api.createUnidade({
+        const unidade = await api.createUnidade({
           redeId:   rede.id,
           nome:     clinicaAtual.nomeClinica,
           cnpj:     '',
           endereco: clinicaAtual.endereco,
           telefone: clinicaAtual.telefone,
         });
+        // Pacientes e agendamentos cadastrados antes da rede existir ainda não
+        // pertencem a nenhuma unidade — vincula-os à clínica original agora.
+        await api.atribuirCadastrosOrfaosAUnidade(unidade.id);
       }
       onSave(rede);
     } catch (e: any) {

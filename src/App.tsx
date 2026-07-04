@@ -516,6 +516,8 @@ function AppMain() {
         /^c\d+$/.test(finalClienteId);
 
       if (isTempId) {
+        const unidadesAtivas = redeUnidades.filter(u => u.ativo);
+        const unidadeParaNovoCadastro = currentUnidadeId ?? (unidadesAtivas.length === 1 ? unidadesAtivas[0].id : null);
         const novoCliente = await api.createCliente(
           {
             nome: newAgendamento.clienteNome,
@@ -526,6 +528,7 @@ function AppMain() {
             dataUltimaVisita: new Date().toISOString().split('T')[0],
             statusRetencao: 'em_dia',
             tags: [],
+            unidadeId: unidadeParaNovoCadastro,
           },
           tenantId
         );
@@ -701,6 +704,8 @@ function AppMain() {
             userId={effectiveTenantId}
             userName={userName}
             plano={userPlano}
+            unidadeId={currentUnidadeId}
+            unidades={redeUnidades}
           />
         )}
 
@@ -724,6 +729,7 @@ function AppMain() {
             onAddAgendamento={handleAddAgendamento}
             userName={userName}
             unidadeId={currentUnidadeId}
+            unidades={redeUnidades}
             pacienteCompartilhado={pacienteCompartilhado}
             permissoes={userPermissoes}
             plano={userPlano}

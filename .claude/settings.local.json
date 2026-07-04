@@ -87,7 +87,8 @@
       "Bash(node -e ' *)",
       "Bash(find . -maxdepth 1 -name \"*.sql\")",
       "Bash(ls src *)",
-      "mcp__84ef42a8-55c6-42bb-9150-d4040d81915a__list_tables"
+      "mcp__84ef42a8-55c6-42bb-9150-d4040d81915a__list_tables",
+      "Bash(echo \"EXIT:$?\")"
     ]
   }
 }

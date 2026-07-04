@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import type { Agendamento, Cliente, EvolucaoClinica, GaleriaItem, GravacaoConsulta, Procedimento, Profissional, PrescricaoTemplate } from '../types';
+import type { Agendamento, Cliente, EvolucaoClinica, GaleriaItem, GravacaoConsulta, Procedimento, Profissional, PrescricaoTemplate, Unidade } from '../types';
 import { FileText, Camera, Plus, Trash2, Edit2, User, CalendarPlus, UserPlus, AlertTriangle, Calendar, ChevronLeft, ChevronRight, LayoutTemplate, Search, ShieldCheck, ShieldAlert, Mic, Square, Sparkles, Trash } from 'lucide-react';
 import { api } from '../lib/api';
 import { criarMotorTranscricao } from '../lib/ia';
@@ -28,6 +28,7 @@ interface ProntuarioProps {
   onAddAgendamento?: (agendamento: Omit<Agendamento, 'id'>, extra?: { telefone?: string }) => Promise<void>;
   userName?: string;
   unidadeId?: string | null;
+  unidades?: Unidade[];
   pacienteCompartilhado?: boolean;
   permissoes?: import('../types').Permissoes | null;
   plano?: string | null;
@@ -35,7 +36,11 @@ interface ProntuarioProps {
 
 const PRONTUARIO_PLAN_LEVELS: Record<string, number> = { basico: 0, pro: 1, enterprise: 2, vip: 2 };
 
-export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userId, onAddAgendamento, userName, unidadeId, pacienteCompartilhado, permissoes, plano }) => {
+export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userId, onAddAgendamento, userName, unidadeId, unidades, pacienteCompartilhado, permissoes, plano }) => {
+  // Unidade a atribuir a novos cadastros: a selecionada no topo, ou — quando
+  // "Todas as unidades" está ativo — a única unidade ativa, se houver apenas uma.
+  const unidadesAtivas = (unidades ?? []).filter(u => u.ativo);
+  const unidadeParaNovoCadastro = unidadeId ?? (unidadesAtivas.length === 1 ? unidadesAtivas[0].id : null);
   const pode = (acao: 'ver' | 'criar' | 'editar' | 'deletar') =>
     !permissoes || !!(permissoes['prontuario']?.[acao]);
   const planLevel = PRONTUARIO_PLAN_LEVELS[plano ?? 'basico'] ?? 0;
@@ -504,6 +509,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
         telefone: novoPacienteTelefone.trim() || undefined,
         email: novoPacienteEmail.trim() || undefined,
         dataNascimento: dbDataNascimento || undefined,
+        unidadeId: unidadeParaNovoCadastro,
       }, userId);
       setClientes(prev => [...prev, novo]);
       setNovoPacienteNome('');
@@ -840,6 +846,7 @@ Próxima consulta: {{proxima_consulta}}
         relatoNatural: newEvolucaoText,
         observacoesTecnicas: newEvolucaoObs || 'Sem intercorrências técnicas.',
         aditamentoDe: aditandoEvolucaoId,
+        unidadeId: unidadeId ?? currentCliente?.unidadeId ?? null,
       }, userId);
 
       setNewEvolucaoText('');
@@ -2244,6 +2251,9 @@ Próxima consulta: {{proxima_consulta}}
                         </span>
                         <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
                           {ev.profissional}
+                          {unidadesAtivas.length > 1 && ev.unidadeId && (
+                            <> · {unidadesAtivas.find(u => u.id === ev.unidadeId)?.nome ?? 'Unidade removida'}</>
+                          )}
                         </span>
                       </div>
 

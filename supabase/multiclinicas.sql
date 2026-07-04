@@ -203,3 +203,23 @@ BEGIN
   ORDER BY c.nome;
 END;
 $$;
+
+-- ══════════════════════════════════════════════════════════════════
+-- Correção: prontuário (evoluções clínicas) também precisa ficar
+-- amarrado à unidade onde o atendimento foi realizado.
+-- ══════════════════════════════════════════════════════════════════
+
+ALTER TABLE public.prontuarios_evolucoes
+  ADD COLUMN IF NOT EXISTS unidade_id UUID REFERENCES public.unidades(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_prontuarios_evolucoes_unidade
+  ON public.prontuarios_evolucoes(unidade_id) WHERE unidade_id IS NOT NULL;
+
+-- Preenche o histórico já existente com a unidade atual da paciente
+-- (aplicável a quem já converteu a clínica avulsa em rede).
+UPDATE public.prontuarios_evolucoes pe
+SET unidade_id = c.unidade_id
+FROM public.clientes c
+WHERE pe.cliente_id = c.id
+  AND pe.unidade_id IS NULL
+  AND c.unidade_id IS NOT NULL;
