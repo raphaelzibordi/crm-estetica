@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import type { Agendamento, Cliente, EvolucaoClinica, GaleriaItem, GravacaoConsulta, Procedimento, Profissional, PrescricaoTemplate, Unidade } from '../types';
+import type { Agendamento, Cliente, EvolucaoClinica, GaleriaItem, GravacaoConsulta, Procedimento, Profissional, PrescricaoTemplate, Unidade, Room } from '../types';
 import { FileText, Camera, Plus, Trash2, Edit2, User, CalendarPlus, UserPlus, AlertTriangle, Calendar, ChevronLeft, ChevronRight, LayoutTemplate, Search, ShieldCheck, ShieldAlert, Mic, Square, Sparkles, Trash } from 'lucide-react';
 import { api } from '../lib/api';
+import { type SalaStatus } from '../lib/agendaConflict';
 import { criarMotorTranscricao } from '../lib/ia';
 import { escapeHtml } from '../lib/escapeHtml';
 import { HistoricoPresenca } from './HistoricoPresenca';
@@ -98,8 +99,11 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
   const [agendarData, setAgendarData] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [agendarHora, setAgendarHora] = useState('14:30');
   const [agendarProcedimento, setAgendarProcedimento] = useState('');
+  const [agendarSala, setAgendarSala] = useState('');
+  const [agendarSalaOptions, setAgendarSalaOptions] = useState<SalaStatus[]>([]);
   const [agendarProfissionalId, setAgendarProfissionalId] = useState<string>(OWNER_ID);
   const [equipe, setEquipe] = useState<Array<{ id: string; nome: string; cargo: string }>>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
 
   // States for global Acolher modal (fresh patient, no pre-fill)
   const [showAcolherModal, setShowAcolherModal] = useState(false);
@@ -162,6 +166,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
     api.getEquipe(userId, { somenteAtivos: true }, unidadeId ?? undefined)
       .then(members => setEquipe(members.map(m => ({ id: m.id, nome: m.nome, cargo: m.cargo }))))
       .catch(() => {});
+    api.getSalas(userId).then(setRooms).catch(() => {});
   }, [userId, unidadeId]);
 
   // Sync selectedClienteId prop → state (handles navigation while component is already mounted)
@@ -237,6 +242,35 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
       if (!acolherProcedimento) setAcolherProcedimento(procedimentos[0].nome);
     }
   }, [procedimentos, agendarProcedimento, acolherProcedimento]);
+
+  useEffect(() => {
+    if (!showAgendarModal || !agendarData || !agendarHora || !agendarProcedimento) {
+      setAgendarSalaOptions([]);
+      return;
+    }
+    const proc = procedimentos.find(p => p.nome === agendarProcedimento);
+    if (!proc) return;
+    const duracao = proc.duracaoMinutos ?? 60;
+    const hFim = addMinutesToTime(agendarHora, duracao);
+
+    api.getSalasDisponiveis(userId, agendarData, agendarHora, hFim).then(statusList => {
+      const allSalasNames = proc.salaIds && proc.salaIds.length > 0
+        ? new Set(rooms.filter(r => proc.salaIds!.includes(r.id)).map(r => r.name))
+        : new Set(rooms.map(r => r.name));
+      
+      const options = statusList.filter(s => allSalasNames.has(s.sala));
+      setAgendarSalaOptions(options);
+
+      setAgendarSala(curr => {
+        if (curr && options.find(o => o.sala === curr)) return curr;
+        const suggested =
+          options.find(o => o.sala === proc.salaRequerida && o.disponivel) ||
+          options.find(o => o.disponivel) ||
+          options[0];
+        return suggested?.sala ?? proc.salaRequerida ?? '';
+      });
+    }).catch(() => {});
+  }, [showAgendarModal, agendarData, agendarHora, agendarProcedimento, procedimentos, rooms, userId]);
 
   useEffect(() => {
     if (profissionais.length > 0) {
@@ -432,7 +466,7 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
           horaInicio: agendarHora,
           horaFim: addMinutesToTime(agendarHora, duracao),
           profissional: profSelecionado?.nome ?? userName ?? 'Responsável da Clínica',
-          sala: proc?.salaRequerida || '',
+          sala: agendarSala || proc?.salaRequerida || '',
           procedimento: agendarProcedimento,
           status: 'agendada',
           valor: proc?.preco ?? 0,
@@ -3042,6 +3076,45 @@ Próxima consulta: {{proxima_consulta}}
                   </select>
                 )}
               </div>
+
+              {agendarSalaOptions.length > 0 && plano && plano !== 'basico' && (
+                <div className="form-group">
+                  <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    Sala de Atendimento
+                    {agendarSala && (() => {
+                      const s = agendarSalaOptions.find((o) => o.sala === agendarSala);
+                      return s ? (
+                        <span style={{
+                          fontSize: '10px',
+                          fontWeight: 600,
+                          padding: '2px 8px',
+                          borderRadius: '999px',
+                          background: s.disponivel ? '#d1fae5' : '#fee2e2',
+                          color: s.disponivel ? '#065f46' : '#991b1b',
+                        }}>
+                          {s.disponivel ? 'Disponível' : 'Ocupada'}
+                        </span>
+                      ) : null;
+                    })()}
+                  </label>
+                  <select
+                    className="form-select"
+                    value={agendarSala}
+                    onChange={(e) => setAgendarSala(e.target.value)}
+                  >
+                    {agendarSalaOptions.map((o) => (
+                      <option key={o.sala} value={o.sala}>
+                        {o.disponivel ? `${o.sala} (Disponível)` : `${o.sala} (Ocupada — ${o.ocupadaPor})`}
+                      </option>
+                    ))}
+                  </select>
+                  {agendarSala && agendarSalaOptions.find((o) => o.sala === agendarSala && !o.disponivel) && (
+                    <p style={{ fontSize: '11px', color: '#991b1b', marginTop: '4px' }}>
+                      Esta sala está ocupada no horário selecionado. Escolha outra sala ou altere o horário.
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div className="form-group">
