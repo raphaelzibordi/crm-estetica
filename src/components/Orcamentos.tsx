@@ -985,7 +985,7 @@ export const Orcamentos: React.FC<OrcamentosProps> = ({ userId, userName, onConv
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {form.itens.map((it, i) => (
                   <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 72px 100px auto', gap: 8, alignItems: 'center' }}>
-                    <div>
+                    <div style={{ minWidth: 0 }}>
                       <input
                         value={it.descricao}
                         onChange={(e) => updateItem(i, { descricao: e.target.value })}

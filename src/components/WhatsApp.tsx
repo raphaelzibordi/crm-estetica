@@ -441,9 +441,19 @@ export const WhatsApp: React.FC<WhatsAppProps> = ({ userId, userName, permissoes
 
       {/* ── TAB: DISPAROS ── */}
       {tab === 'disparos' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 24 }}>
+        <div className="whatsapp-disparos-grid" style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 24 }}>
+          {/* Âncora tablet: visível apenas em tablet (CSS display:none no desktop/mobile) */}
+          <div className="whatsapp-anchor">
+            <button
+              type="button"
+              className="whatsapp-anchor-btn"
+              onClick={() => document.getElementById('whatsapp-lista-pacientes')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            >
+              Ver lista de pacientes ↓
+            </button>
+          </div>
           {/* Config do disparo */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Configurar disparo</h3>
 
             <div>
@@ -508,7 +518,7 @@ export const WhatsApp: React.FC<WhatsAppProps> = ({ userId, userName, permissoes
           </div>
 
           {/* Lista de pacientes */}
-          <div>
+          <div id="whatsapp-lista-pacientes" style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', gap: 10, marginBottom: 12, alignItems: 'center' }}>
               <div style={{ position: 'relative', flex: 1 }}>
                 <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }} />
@@ -545,9 +555,19 @@ export const WhatsApp: React.FC<WhatsAppProps> = ({ userId, userName, permissoes
 
       {/* ── TAB: CONFIGURAÇÃO ── */}
       {tab === 'configuracao' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 32 }}>
+        <div className="whatsapp-config-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 32 }}>
+          {/* Âncora tablet: visível apenas em tablet (CSS display:none no desktop/mobile) */}
+          <div className="whatsapp-anchor">
+            <button
+              type="button"
+              className="whatsapp-anchor-btn"
+              onClick={() => document.getElementById('whatsapp-opt-outs')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            >
+              Ver opt-outs ↓
+            </button>
+          </div>
           {/* Formulário de configuração */}
-          <div>
+          <div style={{ minWidth: 0 }}>
             <h3 style={{ margin: '0 0 20px', fontSize: 15, fontWeight: 700 }}>Integração Z-API</h3>
 
             <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '12px 16px', marginBottom: 20, fontSize: 13, color: '#B45309' }}>
@@ -603,7 +623,7 @@ export const WhatsApp: React.FC<WhatsAppProps> = ({ userId, userName, permissoes
           </div>
 
           {/* Opt-outs */}
-          <div>
+          <div id="whatsapp-opt-outs" style={{ minWidth: 0 }}>
             <h3 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 700 }}>Opt-outs ({optOuts.length})</h3>
             <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--color-text-muted)' }}>
               Pacientes que solicitaram não receber mensagens automáticas.

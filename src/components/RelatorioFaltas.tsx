@@ -83,8 +83,8 @@ export const RelatorioFaltas: React.FC<RelatorioFaltasProps> = ({ userId }) => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Filtros */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '12px', alignItems: 'flex-end' }}>
-        <div>
+      <div className="relatorio-faltas-filtros" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '12px', alignItems: 'flex-end' }}>
+        <div style={{ minWidth: 0 }}>
           <label className="form-label">Data Início</label>
           <input
             type="date"
@@ -93,7 +93,7 @@ export const RelatorioFaltas: React.FC<RelatorioFaltasProps> = ({ userId }) => {
             className="form-input"
           />
         </div>
-        <div>
+        <div style={{ minWidth: 0 }}>
           <label className="form-label">Data Fim</label>
           <input
             type="date"
@@ -127,7 +127,7 @@ export const RelatorioFaltas: React.FC<RelatorioFaltasProps> = ({ userId }) => {
       {relatorio && (
         <>
           {/* Resumo KPIs */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+          <div className="relatorio-faltas-kpi-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
             <div className="card" style={{ padding: '20px', textAlign: 'center' }}>
               <div style={{ fontSize: '32px', fontWeight: 700, color: 'var(--color-primary)', marginBottom: '4px' }}>
                 {relatorio.totalFaltas}

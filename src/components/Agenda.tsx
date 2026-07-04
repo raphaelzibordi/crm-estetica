@@ -595,7 +595,7 @@ export const Agenda: React.FC<AgendaProps> = ({
           ========================================================== */}
       {view === 'hoje' && (
         <>
-          {/* Tab bar: visível apenas em mobile (≤767px) */}
+          {/* Tab bar: visível em mobile e tablet (≤1199px) */}
           <div className="agenda-hoje-tab-bar">
             <button
               className={`agenda-hoje-tab${mobileHojeTab === 'grade' ? ' agenda-hoje-tab--active' : ''}`}

@@ -515,9 +515,10 @@ function AppMain() {
         finalClienteId.startsWith('c_') ||
         /^c\d+$/.test(finalClienteId);
 
+      const unidadesAtivas = redeUnidades.filter(u => u.ativo);
+      const unidadeParaNovoCadastro = currentUnidadeId ?? (unidadesAtivas.length === 1 ? unidadesAtivas[0].id : null);
+
       if (isTempId) {
-        const unidadesAtivas = redeUnidades.filter(u => u.ativo);
-        const unidadeParaNovoCadastro = currentUnidadeId ?? (unidadesAtivas.length === 1 ? unidadesAtivas[0].id : null);
         const novoCliente = await api.createCliente(
           {
             nome: newAgendamento.clienteNome,
@@ -535,7 +536,7 @@ function AppMain() {
         finalClienteId = novoCliente.id;
       }
 
-      await api.createAgendamento({ ...newAgendamento, clienteId: finalClienteId }, tenantId);
+      await api.createAgendamento({ ...newAgendamento, clienteId: finalClienteId, unidadeId: unidadeParaNovoCadastro }, tenantId);
 
       const _d2 = new Date();
       const hoje = `${_d2.getFullYear()}-${String(_d2.getMonth() + 1).padStart(2, '0')}-${String(_d2.getDate()).padStart(2, '0')}`;

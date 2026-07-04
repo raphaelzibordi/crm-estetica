@@ -203,6 +203,7 @@ function mapAgendamento(row: any): Agendamento {
     faltaRegistradaEm: row.falta_registrada_em ?? undefined,
     // SALA-005: Audit trail
     salaHistorico: Array.isArray(row.sala_historico) ? row.sala_historico : undefined,
+    unidadeId: row.unidade_id ?? null,
   };
 }
 
@@ -788,6 +789,7 @@ export const api = {
             tempo_espera_minutos: agendamento.tempoEsperaMinutos ?? null,
             horario_chegada: agendamento.horarioChegada ?? null,
             valor: agendamento.valor,
+            unidade_id: agendamento.unidadeId ?? null,
           },
         ])
         .select('*, clientes ( nome, foto_url ), salas ( nome )')

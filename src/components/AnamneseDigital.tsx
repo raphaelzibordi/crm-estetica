@@ -606,9 +606,9 @@ export const AnamneseDigital: React.FC<AnamneseDigitalProps> = ({
             return (
               <div style={{ marginBottom: '24px', border: '1px solid var(--color-border)', borderRadius: 'var(--border-radius-md)', overflow: 'hidden', animation: 'fadeIn 0.3s ease-out' }}>
                 {/* Seletor de anamneses a comparar */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', background: 'var(--color-primary-light)' }}>
+                <div className="anamnese-compare-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', background: 'var(--color-primary-light)' }}>
                   {[r1, r2].map((r, idx) => (
-                    <div key={r.id} style={{ padding: '12px 16px', borderRight: idx === 0 ? '1px solid var(--color-border)' : undefined }}>
+                    <div key={r.id} style={{ padding: '12px 16px', borderRight: idx === 0 ? '1px solid var(--color-border)' : undefined, minWidth: 0 }}>
                       <select
                         value={r.id}
                         onChange={(e) => {
@@ -629,7 +629,7 @@ export const AnamneseDigital: React.FC<AnamneseDigitalProps> = ({
                   ))}
                 </div>
                 {campos.map((campo) => (
-                  <div key={campo.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderTop: '1px solid var(--color-border)' }}>
+                  <div key={campo.id} className="anamnese-compare-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderTop: '1px solid var(--color-border)' }}>
                     {[r1, r2].map((r, idx) => {
                       const val = r.respostas[campo.id];
                       const displayVal = Array.isArray(val) ? val.join(', ') : String(val ?? '—');
@@ -640,6 +640,7 @@ export const AnamneseDigital: React.FC<AnamneseDigitalProps> = ({
                           padding: '10px 16px',
                           borderRight: idx === 0 ? '1px solid var(--color-border)' : undefined,
                           background: diferente ? '#fef9c3' : undefined,
+                          minWidth: 0,
                         }}>
                           {idx === 0 && (
                             <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '4px' }}>{campo.label}</div>

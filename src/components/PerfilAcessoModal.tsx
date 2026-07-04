@@ -237,7 +237,7 @@ export const PerfilAcessoModal: React.FC<PerfilAcessoModalProps> = ({ perfil, on
             </p>
 
             {/* Cabeçalho */}
-            <div style={{
+            <div className="perfil-acesso-matrix-row" style={{
               display: 'grid',
               gridTemplateColumns: '1fr 60px 60px 60px 60px',
               gap: '4px',
@@ -246,7 +246,7 @@ export const PerfilAcessoModal: React.FC<PerfilAcessoModalProps> = ({ perfil, on
               textTransform: 'uppercase', letterSpacing: '0.05em',
               borderBottom: '1px solid var(--color-border)',
             }}>
-              <span>Módulo</span>
+              <span style={{ minWidth: 0 }}>Módulo</span>
               <span style={{ textAlign: 'center' }}>Ver</span>
               <span style={{ textAlign: 'center' }}>Criar</span>
               <span style={{ textAlign: 'center' }}>Editar</span>
@@ -259,6 +259,7 @@ export const PerfilAcessoModal: React.FC<PerfilAcessoModalProps> = ({ perfil, on
               return (
                 <div
                   key={tab.id}
+                  className="perfil-acesso-matrix-row"
                   style={{
                     display: 'grid',
                     gridTemplateColumns: '1fr 60px 60px 60px 60px',
@@ -269,7 +270,7 @@ export const PerfilAcessoModal: React.FC<PerfilAcessoModalProps> = ({ perfil, on
                     borderRadius: '6px',
                   }}
                 >
-                  <span style={{ fontSize: '13px', fontWeight: 500, color: p.ver ? 'var(--color-text-main)' : 'var(--color-text-muted)' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 500, color: p.ver ? 'var(--color-text-main)' : 'var(--color-text-muted)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {tab.label}
                   </span>
                   {(['ver', 'criar', 'editar', 'deletar'] as (keyof TabPermissoes)[]).map(acao => {

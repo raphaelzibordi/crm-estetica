@@ -217,9 +217,13 @@ CREATE INDEX IF NOT EXISTS idx_prontuarios_evolucoes_unidade
 
 -- Preenche o histórico já existente com a unidade atual da paciente
 -- (aplicável a quem já converteu a clínica avulsa em rede).
+-- Registros já assinados são imutáveis (CFM 1.638/2002, ver SCHEMA_US-021.sql)
+-- e por isso ficam de fora deste backfill — não há como corrigir a unidade
+-- de uma evolução assinada sem um aditamento.
 UPDATE public.prontuarios_evolucoes pe
 SET unidade_id = c.unidade_id
 FROM public.clientes c
 WHERE pe.cliente_id = c.id
   AND pe.unidade_id IS NULL
+  AND pe.assinado_em IS NULL
   AND c.unidade_id IS NOT NULL;

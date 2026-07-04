@@ -858,13 +858,176 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
-/* Prontuario back button: hidden on desktop, shown by mobile rule below */
-.prontuario-back-btn {
+/* Agenda hoje: tab bar hidden on desktop, shown only on mobile/tablet.
+   Precisa vir ANTES dos blocos de media query abaixo: regras sem media
+   query têm a mesma especificidade e "ganham" por ordem de declaração
+   caso apareçam depois, mesmo dentro de uma condição de media query ativa. */
+.agenda-hoje-tab-bar {
   display: none;
 }
 
-/* Agenda hoje: tab bar hidden on desktop, shown only on mobile */
-.agenda-hoje-tab-bar {
+/* ── Tablet (641px–1199px): correções mecânicas em outras páginas ────
+   Mesma faixa do bloco Prontuário acima. Aditivo — nenhuma regra de
+   mobile (≤640px) ou do bloco ≤1024px existente é alterada.              */
+@media (min-width: 641px) and (max-width: 1199px) {
+
+  /* Gestão: KPI 4-col → 2-col (mesma regra do mobile, estendida ao tablet).
+     !important necessário: o componente define gridTemplateColumns inline
+     e inline style tem precedência sobre classe, mesmo dentro de media query. */
+  .gestao-kpi-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Gestão: painéis 2-col (Estoque/Procedimentos) → 1-col */
+  .gestao-two-col {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Gestão Financeiro: KPIs 3-col (Bruto/Líquido/Ticket Médio) → 1-col */
+  .gestao-three-col {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* CRM: modal de Métricas do Funil, 4-col → 2-col */
+  .metricas-kpi-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Relatório de Faltas: filtros de data + botão exportar → empilha */
+  .relatorio-faltas-filtros {
+    grid-template-columns: 1fr !important;
+    align-items: stretch;
+  }
+
+  /* Relatório de Faltas: KPIs 3-col → 1-col */
+  .relatorio-faltas-kpi-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Comunicação: painel esquerdo mais estreito para sobrar espaço ao card de detalhe */
+  .comunicacao-grid {
+    grid-template-columns: minmax(240px, 300px) 1fr !important;
+    gap: 20px;
+  }
+
+  /* Dashboard: kanban esteira — fecha o gap 1025-1199px (bloco ≤1024px já cobre até 1024px) */
+  .esteira-container {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* Agenda "Hoje": reaproveita o padrão de tab bar já usado no mobile
+     (alternar Grade do Dia / Encaixe Inteligente) em vez de introduzir
+     um segundo padrão de UX (empilhar+âncora) para o mesmo problema.      */
+  .agenda-hoje-tab-bar {
+    display: flex;
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    padding: 4px;
+    gap: 4px;
+    margin-bottom: 16px;
+  }
+
+  .agenda-hoje-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .agenda-hoje-grid--tab-grade .agenda-hoje-col--encaixe {
+    display: none !important;
+  }
+
+  .agenda-hoje-grid--tab-encaixe .agenda-hoje-col--grade {
+    display: none !important;
+  }
+
+  .agenda-hoje-tab {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 9px 10px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+  }
+
+  .agenda-hoje-tab--active {
+    background: var(--color-primary);
+    color: #fff;
+  }
+
+  /* WhatsApp: Disparos (config + lista de pacientes) e Configuração
+     (formulário + opt-outs) — mesmo padrão do Prontuário: empilha e
+     oferece âncora flutuante para o painel secundário.                    */
+  .whatsapp-disparos-grid,
+  .whatsapp-config-grid {
+    grid-template-columns: 1fr !important;
+    gap: 20px;
+  }
+
+  .whatsapp-anchor-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-primary);
+    background: var(--color-primary-light);
+    border: 1px solid var(--color-primary);
+    border-radius: var(--border-radius-sm);
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+    white-space: nowrap;
+  }
+
+  .whatsapp-anchor-btn:hover {
+    background: var(--color-primary);
+    color: #fff;
+  }
+}
+
+/* Âncora WhatsApp: oculta no desktop (grid já mostra os dois painéis
+   lado a lado) e no mobile (ambos empilham naturalmente, sem necessidade
+   de atalho — a lista/opt-outs fica logo abaixo).                        */
+.whatsapp-anchor {
+  display: none;
+}
+
+@media (min-width: 641px) and (max-width: 1199px) {
+  .whatsapp-anchor {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 4px;
+  }
+}
+
+/* Comunicação: em portrait estreito de tablet, empilha (painel esquerdo
+   já não cabe ao lado do card de detalhe abaixo de ~820px). Query flat,
+   não aninhada, seguindo o mesmo padrão do bloco Prontuário acima.        */
+@media (min-width: 641px) and (max-width: 820px) {
+  .comunicacao-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Perfil de Acesso: matriz de permissões — colunas de ação mais estreitas
+   em tablet para dar mais espaço ao nome do módulo.                      */
+@media (min-width: 641px) and (max-width: 1199px) {
+  .perfil-acesso-matrix-row {
+    grid-template-columns: minmax(0, 1fr) 48px 48px 48px 48px !important;
+  }
+}
+
+/* Prontuario back button: hidden on desktop, shown by mobile rule below */
+.prontuario-back-btn {
   display: none;
 }
 

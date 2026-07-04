@@ -172,6 +172,8 @@ export interface Agendamento {
   faltaRegistradaEm?: string;
   // SALA-005: Audit trail de mudanças de sala
   salaHistorico?: Array<{ from: string; to: string; changedAt: string }>;
+  // US-048: clínica/unidade onde o agendamento foi realizado
+  unidadeId?: string | null;
 }
 
 export interface Procedimento {
