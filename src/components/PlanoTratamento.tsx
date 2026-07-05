@@ -23,7 +23,7 @@ interface Props {
   clienteNome: string;
   userId: string;
   userName?: string;
-  onAgendar?: (plano: PlanoTratamentoType) => void;
+  onAgendar?: (plano: PlanoTratamentoType, procedimentoNome?: string) => void;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -127,6 +127,9 @@ export const PlanoTratamento: React.FC<Props> = ({ clienteId, userId, userName: 
   const [editingNomeId, setEditingNomeId] = useState<string | null>(null);
   const [editingNomeValue, setEditingNomeValue] = useState('');
   const [savingNome, setSavingNome] = useState(false);
+
+  // Expandir plano na lista para ver procedimentos
+  const [expandedPlanoId, setExpandedPlanoId] = useState<string | null>(null);
 
   // Comparativo
   const [showComparativo, setShowComparativo] = useState(false);
@@ -311,27 +314,37 @@ export const PlanoTratamento: React.FC<Props> = ({ clienteId, userId, userName: 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {planos.map((plano) => {
               const p = plano as any as PlanoTratamentoType;
+              const isExpanded = expandedPlanoId === p.id;
+              const nomesProcedimentos = (p.procedimentos || '')
+                .split(',')
+                .map((s) => s.trim())
+                .filter(Boolean);
+
               return (
                 <div
                   key={p.id}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: '10px',
-                    padding: '0',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--border-radius-md)',
+                    backgroundColor: '#fff',
+                    overflow: 'hidden',
                   }}
                 >
-                  <button
-                    onClick={() => setSelectedPlano(p)}
-                    style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '14px 16px', border: '1px solid var(--color-border)',
-                      borderRadius: 'var(--border-radius-md)', backgroundColor: '#fff',
-                      cursor: 'pointer', textAlign: 'left', flex: 1,
-                      transition: 'border-color 0.15s',
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--color-primary)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; }}
-                  >
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '14px 16px' }}>
+                    {nomesProcedimentos.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setExpandedPlanoId(isExpanded ? null : p.id)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: '2px', flexShrink: 0 }}
+                        title={isExpanded ? 'Recolher' : 'Expandir'}
+                      >
+                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                      </button>
+                    )}
+                    <div
+                      onClick={() => setSelectedPlano(p)}
+                      style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}
+                    >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
                         {editingNomeId === p.id ? (
                           <input
@@ -391,21 +404,42 @@ export const PlanoTratamento: React.FC<Props> = ({ clienteId, userId, userName: 
                         </span>
                       </div>
                     </div>
-                    <ChevronLeft size={16} style={{ color: 'var(--color-text-muted)', transform: 'rotate(180deg)', flexShrink: 0, marginLeft: '12px' }} />
-                  </button>
-                  {onAgendar && (
-                    <button
-                      onClick={() => onAgendar(p)}
-                      className="btn btn-primary"
-                      title="Agendar consulta com este procedimento"
-                      style={{
-                        padding: '10px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px',
-                        flexShrink: 0,
-                      }}
-                    >
-                      <Calendar size={14} />
-                      <span>Agendar</span>
-                    </button>
+                    <ChevronLeft
+                      size={16}
+                      onClick={() => setSelectedPlano(p)}
+                      style={{ color: 'var(--color-text-muted)', transform: 'rotate(180deg)', flexShrink: 0, marginLeft: '12px', cursor: 'pointer' }}
+                    />
+                  </div>
+
+                  {isExpanded && nomesProcedimentos.length > 0 && (
+                    <div style={{ borderTop: '1px solid var(--color-border)', backgroundColor: '#f9fafb' }}>
+                      {nomesProcedimentos.map((nomeProc, idx) => (
+                        <div
+                          key={idx}
+                          style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            gap: '10px', padding: '10px 16px 10px 40px',
+                            borderBottom: idx < nomesProcedimentos.length - 1 ? '1px solid var(--color-border)' : 'none',
+                          }}
+                        >
+                          <span style={{ fontSize: '13px', color: 'var(--color-text-main)' }}>{nomeProc}</span>
+                          {onAgendar && (
+                            <button
+                              onClick={() => onAgendar(p, nomeProc)}
+                              className="btn btn-primary"
+                              title="Agendar consulta com este procedimento"
+                              style={{
+                                padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px',
+                                flexShrink: 0,
+                              }}
+                            >
+                              <Calendar size={13} />
+                              <span>Agendar</span>
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               );

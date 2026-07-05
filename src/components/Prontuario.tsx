@@ -493,17 +493,18 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
     }
   };
 
-  const handleAgendarComPlano = (plano: import('../types').PlanoTratamento) => {
-    const nomeProcedimento = plano.procedimentos?.trim() || '';
+  const handleAgendarComPlano = (plano: import('../types').PlanoTratamento, procedimentoNome?: string) => {
+    const nomeProcedimento = (procedimentoNome ?? plano.procedimentos)?.trim() || '';
     if (!nomeProcedimento) {
       setShowAgendarModal(true);
       return;
     }
 
-    // Procura o procedimento que corresponde ao nome no plano
+    // Procura o procedimento que corresponde ao nome informado
     const procEncontrado = procedimentos.find(
       p => p.nome.toLowerCase() === nomeProcedimento.toLowerCase() ||
-           p.nome.toLowerCase().includes(nomeProcedimento.toLowerCase())
+           p.nome.toLowerCase().includes(nomeProcedimento.toLowerCase()) ||
+           nomeProcedimento.toLowerCase().includes(p.nome.toLowerCase())
     );
 
     if (procEncontrado) {
