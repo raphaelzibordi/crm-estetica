@@ -4570,6 +4570,36 @@ export const api = {
       .eq('user_id', uid);
     if (error) throw humanizeError(error);
 
+    // Ao aprovar, cada procedimento do orçamento vira um Plano de Tratamento
+    // próprio no prontuário do paciente, para acompanhamento sessão a sessão
+    // sem retrabalho de digitar tudo de novo.
+    if (status === 'aprovado' && clienteId) {
+      const { data: itensOrc, error: itensErr } = await supabase
+        .from('orcamento_itens')
+        .select('descricao, quantidade')
+        .eq('orcamento_id', id)
+        .eq('user_id', uid);
+      if (itensErr) throw humanizeError(itensErr);
+
+      if (itensOrc && itensOrc.length > 0) {
+        const { error: planosErr } = await supabase.from('planos_tratamento').insert(
+          itensOrc.map((it: any) => ({
+            user_id:                uid,
+            cliente_id:             clienteId,
+            nome_protocolo:         it.descricao,
+            objetivo:               '',
+            procedimentos:          it.descricao,
+            total_sessoes:          Math.max(1, it.quantidade ?? 1),
+            frequencia_recomendada: '',
+            frequencia_dias:        null,
+            observacoes_iniciais:   'Gerado automaticamente a partir do orçamento aprovado.',
+            status:                 'ativo',
+          }))
+        );
+        if (planosErr) throw humanizeError(planosErr);
+      }
+    }
+
     return { clienteId };
   },
 
