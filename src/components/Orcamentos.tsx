@@ -18,6 +18,8 @@ import {
 import { api } from '../lib/api';
 import { escapeHtml } from '../lib/escapeHtml';
 import { formatTelefone, emailValido, telefoneValido } from '../lib/validation';
+import { buildProcedimentosAgendados, sumValor } from '../lib/procedimentoUtils';
+import ProcedimentoMultiSelect from './ProcedimentoMultiSelect';
 import type {
   Orcamento,
   OrcamentoFollowupConfig,
@@ -88,14 +90,6 @@ function addDays(iso: string, days: number): string {
 
 // ── Tipos locais ───────────────────────────────────────────────────────
 
-interface ItemForm {
-  id?: string;
-  descricao: string;
-  quantidade: number;
-  valorUnitario: number;
-  procedimentoId: string | null;
-}
-
 interface OrcamentoForm {
   nomeCliente: string;
   telefone: string;
@@ -107,7 +101,7 @@ interface OrcamentoForm {
   dataEnvio: string;
   validade: string;
   observacoes: string;
-  itens: ItemForm[];
+  procedimentoIds: string[];
 }
 
 interface FollowupForm {
@@ -127,7 +121,7 @@ const EMPTY_FORM: OrcamentoForm = {
   dataEnvio:        todayISO(),
   validade:         addDays(todayISO(), 30),
   observacoes:      '',
-  itens:            [{ descricao: '', quantidade: 1, valorUnitario: 0, procedimentoId: null }],
+  procedimentoIds:  [],
 };
 
 const EMPTY_FOLLOWUP: FollowupForm = {
@@ -243,11 +237,11 @@ export const Orcamentos: React.FC<OrcamentosProps> = ({ userId, userName, onConv
     if (!form.validade) { alert('Informe a data de validade.'); return; }
     if (!telefoneValido(form.telefone)) { alert('Telefone incompleto.'); return; }
     if (!emailValido(form.email)) { alert('E-mail inválido.'); return; }
-    const itensValidos = form.itens.filter((it) => it.descricao.trim());
-    if (itensValidos.length === 0) { alert('Adicione ao menos um item ao orçamento.'); return; }
+    if (form.procedimentoIds.length === 0) { alert('Selecione ao menos um procedimento para o orçamento.'); return; }
 
     setSaving(true);
     try {
+      const itensSelecionados = buildProcedimentosAgendados(procedimentos, form.procedimentoIds);
       await api.createOrcamento(
         {
           clienteId:        form.clienteId,
@@ -260,11 +254,11 @@ export const Orcamentos: React.FC<OrcamentosProps> = ({ userId, userName, onConv
           dataEnvio:        form.dataEnvio,
           validade:         form.validade,
           observacoes:      form.observacoes || null,
-          itens:            itensValidos.map((it) => ({
+          itens:            itensSelecionados.map((it) => ({
             procedimentoId: it.procedimentoId,
-            descricao:      it.descricao,
-            quantidade:     it.quantidade,
-            valorUnitario:  it.valorUnitario,
+            descricao:      it.nome,
+            quantidade:     1,
+            valorUnitario:  it.preco,
           })),
         },
         userId
@@ -477,18 +471,9 @@ export const Orcamentos: React.FC<OrcamentosProps> = ({ userId, userName, onConv
     setTimeout(() => { win.print(); }, 300);
   };
 
-  // ── Itens form helpers ────────────────────────────────────────────
+  // ── Itens form ─────────────────────────────────────────────────────
 
-  const addItem = () =>
-    setForm((f) => ({ ...f, itens: [...f.itens, { descricao: '', quantidade: 1, valorUnitario: 0, procedimentoId: null }] }));
-
-  const removeItem = (i: number) =>
-    setForm((f) => ({ ...f, itens: f.itens.filter((_, idx) => idx !== i) }));
-
-  const updateItem = (i: number, patch: Partial<ItemForm>) =>
-    setForm((f) => ({ ...f, itens: f.itens.map((it, idx) => idx === i ? { ...it, ...patch } : it) }));
-
-  const totalForm = form.itens.reduce((s, it) => s + it.quantidade * it.valorUnitario, 0);
+  const totalForm = sumValor(buildProcedimentosAgendados(procedimentos, form.procedimentoIds));
 
   // ── Render ─────────────────────────────────────────────────────────
 
@@ -976,48 +961,12 @@ export const Orcamentos: React.FC<OrcamentosProps> = ({ userId, userName, onConv
 
             {/* Itens */}
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <Label style={{ margin: 0 }}>Itens / Procedimentos *</Label>
-                <button onClick={addItem} style={{ background: 'none', border: 'none', color: 'var(--color-primary)', cursor: 'pointer', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <Plus size={14} /> Adicionar item
-                </button>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {form.itens.map((it, i) => (
-                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 72px 100px auto', gap: 8, alignItems: 'center' }}>
-                    <div style={{ minWidth: 0 }}>
-                      <input
-                        value={it.descricao}
-                        onChange={(e) => updateItem(i, { descricao: e.target.value })}
-                        placeholder="Descrição do procedimento..."
-                        list={`proc-list-${i}`}
-                        style={inputStyle}
-                      />
-                      <datalist id={`proc-list-${i}`}>
-                        {procedimentos.map((p) => <option key={p.id} value={p.nome} />)}
-                      </datalist>
-                    </div>
-                    <input
-                      type="number" min={1} value={it.quantidade}
-                      onChange={(e) => updateItem(i, { quantidade: Math.max(1, Number(e.target.value)) })}
-                      style={{ ...inputStyle, textAlign: 'center' }}
-                    />
-                    <input
-                      type="number" min={0} step={0.01} value={it.valorUnitario || ''}
-                      onChange={(e) => updateItem(i, { valorUnitario: Number(e.target.value) })}
-                      placeholder="R$"
-                      style={{ ...inputStyle, textAlign: 'right' }}
-                    />
-                    <button
-                      onClick={() => removeItem(i)}
-                      disabled={form.itens.length === 1}
-                      style={{ background: 'none', border: 'none', color: '#EF4444', cursor: form.itens.length === 1 ? 'not-allowed' : 'pointer', opacity: form.itens.length === 1 ? 0.3 : 1, padding: 4 }}
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                ))}
-              </div>
+              <Label>Itens / Procedimentos *</Label>
+              <ProcedimentoMultiSelect
+                procedimentos={procedimentos}
+                selectedIds={form.procedimentoIds}
+                onChange={(ids) => setForm((f) => ({ ...f, procedimentoIds: ids }))}
+              />
               <div style={{ textAlign: 'right', marginTop: 8, fontWeight: 700, fontSize: 16, color: 'var(--color-text-main)' }}>
                 Total: {formatCurrency(totalForm)}
               </div>
