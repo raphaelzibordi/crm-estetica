@@ -4522,14 +4522,55 @@ export const api = {
     status: OrcamentoStatus,
     motivoPerdaKey: OrcamentoMotivoPerdaKey | null,
     userId: string
-  ): Promise<void> {
+  ): Promise<{ clienteId: string | null }> {
     const uid = await requireUserId(userId);
+
+    let clienteId: string | null = null;
+
+    if (status === 'aprovado') {
+      const { data: orcRow, error: orcErr } = await supabase
+        .from('orcamentos')
+        .select('cliente_id, nome_cliente, telefone, email')
+        .eq('id', id)
+        .eq('user_id', uid)
+        .single();
+      if (orcErr) throw humanizeError(orcErr);
+
+      if (orcRow.cliente_id) {
+        clienteId = orcRow.cliente_id as string;
+      } else {
+        // Paciente ainda não cadastrado: cria o cadastro automaticamente ao aprovar o orçamento.
+        const { data: clienteRow, error: clienteErr } = await supabase
+          .from('clientes')
+          .insert({
+            user_id:            uid,
+            nome:                orcRow.nome_cliente,
+            telefone:            orcRow.telefone || null,
+            email:               orcRow.email || null,
+            data_ultima_visita:  new Date().toISOString().split('T')[0],
+            status_retencao:     'em_dia',
+            tags:                [],
+          })
+          .select()
+          .single();
+        if (clienteErr) throw humanizeError(clienteErr);
+        clienteId = clienteRow.id as string;
+      }
+    }
+
     const { error } = await supabase
       .from('orcamentos')
-      .update({ status, motivo_perda: motivoPerdaKey ?? null, updated_at: new Date().toISOString() })
+      .update({
+        status,
+        motivo_perda: motivoPerdaKey ?? null,
+        updated_at: new Date().toISOString(),
+        ...(clienteId ? { cliente_id: clienteId } : {}),
+      })
       .eq('id', id)
       .eq('user_id', uid);
     if (error) throw humanizeError(error);
+
+    return { clienteId };
   },
 
   async renovarOrcamento(id: string, novaValidade: string, userId: string): Promise<void> {
