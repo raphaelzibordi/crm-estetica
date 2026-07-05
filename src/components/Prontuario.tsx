@@ -58,6 +58,8 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
   const [newEvolucaoText, setNewEvolucaoText] = useState('');
   const [newEvolucaoProc, setNewEvolucaoProc] = useState('');
   const [newEvolucaoObs, setNewEvolucaoObs] = useState('');
+  const [newEvolucaoFoto, setNewEvolucaoFoto] = useState<string | null>(null);
+  const [newEvolucaoFotoName, setNewEvolucaoFotoName] = useState('');
   const [procedimentos, setProcedimentos] = useState<Procedimento[]>([]);
   const [aditandoEvolucaoId, setAditandoEvolucaoId] = useState<string | null>(null);
 
@@ -707,6 +709,17 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
     reader.readAsDataURL(file);
   };
 
+  const handleEvolucaoFotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setNewEvolucaoFotoName(file.name);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') setNewEvolucaoFoto(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleFileChangeDepois = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -967,12 +980,15 @@ Próxima consulta: {{proxima_consulta}}
         procedimento: newEvolucaoProc,
         relatoNatural: newEvolucaoText,
         observacoesTecnicas: newEvolucaoObs || 'Sem intercorrências técnicas.',
+        fotoRotuloUrl: newEvolucaoFoto,
         aditamentoDe: aditandoEvolucaoId,
         unidadeId: unidadeId ?? currentCliente?.unidadeId ?? null,
       }, userId);
 
       setNewEvolucaoText('');
       setNewEvolucaoObs('');
+      setNewEvolucaoFoto(null);
+      setNewEvolucaoFotoName('');
       setAditandoEvolucaoId(null);
       alert(aditandoEvolucaoId ? 'Aditamento registrado com sucesso no prontuário.' : 'Evolução clínica registrada com sucesso no prontuário.');
       loadEvolucoes(activeClienteId);
@@ -2472,6 +2488,17 @@ Próxima consulta: {{proxima_consulta}}
                         <strong>Anotação Técnica:</strong> {ev.observacoesTecnicas}
                       </div>
 
+                      {ev.fotoRotuloUrl && (
+                        <div style={{ marginBottom: '8px' }}>
+                          <img
+                            src={ev.fotoRotuloUrl}
+                            alt="Foto do rótulo do produto"
+                            style={{ width: '72px', height: '72px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #ECECEC', cursor: 'pointer' }}
+                            onClick={() => window.open(ev.fotoRotuloUrl!, '_blank')}
+                          />
+                        </div>
+                      )}
+
                       {/* US-021: status de assinatura digital + ações (assinar/aditar) */}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
                         {ev.assinadoEm ? (
@@ -2581,6 +2608,34 @@ Próxima consulta: {{proxima_consulta}}
                     value={newEvolucaoObs}
                     onChange={(e) => setNewEvolucaoObs(e.target.value)}
                   />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Foto do Rótulo do Produto</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="form-input"
+                    onChange={handleEvolucaoFotoChange}
+                  />
+                  {newEvolucaoFoto && (
+                    <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <img
+                        src={newEvolucaoFoto}
+                        alt="Pré-visualização do rótulo"
+                        style={{ width: '56px', height: '56px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #ECECEC' }}
+                      />
+                      <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{newEvolucaoFotoName}</span>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ fontSize: '11px', padding: '4px 8px' }}
+                        onClick={() => { setNewEvolucaoFoto(null); setNewEvolucaoFotoName(''); }}
+                      >
+                        Remover
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <button

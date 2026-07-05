@@ -74,6 +74,7 @@ export interface EvolucaoClinica {
   procedimento: string;
   relatoNatural: string; // Ex: "Paciente apresentou excelente receptividade ao Lavieen. Leve eritema pós-procedimento já atenuado com máscara calmante."
   observacoesTecnicas: string;
+  fotoRotuloUrl: string | null; // foto do rótulo do produto utilizado (dados técnicos)
   // Assinatura digital e imutabilidade (US-021 / CFM 1.638/2002)
   assinadoEm: string | null;       // timestamp da assinatura — registro torna-se imutável a partir daqui
   assinadoPor: string | null;      // nome do profissional que assinou

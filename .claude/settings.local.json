@@ -94,7 +94,10 @@
       "Bash(ls -la .claude)",
       "Bash(find . -maxdepth 1 -iname \"*.md\")",
       "Bash(find . -maxdepth 2 -iname \"*doc*\" -not -path \"*/node_modules/*\")",
-      "Bash(find . -path \"*/.claude/skills*\" -not -path \"*/node_modules/*\")"
+      "Bash(find . -path \"*/.claude/skills*\" -not -path \"*/node_modules/*\")",
+      "Bash(cd \"C:\\\\Users\\\\rapha\\\\.claude\\\\projects\\\\C--Users-rapha-OneDrive-Documents-GitHub-crm-estetica\\\\memory\")",
+      "Bash(ls)",
+      "Bash(grep -il \"senha\\\\|password\\\\|login\\\\|credencial\" *.md)"
     ]
   }
 }
