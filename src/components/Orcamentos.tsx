@@ -90,6 +90,11 @@ function addDays(iso: string, days: number): string {
 
 // ── Tipos locais ───────────────────────────────────────────────────────
 
+interface ItemCustomForm {
+  descricao: string;
+  valor: number;
+}
+
 interface OrcamentoForm {
   nomeCliente: string;
   telefone: string;
@@ -102,6 +107,7 @@ interface OrcamentoForm {
   validade: string;
   observacoes: string;
   procedimentoIds: string[];
+  itensCustom: ItemCustomForm[];
 }
 
 interface FollowupForm {
@@ -122,6 +128,7 @@ const EMPTY_FORM: OrcamentoForm = {
   validade:         addDays(todayISO(), 30),
   observacoes:      '',
   procedimentoIds:  [],
+  itensCustom:      [],
 };
 
 const EMPTY_FOLLOWUP: FollowupForm = {
@@ -237,7 +244,11 @@ export const Orcamentos: React.FC<OrcamentosProps> = ({ userId, userName, onConv
     if (!form.validade) { alert('Informe a data de validade.'); return; }
     if (!telefoneValido(form.telefone)) { alert('Telefone incompleto.'); return; }
     if (!emailValido(form.email)) { alert('E-mail inválido.'); return; }
-    if (form.procedimentoIds.length === 0) { alert('Selecione ao menos um procedimento para o orçamento.'); return; }
+    const itensCustomValidos = form.itensCustom.filter((it) => it.descricao.trim());
+    if (form.procedimentoIds.length === 0 && itensCustomValidos.length === 0) {
+      alert('Selecione ao menos um procedimento ou adicione um item personalizado ao orçamento.');
+      return;
+    }
 
     setSaving(true);
     try {
@@ -254,12 +265,20 @@ export const Orcamentos: React.FC<OrcamentosProps> = ({ userId, userName, onConv
           dataEnvio:        form.dataEnvio,
           validade:         form.validade,
           observacoes:      form.observacoes || null,
-          itens:            itensSelecionados.map((it) => ({
-            procedimentoId: it.procedimentoId,
-            descricao:      it.nome,
-            quantidade:     1,
-            valorUnitario:  it.preco,
-          })),
+          itens: [
+            ...itensSelecionados.map((it) => ({
+              procedimentoId: it.procedimentoId,
+              descricao:      it.nome,
+              quantidade:     1,
+              valorUnitario:  it.preco,
+            })),
+            ...itensCustomValidos.map((it) => ({
+              procedimentoId: null,
+              descricao:      it.descricao,
+              quantidade:     1,
+              valorUnitario:  it.valor,
+            })),
+          ],
         },
         userId
       );
@@ -473,7 +492,18 @@ export const Orcamentos: React.FC<OrcamentosProps> = ({ userId, userName, onConv
 
   // ── Itens form ─────────────────────────────────────────────────────
 
-  const totalForm = sumValor(buildProcedimentosAgendados(procedimentos, form.procedimentoIds));
+  const addItemCustom = () =>
+    setForm((f) => ({ ...f, itensCustom: [...f.itensCustom, { descricao: '', valor: 0 }] }));
+
+  const removeItemCustom = (i: number) =>
+    setForm((f) => ({ ...f, itensCustom: f.itensCustom.filter((_, idx) => idx !== i) }));
+
+  const updateItemCustom = (i: number, patch: Partial<ItemCustomForm>) =>
+    setForm((f) => ({ ...f, itensCustom: f.itensCustom.map((it, idx) => idx === i ? { ...it, ...patch } : it) }));
+
+  const totalForm =
+    sumValor(buildProcedimentosAgendados(procedimentos, form.procedimentoIds)) +
+    form.itensCustom.reduce((s, it) => s + it.valor, 0);
 
   // ── Render ─────────────────────────────────────────────────────────
 
@@ -967,6 +997,40 @@ export const Orcamentos: React.FC<OrcamentosProps> = ({ userId, userName, onConv
                 selectedIds={form.procedimentoIds}
                 onChange={(ids) => setForm((f) => ({ ...f, procedimentoIds: ids }))}
               />
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, marginBottom: 8 }}>
+                <Label style={{ margin: 0 }}>Item personalizado (procedimento não cadastrado)</Label>
+                <button onClick={addItemCustom} style={{ background: 'none', border: 'none', color: 'var(--color-primary)', cursor: 'pointer', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Plus size={14} /> Adicionar item
+                </button>
+              </div>
+              {form.itensCustom.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {form.itensCustom.map((it, i) => (
+                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 120px auto', gap: 8, alignItems: 'center' }}>
+                      <input
+                        value={it.descricao}
+                        onChange={(e) => updateItemCustom(i, { descricao: e.target.value })}
+                        placeholder="Descrição do procedimento..."
+                        style={inputStyle}
+                      />
+                      <input
+                        type="number" min={0} step={0.01} value={it.valor || ''}
+                        onChange={(e) => updateItemCustom(i, { valor: Number(e.target.value) })}
+                        placeholder="R$"
+                        style={{ ...inputStyle, textAlign: 'right' }}
+                      />
+                      <button
+                        onClick={() => removeItemCustom(i)}
+                        style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', padding: 4 }}
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div style={{ textAlign: 'right', marginTop: 8, fontWeight: 700, fontSize: 16, color: 'var(--color-text-main)' }}>
                 Total: {formatCurrency(totalForm)}
               </div>
