@@ -1221,7 +1221,7 @@ export const api = {
 
   async createEvolucao(
     clienteId: string,
-    evolucao: Omit<EvolucaoClinica, 'id' | 'assinadoEm' | 'assinadoPor' | 'assinaturaHash' | 'aditamentoDe' | 'unidadeId'> & { aditamentoDe?: string | null; unidadeId?: string | null },
+    evolucao: Omit<EvolucaoClinica, 'id' | 'assinadoEm' | 'assinadoPor' | 'assinaturaHash' | 'aditamentoDe' | 'unidadeId' | 'fotoRotuloUrl'> & { aditamentoDe?: string | null; unidadeId?: string | null; fotoRotuloUrl?: string | null },
     userId?: string
   ): Promise<EvolucaoClinica> {
     return run(async () => {
