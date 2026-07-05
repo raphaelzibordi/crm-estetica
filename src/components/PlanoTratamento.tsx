@@ -621,9 +621,6 @@ export const PlanoTratamento: React.FC<Props> = ({ clienteId, userId, userName: 
         {selectedPlano.objetivo && (
           <p style={{ fontSize: '13px', color: 'var(--color-text-main)' }}><strong>Objetivo:</strong> {selectedPlano.objetivo}</p>
         )}
-        {selectedPlano.procedimentos && (
-          <p style={{ fontSize: '13px', color: 'var(--color-text-main)' }}><strong>Procedimentos:</strong> {selectedPlano.procedimentos}</p>
-        )}
         {selectedPlano.frequenciaRecomendada && (
           <p style={{ fontSize: '13px', color: 'var(--color-text-main)' }}><strong>Frequência:</strong> {selectedPlano.frequenciaRecomendada}</p>
         )}
@@ -634,6 +631,51 @@ export const PlanoTratamento: React.FC<Props> = ({ clienteId, userId, userName: 
           <p style={{ fontSize: '12px', color: '#ef4444' }}><strong>Motivo encerramento:</strong> {selectedPlano.motivoEncerramento}</p>
         )}
       </div>
+
+      {/* Procedimentos do plano */}
+      {(() => {
+        const nomesProcedimentos = (selectedPlano.procedimentos || '')
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        if (nomesProcedimentos.length === 0) return null;
+        return (
+          <div style={{ marginBottom: '20px' }}>
+            <p style={{ fontSize: '11px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', marginBottom: '8px' }}>
+              Procedimentos do Plano
+            </p>
+            <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--border-radius-md)', overflow: 'hidden' }}>
+              {nomesProcedimentos.map((nomeProc, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    gap: '10px', padding: '10px 14px',
+                    borderBottom: idx < nomesProcedimentos.length - 1 ? '1px solid var(--color-border)' : 'none',
+                    backgroundColor: '#fff',
+                  }}
+                >
+                  <span style={{ fontSize: '13px', color: 'var(--color-text-main)' }}>{nomeProc}</span>
+                  {onAgendar && (
+                    <button
+                      onClick={() => onAgendar(selectedPlano, nomeProc)}
+                      className="btn btn-primary"
+                      title="Agendar consulta com este procedimento"
+                      style={{
+                        padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Calendar size={13} />
+                      <span>Agendar</span>
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Progress */}
       <div style={{ marginBottom: '24px' }}>
