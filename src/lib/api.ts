@@ -207,7 +207,45 @@ function mapAgendamento(row: any): Agendamento {
     // SALA-005: Audit trail
     salaHistorico: Array.isArray(row.sala_historico) ? row.sala_historico : undefined,
     unidadeId: row.unidade_id ?? null,
+    planoTratamentoId: row.plano_tratamento_id ?? null,
+    planoProcedimentoNome: row.plano_procedimento_nome ?? null,
   };
+}
+
+async function checkAndAutoConcluirPlano(uid: string, planoTratamentoId: string): Promise<void> {
+  const { data: plano } = await supabase
+    .from('planos_tratamento')
+    .select('id, status, procedimentos')
+    .eq('id', planoTratamentoId)
+    .eq('user_id', uid)
+    .single();
+  if (!plano || plano.status !== 'ativo') return;
+
+  const nomesProcedimentos = ((plano.procedimentos as string) || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (nomesProcedimentos.length === 0) return;
+
+  const { data: agendamentosPlano } = await supabase
+    .from('agendamentos')
+    .select('plano_procedimento_nome, status')
+    .eq('plano_tratamento_id', planoTratamentoId)
+    .eq('user_id', uid);
+
+  const finalizados = new Set(
+    (agendamentosPlano ?? [])
+      .filter((a: any) => a.status === 'finalizada' && a.plano_procedimento_nome)
+      .map((a: any) => a.plano_procedimento_nome)
+  );
+  const todosConcluidos = nomesProcedimentos.every((nome) => finalizados.has(nome));
+  if (todosConcluidos) {
+    await supabase
+      .from('planos_tratamento')
+      .update({ status: 'concluido' })
+      .eq('id', planoTratamentoId)
+      .eq('user_id', uid);
+  }
 }
 
 async function sha256Hex(text: string): Promise<string> {
@@ -800,6 +838,8 @@ export const api = {
             horario_chegada: agendamento.horarioChegada ?? null,
             valor: agendamento.valor,
             unidade_id: agendamento.unidadeId ?? null,
+            plano_tratamento_id: agendamento.planoTratamentoId ?? null,
+            plano_procedimento_nome: agendamento.planoProcedimentoNome ?? null,
           },
         ])
         .select('*, clientes ( nome, foto_url ), salas ( nome )')
@@ -836,6 +876,10 @@ export const api = {
         .select('*, clientes ( nome, foto_url )')
         .single();
       if (error) throw error;
+
+      if (updates.status === 'finalizada' && data.plano_tratamento_id) {
+        await checkAndAutoConcluirPlano(uid, data.plano_tratamento_id as string);
+      }
 
       if (updates.status === 'finalizada' && data?.cliente_id) {
         await supabase

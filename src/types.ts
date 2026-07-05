@@ -187,6 +187,9 @@ export interface Agendamento {
   salaHistorico?: Array<{ from: string; to: string; changedAt: string }>;
   // US-048: clínica/unidade onde o agendamento foi realizado
   unidadeId?: string | null;
+  // Vínculo com o plano de tratamento/orçamento que originou este agendamento
+  planoTratamentoId?: string | null;
+  planoProcedimentoNome?: string | null;
 }
 
 export interface Procedimento {

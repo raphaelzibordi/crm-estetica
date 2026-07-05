@@ -101,6 +101,8 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
   const [agendarData, setAgendarData] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [agendarHora, setAgendarHora] = useState('14:30');
   const [agendarProcedimentoIds, setAgendarProcedimentoIds] = useState<string[]>([]);
+  const [agendarPlanoTratamentoId, setAgendarPlanoTratamentoId] = useState<string | null>(null);
+  const [agendarPlanoProcedimentoNome, setAgendarPlanoProcedimentoNome] = useState<string | null>(null);
   const [agendarSala, setAgendarSala] = useState('');
   const [agendarSalaOptions, setAgendarSalaOptions] = useState<SalaStatus[]>([]);
   const [agendarProfissionalId, setAgendarProfissionalId] = useState<string>(OWNER_ID);
@@ -480,10 +482,14 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
           procedimentos: itens,
           status: 'agendada',
           valor: sumValor(itens),
+          planoTratamentoId: agendarPlanoTratamentoId ?? undefined,
+          planoProcedimentoNome: agendarPlanoProcedimentoNome ?? undefined,
         },
         { telefone: currentCliente.telefone || undefined }
       );
       setShowAgendarConfirm(false);
+      setAgendarPlanoTratamentoId(null);
+      setAgendarPlanoProcedimentoNome(null);
     } catch (err: unknown) {
       const e = err as { code?: string; message?: string };
       if (e?.code === 'AGENDAMENTO_CONFLITO') {
@@ -495,6 +501,8 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
 
   const handleAgendarComPlano = (plano: import('../types').PlanoTratamento, procedimentoNome?: string) => {
     const nomeProcedimento = (procedimentoNome ?? plano.procedimentos)?.trim() || '';
+    setAgendarPlanoTratamentoId(plano.id);
+    setAgendarPlanoProcedimentoNome(nomeProcedimento || null);
     if (!nomeProcedimento) {
       setShowAgendarModal(true);
       return;
@@ -1566,7 +1574,7 @@ Próxima consulta: {{proxima_consulta}}
                       <div className="prontuario-actions" style={{ display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0 }}>
                         {onAddAgendamento && (
                           <button
-                            onClick={() => setShowAgendarModal(true)}
+                            onClick={() => { setAgendarPlanoTratamentoId(null); setAgendarPlanoProcedimentoNome(null); setShowAgendarModal(true); }}
                             className="btn btn-primary"
                             style={{ padding: '9px 16px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', width: '100%' }}
                           >
@@ -2091,7 +2099,7 @@ Próxima consulta: {{proxima_consulta}}
                         </p>
                         {onAddAgendamento && (
                           <button
-                            onClick={() => setShowAgendarModal(true)}
+                            onClick={() => { setAgendarPlanoTratamentoId(null); setAgendarPlanoProcedimentoNome(null); setShowAgendarModal(true); }}
                             className="btn btn-outline"
                             style={{ padding: '6px 14px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '5px' }}
                           >
@@ -2136,6 +2144,7 @@ Próxima consulta: {{proxima_consulta}}
               userId={userId}
               userName={userName}
               onAgendar={handleAgendarComPlano}
+              agendamentosCliente={agendamentosCliente}
             />
           )}
 

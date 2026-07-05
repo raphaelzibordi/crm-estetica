@@ -10,7 +10,7 @@ import {
   Pencil,
   Check,
 } from 'lucide-react';
-import type { PlanoTratamento as PlanoTratamentoType } from '../types';
+import type { PlanoTratamento as PlanoTratamentoType, Agendamento } from '../types';
 import { api } from '../lib/api';
 
 interface Props {
@@ -19,6 +19,7 @@ interface Props {
   userId: string;
   userName?: string;
   onAgendar?: (plano: PlanoTratamentoType, procedimentoNome?: string) => void;
+  agendamentosCliente?: Agendamento[];
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -39,7 +40,7 @@ const STATUS_BG: Record<string, string> = {
   encerrado_antecipado: '#f9fafb',
 };
 
-export const PlanoTratamento: React.FC<Props> = ({ clienteId, userId, userName: _userName, onAgendar }) => {
+export const PlanoTratamento: React.FC<Props> = ({ clienteId, userId, userName: _userName, onAgendar, agendamentosCliente = [] }) => {
   const [planos, setPlanos] = useState<PlanoTratamentoType[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPlano, setSelectedPlano] = useState<PlanoTratamentoType | null>(null);
@@ -139,6 +140,12 @@ export const PlanoTratamento: React.FC<Props> = ({ clienteId, userId, userName: 
     } finally {
       setSavingEncerrar(false);
     }
+  }
+
+  function procedimentoJaAgendado(planoId: string, nomeProc: string): boolean {
+    return agendamentosCliente.some(
+      (a) => a.planoTratamentoId === planoId && a.planoProcedimentoNome === nomeProc
+    );
   }
 
   // ── List view ──────────────────────────────────────────────────────
@@ -278,20 +285,26 @@ export const PlanoTratamento: React.FC<Props> = ({ clienteId, userId, userName: 
                           }}
                         >
                           <span style={{ fontSize: '13px', color: 'var(--color-text-main)' }}>{nomeProc}</span>
-                          {onAgendar && (
-                            <button
-                              onClick={() => onAgendar(p, nomeProc)}
-                              className="btn btn-primary"
-                              title="Agendar consulta com este procedimento"
-                              style={{
-                                padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px',
-                                flexShrink: 0,
-                              }}
-                            >
-                              <Calendar size={13} />
-                              <span>Agendar</span>
-                            </button>
-                          )}
+                          {onAgendar && (() => {
+                            const jaAgendado = procedimentoJaAgendado(p.id, nomeProc);
+                            return (
+                              <button
+                                onClick={() => !jaAgendado && onAgendar(p, nomeProc)}
+                                disabled={jaAgendado}
+                                className="btn btn-primary"
+                                title={jaAgendado ? 'Já existe uma consulta agendada para este procedimento' : 'Agendar consulta com este procedimento'}
+                                style={{
+                                  padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px',
+                                  flexShrink: 0,
+                                  opacity: jaAgendado ? 0.5 : 1,
+                                  cursor: jaAgendado ? 'not-allowed' : 'pointer',
+                                }}
+                              >
+                                <Calendar size={13} />
+                                <span>{jaAgendado ? 'Agendado' : 'Agendar'}</span>
+                              </button>
+                            );
+                          })()}
                         </div>
                       ))}
                     </div>
@@ -511,20 +524,26 @@ export const PlanoTratamento: React.FC<Props> = ({ clienteId, userId, userName: 
                   }}
                 >
                   <span style={{ fontSize: '13px', color: 'var(--color-text-main)' }}>{nomeProc}</span>
-                  {onAgendar && (
-                    <button
-                      onClick={() => onAgendar(selectedPlano, nomeProc)}
-                      className="btn btn-primary"
-                      title="Agendar consulta com este procedimento"
-                      style={{
-                        padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px',
-                        flexShrink: 0,
-                      }}
-                    >
-                      <Calendar size={13} />
-                      <span>Agendar</span>
-                    </button>
-                  )}
+                  {onAgendar && (() => {
+                    const jaAgendado = procedimentoJaAgendado(selectedPlano.id, nomeProc);
+                    return (
+                      <button
+                        onClick={() => !jaAgendado && onAgendar(selectedPlano, nomeProc)}
+                        disabled={jaAgendado}
+                        className="btn btn-primary"
+                        title={jaAgendado ? 'Já existe uma consulta agendada para este procedimento' : 'Agendar consulta com este procedimento'}
+                        style={{
+                          padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px',
+                          flexShrink: 0,
+                          opacity: jaAgendado ? 0.5 : 1,
+                          cursor: jaAgendado ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        <Calendar size={13} />
+                        <span>{jaAgendado ? 'Agendado' : 'Agendar'}</span>
+                      </button>
+                    );
+                  })()}
                 </div>
               ))}
             </div>
