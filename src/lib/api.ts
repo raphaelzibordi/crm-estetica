@@ -4526,6 +4526,7 @@ export const api = {
     const uid = await requireUserId(userId);
 
     let clienteId: string | null = null;
+    let nomeClienteOrcamento: string = '';
 
     if (status === 'aprovado') {
       const { data: orcRow, error: orcErr } = await supabase
@@ -4535,6 +4536,8 @@ export const api = {
         .eq('user_id', uid)
         .single();
       if (orcErr) throw humanizeError(orcErr);
+
+      nomeClienteOrcamento = (orcRow.nome_cliente as string) ?? '';
 
       if (orcRow.cliente_id) {
         clienteId = orcRow.cliente_id as string;
@@ -4582,7 +4585,7 @@ export const api = {
 
       if (itensOrc && itensOrc.length > 0) {
         const dataHoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        const nomeCliente = (orcRow as any).nome_cliente as string ?? '';
+        const nomeCliente = nomeClienteOrcamento;
         const nomePlano = nomeCliente
           ? `Orçamento — ${nomeCliente} (${dataHoje})`
           : `Orçamento (${dataHoje})`;
