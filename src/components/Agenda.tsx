@@ -64,7 +64,7 @@ const MESES = [
 ];
 
 // Horários da agenda
-const HOUR_LIST = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
+const HOUR_LIST = Array.from({ length: 24 }, (_, h) => `${pad2(h)}:00`);
 
 const normName = (s: string): string => (s || '').trim().toLocaleLowerCase('pt-BR');
 

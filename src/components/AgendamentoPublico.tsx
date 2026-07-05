@@ -25,8 +25,8 @@ function generateAvailableSlots(
   dateStr: string,
   minAdvanceHoras: number,
 ): string[] {
-  const CLINIC_START = 8 * 60;
-  const CLINIC_END   = 18 * 60;
+  const CLINIC_START = 0;
+  const CLINIC_END   = 24 * 60;
   const INTERVAL     = 15;
 
   const now      = new Date();
