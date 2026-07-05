@@ -493,6 +493,27 @@ export const Prontuario: React.FC<ProntuarioProps> = ({ selectedClienteId, userI
     }
   };
 
+  const handleAgendarComPlano = (plano: import('../types').PlanoTratamento) => {
+    const nomeProcedimento = plano.procedimentos?.trim() || '';
+    if (!nomeProcedimento) {
+      setShowAgendarModal(true);
+      return;
+    }
+
+    // Procura o procedimento que corresponde ao nome no plano
+    const procEncontrado = procedimentos.find(
+      p => p.nome.toLowerCase() === nomeProcedimento.toLowerCase() ||
+           p.nome.toLowerCase().includes(nomeProcedimento.toLowerCase())
+    );
+
+    if (procEncontrado) {
+      setAgendarProcedimentoIds([procEncontrado.id]);
+      setAgendarData(new Date().toISOString().split('T')[0]);
+      setAgendarHora('14:30');
+    }
+    setShowAgendarModal(true);
+  };
+
   const handleAcolherSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!onAddAgendamento || !acolherNome.trim()) return;
@@ -2113,6 +2134,7 @@ Próxima consulta: {{proxima_consulta}}
               clienteNome={currentCliente.nome}
               userId={userId}
               userName={userName}
+              onAgendar={handleAgendarComPlano}
             />
           )}
 

@@ -11,6 +11,9 @@ import {
   X,
   Camera,
   ArrowLeftRight,
+  Calendar,
+  Pencil,
+  Check,
 } from 'lucide-react';
 import type { PlanoTratamento as PlanoTratamentoType, SessaoTratamento } from '../types';
 import { api } from '../lib/api';
@@ -20,6 +23,7 @@ interface Props {
   clienteNome: string;
   userId: string;
   userName?: string;
+  onAgendar?: (plano: PlanoTratamentoType) => void;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -119,6 +123,11 @@ export const PlanoTratamento: React.FC<Props> = ({ clienteId, userId, userName: 
   const [motivoEncerramento, setMotivoEncerramento] = useState('');
   const [savingEncerrar, setSavingEncerrar] = useState(false);
 
+  // Editar nome do plano
+  const [editingNomeId, setEditingNomeId] = useState<string | null>(null);
+  const [editingNomeValue, setEditingNomeValue] = useState('');
+  const [savingNome, setSavingNome] = useState(false);
+
   // Comparativo
   const [showComparativo, setShowComparativo] = useState(false);
 
@@ -213,6 +222,20 @@ export const PlanoTratamento: React.FC<Props> = ({ clienteId, userId, userName: 
     }
   }
 
+  async function handleSalvarNome(planoId: string) {
+    const nome = editingNomeValue.trim();
+    if (!nome) { setEditingNomeId(null); return; }
+    setSavingNome(true);
+    try {
+      await api.updatePlanoTratamento(planoId, userId, { nomeProtocolo: nome });
+      setPlanos(prev => prev.map(p => p.id === planoId ? { ...p, nomeProtocolo: nome } : p));
+      if (selectedPlano?.id === planoId) setSelectedPlano(prev => prev ? { ...prev, nomeProtocolo: nome } : prev);
+    } finally {
+      setSavingNome(false);
+      setEditingNomeId(null);
+    }
+  }
+
   async function handleEncerrar(e: React.FormEvent) {
     e.preventDefault();
     if (!selectedPlano || !motivoEncerramento.trim()) return;
@@ -289,47 +312,102 @@ export const PlanoTratamento: React.FC<Props> = ({ clienteId, userId, userName: 
             {planos.map((plano) => {
               const p = plano as any as PlanoTratamentoType;
               return (
-                <button
+                <div
                   key={p.id}
-                  onClick={() => setSelectedPlano(p)}
                   style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '14px 16px', border: '1px solid var(--color-border)',
-                    borderRadius: 'var(--border-radius-md)', backgroundColor: '#fff',
-                    cursor: 'pointer', textAlign: 'left', width: '100%',
-                    transition: 'border-color 0.15s',
+                    display: 'flex', alignItems: 'center', gap: '10px',
+                    padding: '0',
                   }}
-                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--color-primary)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; }}
                 >
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                      <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-main)' }}>
-                        {p.nomeProtocolo}
-                      </span>
-                      <span style={{
-                        fontSize: '10px', fontWeight: 600, padding: '2px 8px', borderRadius: '999px',
-                        color: STATUS_COLOR[p.status], backgroundColor: STATUS_BG[p.status],
-                      }}>
-                        {STATUS_LABEL[p.status]}
-                      </span>
-                    </div>
-                    {p.objetivo && (
-                      <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {p.objetivo}
-                      </p>
-                    )}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{ flex: 1, height: '4px', borderRadius: '2px', backgroundColor: '#e5e7eb', overflow: 'hidden' }}>
-                        <div style={{ height: '100%', borderRadius: '2px', backgroundColor: STATUS_COLOR[p.status], width: `0%` }} />
+                  <button
+                    onClick={() => setSelectedPlano(p)}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '14px 16px', border: '1px solid var(--color-border)',
+                      borderRadius: 'var(--border-radius-md)', backgroundColor: '#fff',
+                      cursor: 'pointer', textAlign: 'left', flex: 1,
+                      transition: 'border-color 0.15s',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--color-primary)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                        {editingNomeId === p.id ? (
+                          <input
+                            autoFocus
+                            className="form-input"
+                            value={editingNomeValue}
+                            onChange={(e) => setEditingNomeValue(e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') { e.preventDefault(); handleSalvarNome(p.id); }
+                              if (e.key === 'Escape') setEditingNomeId(null);
+                            }}
+                            style={{ fontSize: '14px', fontWeight: 600, padding: '2px 8px', flex: 1 }}
+                          />
+                        ) : (
+                          <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-main)' }}>
+                            {p.nomeProtocolo}
+                          </span>
+                        )}
+                        <span style={{
+                          fontSize: '10px', fontWeight: 600, padding: '2px 8px', borderRadius: '999px',
+                          color: STATUS_COLOR[p.status], backgroundColor: STATUS_BG[p.status], flexShrink: 0,
+                        }}>
+                          {STATUS_LABEL[p.status]}
+                        </span>
+                        {editingNomeId === p.id ? (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleSalvarNome(p.id); }}
+                            disabled={savingNome}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#16a34a', padding: '2px', flexShrink: 0 }}
+                          >
+                            <Check size={15} />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setEditingNomeId(p.id); setEditingNomeValue(p.nomeProtocolo); }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: '2px', flexShrink: 0 }}
+                            title="Editar nome"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                        )}
                       </div>
-                      <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
-                        {p.totalSessoes} sessões previstas
-                      </span>
+                      {p.objetivo && (
+                        <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {p.objetivo}
+                        </p>
+                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ flex: 1, height: '4px', borderRadius: '2px', backgroundColor: '#e5e7eb', overflow: 'hidden' }}>
+                          <div style={{ height: '100%', borderRadius: '2px', backgroundColor: STATUS_COLOR[p.status], width: `0%` }} />
+                        </div>
+                        <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
+                          {p.totalSessoes} sessões previstas
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                  <ChevronLeft size={16} style={{ color: 'var(--color-text-muted)', transform: 'rotate(180deg)', flexShrink: 0, marginLeft: '12px' }} />
-                </button>
+                    <ChevronLeft size={16} style={{ color: 'var(--color-text-muted)', transform: 'rotate(180deg)', flexShrink: 0, marginLeft: '12px' }} />
+                  </button>
+                  {onAgendar && (
+                    <button
+                      onClick={() => onAgendar(p)}
+                      className="btn btn-primary"
+                      title="Agendar consulta com este procedimento"
+                      style={{
+                        padding: '10px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Calendar size={14} />
+                      <span>Agendar</span>
+                    </button>
+                  )}
+                </div>
               );
             })}
           </div>
@@ -446,9 +524,9 @@ export const PlanoTratamento: React.FC<Props> = ({ clienteId, userId, userName: 
   return (
     <div className="card" style={{ padding: '24px' }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
         <button
-          onClick={() => { setSelectedPlano(null); setSessoes([]); }}
+          onClick={() => { setSelectedPlano(null); setSessoes([]); setEditingNomeId(null); }}
           className="btn btn-outline"
           style={{ padding: '6px 10px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}
         >
@@ -456,10 +534,49 @@ export const PlanoTratamento: React.FC<Props> = ({ clienteId, userId, userName: 
           <span>Planos</span>
         </button>
         <span style={{ color: 'var(--color-text-muted)' }}>/</span>
-        <span style={{ fontSize: '14px', fontWeight: 600 }}>{selectedPlano.nomeProtocolo}</span>
+        {editingNomeId === selectedPlano.id ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: 0 }}>
+            <input
+              autoFocus
+              className="form-input"
+              value={editingNomeValue}
+              onChange={(e) => setEditingNomeValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); handleSalvarNome(selectedPlano.id); }
+                if (e.key === 'Escape') setEditingNomeId(null);
+              }}
+              style={{ fontSize: '14px', fontWeight: 600, padding: '3px 8px', flex: 1 }}
+            />
+            <button
+              onClick={() => handleSalvarNome(selectedPlano.id)}
+              disabled={savingNome}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#16a34a', padding: '2px' }}
+            >
+              <Check size={16} />
+            </button>
+            <button
+              onClick={() => setEditingNomeId(null)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: '2px' }}
+            >
+              <X size={16} />
+            </button>
+          </div>
+        ) : (
+          <>
+            <span style={{ fontSize: '14px', fontWeight: 600 }}>{selectedPlano.nomeProtocolo}</span>
+            <button
+              onClick={() => { setEditingNomeId(selectedPlano.id); setEditingNomeValue(selectedPlano.nomeProtocolo); }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: '2px' }}
+              title="Editar nome"
+            >
+              <Pencil size={13} />
+            </button>
+          </>
+        )}
         <span style={{
           fontSize: '10px', fontWeight: 600, padding: '2px 8px', borderRadius: '999px',
           color: STATUS_COLOR[selectedPlano.status], backgroundColor: STATUS_BG[selectedPlano.status],
+          flexShrink: 0,
         }}>
           {STATUS_LABEL[selectedPlano.status]}
         </span>

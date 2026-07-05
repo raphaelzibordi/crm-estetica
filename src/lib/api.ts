@@ -4570,9 +4570,8 @@ export const api = {
       .eq('user_id', uid);
     if (error) throw humanizeError(error);
 
-    // Ao aprovar, cada procedimento do orçamento vira um Plano de Tratamento
-    // próprio no prontuário do paciente, para acompanhamento sessão a sessão
-    // sem retrabalho de digitar tudo de novo.
+    // Ao aprovar, todos os procedimentos do orçamento são agrupados em um único
+    // Plano de Tratamento no prontuário do paciente, sem retrabalho.
     if (status === 'aprovado' && clienteId) {
       const { data: itensOrc, error: itensErr } = await supabase
         .from('orcamento_itens')
@@ -4582,20 +4581,26 @@ export const api = {
       if (itensErr) throw humanizeError(itensErr);
 
       if (itensOrc && itensOrc.length > 0) {
-        const { error: planosErr } = await supabase.from('planos_tratamento').insert(
-          itensOrc.map((it: any) => ({
-            user_id:                uid,
-            cliente_id:             clienteId,
-            nome_protocolo:         it.descricao,
-            objetivo:               '',
-            procedimentos:          it.descricao,
-            total_sessoes:          Math.max(1, it.quantidade ?? 1),
-            frequencia_recomendada: '',
-            frequencia_dias:        null,
-            observacoes_iniciais:   'Gerado automaticamente a partir do orçamento aprovado.',
-            status:                 'ativo',
-          }))
-        );
+        const dataHoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const nomeCliente = (orcRow as any).nome_cliente as string ?? '';
+        const nomePlano = nomeCliente
+          ? `Orçamento — ${nomeCliente} (${dataHoje})`
+          : `Orçamento (${dataHoje})`;
+        const procedimentosTexto = itensOrc.map((it: any) => it.descricao).join(', ');
+        const totalSessoes = itensOrc.reduce((sum: number, it: any) => sum + Math.max(1, it.quantidade ?? 1), 0);
+
+        const { error: planosErr } = await supabase.from('planos_tratamento').insert({
+          user_id:                uid,
+          cliente_id:             clienteId,
+          nome_protocolo:         nomePlano,
+          objetivo:               '',
+          procedimentos:          procedimentosTexto,
+          total_sessoes:          totalSessoes,
+          frequencia_recomendada: '',
+          frequencia_dias:        null,
+          observacoes_iniciais:   'Gerado automaticamente a partir do orçamento aprovado.',
+          status:                 'ativo',
+        });
         if (planosErr) throw humanizeError(planosErr);
       }
     }
@@ -5221,13 +5226,14 @@ export const api = {
   async updatePlanoTratamento(
     id: string,
     userId: string,
-    payload: Partial<Pick<PlanoTratamento, 'status' | 'motivoEncerramento'>>,
+    payload: Partial<Pick<PlanoTratamento, 'status' | 'motivoEncerramento' | 'nomeProtocolo'>>,
   ): Promise<void> {
     return run(async () => {
       const uid = await requireUserId(userId);
       const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
       if (payload.status !== undefined) updates.status = payload.status;
       if (payload.motivoEncerramento !== undefined) updates.motivo_encerramento = payload.motivoEncerramento;
+      if (payload.nomeProtocolo !== undefined) updates.nome_protocolo = payload.nomeProtocolo;
       const { error } = await supabase
         .from('planos_tratamento')
         .update(updates)
