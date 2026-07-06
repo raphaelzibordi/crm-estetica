@@ -166,12 +166,14 @@ function mapGravacaoConsulta(row: any): GravacaoConsulta {
   };
 }
 
+// Salas vivem na tabela `rooms` (name/description/status) — mesma tabela usada
+// pela tela de gerenciamento de salas e pelo admin da plataforma. `salas` é legado.
 function mapSala(row: any): Sala {
   return {
     id: row.id,
-    nome: row.nome ?? '',
-    descricao: row.descricao ?? undefined,
-    ativo: row.ativo ?? true,
+    nome: row.name ?? '',
+    descricao: row.description ?? undefined,
+    ativo: row.status === 'ativa',
     createdAt: row.created_at ?? undefined,
   };
 }
@@ -1034,11 +1036,11 @@ export const api = {
     return run(async () => {
       const uid = await requireUserId(userId);
       const { data, error } = await supabase
-        .from('salas')
+        .from('rooms')
         .select('*')
         .eq('user_id', uid)
-        .eq('ativo', true)
-        .order('nome');
+        .eq('status', 'ativa')
+        .order('name');
       if (error) throw error;
       return (data ?? []).map(mapSala);
     });
@@ -1049,10 +1051,10 @@ export const api = {
     return run(async () => {
       const uid = await requireUserId(userId);
       const { data, error } = await supabase
-        .from('salas')
+        .from('rooms')
         .select('*')
         .eq('user_id', uid)
-        .order('nome');
+        .order('name');
       if (error) throw error;
       return (data ?? []).map(mapSala);
     });
@@ -1067,16 +1069,16 @@ export const api = {
 
       // Validação de duplicata (case-insensitive)
       const { data: existing } = await supabase
-        .from('salas')
+        .from('rooms')
         .select('id')
         .eq('user_id', uid)
-        .ilike('nome', nome)
+        .ilike('name', nome)
         .maybeSingle();
       if (existing) throw new ApiError(`Já existe uma sala com o nome "${nome}".`, 409);
 
       const { data, error } = await supabase
-        .from('salas')
-        .insert({ user_id: uid, nome, descricao: sala.descricao?.trim() || null, ativo: true })
+        .from('rooms')
+        .insert({ user_id: uid, name: nome, description: sala.descricao?.trim() || null, status: 'ativa' })
         .select()
         .single();
       if (error) throw error;
@@ -1099,20 +1101,20 @@ export const api = {
         if (nome.length > 100) throw new ApiError('Nome da sala deve ter no máximo 100 caracteres.', 400);
         // Verificar duplicata (excluindo a própria sala)
         const { data: existing } = await supabase
-          .from('salas')
+          .from('rooms')
           .select('id')
           .eq('user_id', uid)
-          .ilike('nome', nome)
+          .ilike('name', nome)
           .neq('id', id)
           .maybeSingle();
         if (existing) throw new ApiError(`Já existe uma sala com o nome "${nome}".`, 409);
-        dbUpdates.nome = nome;
+        dbUpdates.name = nome;
       }
-      if (updates.descricao !== undefined) dbUpdates.descricao = updates.descricao?.trim() || null;
-      if (updates.ativo !== undefined) dbUpdates.ativo = updates.ativo;
+      if (updates.descricao !== undefined) dbUpdates.description = updates.descricao?.trim() || null;
+      if (updates.ativo !== undefined) dbUpdates.status = updates.ativo ? 'ativa' : 'inativa';
 
       const { data, error } = await supabase
-        .from('salas')
+        .from('rooms')
         .update(dbUpdates)
         .eq('id', id)
         .eq('user_id', uid)
@@ -1144,7 +1146,7 @@ export const api = {
       }
 
       const { error } = await supabase
-        .from('salas')
+        .from('rooms')
         .delete()
         .eq('id', id)
         .eq('user_id', uid);
