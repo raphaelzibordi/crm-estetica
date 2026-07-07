@@ -97,7 +97,15 @@
       "Bash(find . -path \"*/.claude/skills*\" -not -path \"*/node_modules/*\")",
       "Bash(cd \"C:\\\\Users\\\\rapha\\\\.claude\\\\projects\\\\C--Users-rapha-OneDrive-Documents-GitHub-crm-estetica\\\\memory\")",
       "Bash(ls)",
-      "Bash(grep -il \"senha\\\\|password\\\\|login\\\\|credencial\" *.md)"
+      "Bash(grep -il \"senha\\\\|password\\\\|login\\\\|credencial\" *.md)",
+      "PowerShell(npx tsc --noEmit)",
+      "mcp__84ef42a8-55c6-42bb-9150-d4040d81915a__get_publishable_keys",
+      "Bash(echo \"--- embed antigo \\(salas\\) ---\")",
+      "Bash(curl -s 'https://ypqoqibezpntdfrsuzxz.supabase.co/rest/v1/agendamentos?select=*,clientes\\(nome,foto_url\\),salas\\(nome\\)&limit=1' -H 'apikey: sb_publishable_MtE7de5jaFx5SRNV5NfDFg_ObMNDSIF' -H 'Authorization: Bearer sb_publishable_MtE7de5jaFx5SRNV5NfDFg_ObMNDSIF')",
+      "Bash(echo)",
+      "Bash(echo \"--- embed novo \\(rooms\\) ---\")",
+      "Bash(curl -s 'https://ypqoqibezpntdfrsuzxz.supabase.co/rest/v1/agendamentos?select=*,clientes\\(nome,foto_url\\),rooms\\(name\\)&limit=1' -H 'apikey: sb_publishable_MtE7de5jaFx5SRNV5NfDFg_ObMNDSIF' -H 'Authorization: Bearer sb_publishable_MtE7de5jaFx5SRNV5NfDFg_ObMNDSIF')",
+      "Read(//c/Users/rapha/.claude/projects/C--Users-rapha-OneDrive-Documents-GitHub-crm-estetica/memory/**)"
     ]
   }
 }
