@@ -88,6 +88,22 @@ export function humanizeError(err: unknown): ApiError {
         err.code
       );
     }
+    // Erros de schema (tabela/coluna/relacionamento inexistente) indicam código
+    // desatualizado em relação ao banco — não adianta o usuário tentar de novo.
+    const SCHEMA_ERROR_CODES = ['PGRST200', 'PGRST202', '42P01', '42703'];
+    if (SCHEMA_ERROR_CODES.includes(err.code)) {
+      console.error('[api] Erro de schema (código desatualizado em relação ao banco):', {
+        code:    err.code,
+        message: err.message,
+        details: err.details,
+        hint:    err.hint,
+      });
+      return new ApiError(
+        `O sistema encontrou um problema interno e nossa equipe precisa atualizá-lo. Informe o suporte com o código ${err.code}.`,
+        500,
+        err.code
+      );
+    }
     // PostgrestError não mapeado: loga detalhes internamente, retorna
     // mensagem genérica para evitar vazar nomes de constraints/colunas
     // / estrutura interna do banco ao usuário final.
@@ -98,7 +114,7 @@ export function humanizeError(err: unknown): ApiError {
       hint:    err.hint,
     });
     return new ApiError(
-      'Falha ao comunicar com o banco de dados. Tente novamente em alguns instantes.',
+      `Falha ao comunicar com o banco de dados. Tente novamente em alguns instantes. (código ${err.code})`,
       status,
       err.code
     );

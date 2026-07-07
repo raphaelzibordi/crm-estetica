@@ -188,7 +188,7 @@ function mapAgendamento(row: any): Agendamento {
     horaInicio: row.hora_inicio,
     horaFim: row.hora_fim,
     profissional: row.profissional ?? '',
-    sala: row.salas?.nome ?? row.sala ?? '',
+    sala: row.rooms?.name ?? row.sala ?? '',
     roomId: row.room_id ?? undefined,
     procedimento: row.procedimento ?? '',
     procedimentos: Array.isArray(row.procedimentos) ? row.procedimentos : [],
@@ -758,7 +758,7 @@ export const api = {
       const uid = await requireUserId(userId);
       let query = supabase
         .from('agendamentos')
-        .select('*, clientes ( nome, foto_url ), salas ( nome )')
+        .select('*, clientes ( nome, foto_url ), rooms ( name )')
         .eq('user_id', uid)
         .eq('data', dataStr)
         .order('hora_inicio');
@@ -778,7 +778,7 @@ export const api = {
       const uid = await requireUserId(userId);
       const { data, error } = await supabase
         .from('agendamentos')
-        .select('*, clientes ( nome, foto_url ), salas ( nome )')
+        .select('*, clientes ( nome, foto_url ), rooms ( name )')
         .eq('user_id', uid)
         .gte('data', inicio)
         .lte('data', fim)
@@ -802,7 +802,7 @@ export const api = {
       // Trava de conflito (autoridade): pacientes, profissionais e salas não podem se sobrepor
       const { data: existentes, error: fetchError } = await supabase
         .from('agendamentos')
-        .select('*, clientes ( nome, foto_url ), salas ( nome )')
+        .select('*, clientes ( nome, foto_url ), rooms ( name )')
         .eq('user_id', uid)
         .eq('data', agendamento.data);
       if (fetchError) throw fetchError;
@@ -845,7 +845,7 @@ export const api = {
             plano_procedimento_nome: agendamento.planoProcedimentoNome ?? null,
           },
         ])
-        .select('*, clientes ( nome, foto_url ), salas ( nome )')
+        .select('*, clientes ( nome, foto_url ), rooms ( name )')
         .single();
       if (error) throw error;
       return mapAgendamento(data);
