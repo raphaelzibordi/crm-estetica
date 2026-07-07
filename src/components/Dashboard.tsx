@@ -240,8 +240,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
     setEditSalaHistorico(item.salaHistorico ?? []);
     const match = profissionais.find((p) => p.nome === item.profissional);
     setEditProfissionalId(match?.id ?? profissionais[0]?.id ?? OWNER_ID);
-    // Compute sala options for this appointment's date/time
-    const allSalas = [...new Set(procedimentos.map((p) => p.salaRequerida).filter(Boolean))];
+    // Compute sala options from rooms table (active rooms for this account)
+    const allSalas = rooms.filter((r) => r.status === 'ativa').map((r) => r.name);
     if (allSalas.length > 0 && item.sala && !allSalas.includes(item.sala)) allSalas.push(item.sala);
     const options = getSalasStatus(allSalas, item.data, item.horaInicio.substring(0, 5), item.horaFim.substring(0, 5), agendamentos, item.id);
     setEditSalaOptions(options);

@@ -1001,6 +1001,16 @@ export const api = {
           dbUpdates.sala_historico = historico;
         }
         dbUpdates.sala = updates.sala;
+        // Keep room_id in sync with the rooms table so the Grade do Dia stays consistent.
+        // If the new sala name matches an active room, set room_id; otherwise clear it.
+        const { data: matchedRoom } = await supabase
+          .from('rooms')
+          .select('id')
+          .eq('user_id', uid)
+          .eq('name', updates.sala)
+          .eq('status', 'ativa')
+          .maybeSingle();
+        dbUpdates.room_id = matchedRoom?.id ?? null;
       }
 
       const { data, error } = await supabase
@@ -1008,7 +1018,7 @@ export const api = {
         .update(dbUpdates)
         .eq('id', id)
         .eq('user_id', uid)
-        .select('*, clientes ( nome, foto_url )')
+        .select('*, clientes ( nome, foto_url ), rooms ( name )')
         .single();
       if (error) throw error;
       return mapAgendamento(data);
