@@ -322,11 +322,21 @@ export type MetodoPagamento = 'pix' | 'credito' | 'debito' | 'dinheiro';
 
 // ── Agendamento Online (US-007) ──────────────────────────────────
 
+export interface HorarioDia {
+  abre: string;   // HH:MM
+  fecha: string;  // HH:MM
+  fechado: boolean;
+}
+
+// Chave = dia da semana ISO como string: '0' domingo ... '6' sábado
+export type HorarioAtendimento = Record<string, HorarioDia>;
+
 export interface ClinicaPublica {
   userId: string;
   nomeClinica: string;
   minAdvanceHoras: number;
   maxAdvanceDias: number;
+  horarioAtendimento: HorarioAtendimento | null;
 }
 
 export interface ProfissionalPublico {
@@ -354,6 +364,7 @@ export interface BookingSettings {
   bookingEnabled: boolean;
   bookingMinAdvanceHoras: number;
   bookingMaxAdvanceDias: number;
+  horarioAtendimento: HorarioAtendimento | null;
 }
 
 // ── Confirmações Automáticas (US-007b) ───────────────────────────

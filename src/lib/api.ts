@@ -23,6 +23,7 @@ import type {
   AnamneseResposta,
   AnamneseStatus,
   BookingSettings,
+  HorarioAtendimento,
   ClinicaPublica,
   Cliente,
   ClienteRetorno,
@@ -2809,7 +2810,7 @@ export const api = {
       const uid = await requireUserId(userId);
       const { data, error } = await supabase
         .from('usuarios')
-        .select('booking_slug, booking_enabled, booking_min_advance_horas, booking_max_advance_dias')
+        .select('booking_slug, booking_enabled, booking_min_advance_horas, booking_max_advance_dias, horario_atendimento')
         .eq('id', uid)
         .single();
       if (error) throw error;
@@ -2818,6 +2819,7 @@ export const api = {
         bookingEnabled:           data.booking_enabled ?? false,
         bookingMinAdvanceHoras:   data.booking_min_advance_horas ?? 1,
         bookingMaxAdvanceDias:    data.booking_max_advance_dias ?? 30,
+        horarioAtendimento:       (data.horario_atendimento as HorarioAtendimento | null) ?? null,
       };
     });
   },
@@ -2834,6 +2836,8 @@ export const api = {
         updates.booking_min_advance_horas = settings.bookingMinAdvanceHoras;
       if (settings.bookingMaxAdvanceDias !== undefined)
         updates.booking_max_advance_dias = settings.bookingMaxAdvanceDias;
+      if (settings.horarioAtendimento !== undefined)
+        updates.horario_atendimento = settings.horarioAtendimento;
       const { error } = await supabase.from('usuarios').update(updates).eq('id', uid);
       if (error) throw error;
     });

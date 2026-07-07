@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import type { Agendamento, Procedimento, Profissional, Room } from '../types';
+import type { Agendamento, HorarioAtendimento, Procedimento, Profissional, Room } from '../types';
 import { Users, Clock, Sparkles, ChevronLeft, ChevronRight, CalendarRange, AlertTriangle } from 'lucide-react';
 import { api } from '../lib/api';
 import { findAgendamentoConflict, calcularEncaixeSugestoes, getSalasStatus, type EncaixeSugestao, type SalaStatus } from '../lib/agendaConflict';
@@ -63,8 +63,45 @@ const MESES = [
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
 ];
 
-// Horários da agenda
-const HOUR_LIST = Array.from({ length: 24 }, (_, h) => `${pad2(h)}:00`);
+// Horários da agenda (fallback 24h quando a clínica não configurou horário próprio)
+const FULL_HOUR_LIST = Array.from({ length: 24 }, (_, h) => `${pad2(h)}:00`);
+
+// Gera a lista de horas cheias exibidas na grade para um conjunto de dias,
+// respeitando o horário de atendimento configurado mas sempre incluindo
+// horas que já têm agendamento (para não esconder encaixes/dados legados).
+function buildHourList(
+  horario: HorarioAtendimento | null,
+  days: Date[],
+  agendamentosByDay: Record<string, Agendamento[]>,
+): string[] {
+  if (!horario) return FULL_HOUR_LIST;
+
+  let minHour = 23;
+  let maxHour = 0;
+  let anyOpen = false;
+
+  days.forEach((d) => {
+    const dia = horario[String(d.getDay())];
+    if (dia && !dia.fechado) {
+      anyOpen = true;
+      const [fechaH, fechaM] = dia.fecha.split(':').map(Number);
+      // Última hora cheia com início permitido antes do fechamento
+      // (ex.: fecha às 17:00 → última linha é 16:00, não 17:00).
+      const ultimaHoraAberta = fechaM > 0 ? fechaH : fechaH - 1;
+      minHour = Math.min(minHour, Number(dia.abre.split(':')[0]));
+      maxHour = Math.max(maxHour, ultimaHoraAberta);
+    }
+    const dayList = agendamentosByDay[toISODate(d)] || [];
+    dayList.forEach((a) => {
+      minHour = Math.min(minHour, Number(a.horaInicio.split(':')[0]));
+      maxHour = Math.max(maxHour, Number(a.horaFim.split(':')[0]));
+    });
+  });
+
+  if (!anyOpen && minHour > maxHour) return FULL_HOUR_LIST;
+
+  return FULL_HOUR_LIST.slice(minHour, Math.min(maxHour + 1, 24));
+}
 
 const normName = (s: string): string => (s || '').trim().toLocaleLowerCase('pt-BR');
 
@@ -96,6 +133,8 @@ export const Agenda: React.FC<AgendaProps> = ({
   const [equipe, setEquipe] = useState<Array<{ id: string; nome: string; cargo: string }>>([]);
   // Salas cadastradas
   const [rooms, setRooms] = useState<Room[]>([]);
+  // Horário de atendimento configurado em Configurações (null = 24h)
+  const [horarioAtendimento, setHorarioAtendimento] = useState<HorarioAtendimento | null>(null);
 
   // Encaixe ideal (visão Hoje)
   const [selectedProcedimentoIds, setSelectedProcedimentoIds] = useState<string[]>([]);
@@ -137,15 +176,17 @@ export const Agenda: React.FC<AgendaProps> = ({
     (async () => {
       try {
         await api.ensureSeedData(userId).catch(() => {});
-        const [procs, team, loadedRooms] = await Promise.all([
+        const [procs, team, loadedRooms, bookingSettings] = await Promise.all([
           api.getProcedimentos(userId),
           api.getEquipe(userId, { somenteAtivos: true }).catch(() => []),
           api.getRooms(userId).catch(() => [] as Room[]),
+          api.getBookingSettings(userId).catch(() => null),
         ]);
         if (cancelled) return;
         setProcedimentos(procs);
         setEquipe(team.map(m => ({ id: m.id, nome: m.nome, cargo: m.cargo })));
         setRooms(loadedRooms.filter(r => r.status === 'ativa'));
+        setHorarioAtendimento(bookingSettings?.horarioAtendimento ?? null);
         if (procs.length > 0) {
           setSelectedProcedimentoIds((curr) => curr.length > 0 ? curr : [procs[0].id]);
           setNewProcedimentoIds((curr) => curr.length > 0 ? curr : [procs[0].id]);
@@ -455,6 +496,11 @@ export const Agenda: React.FC<AgendaProps> = ({
   // Quando cursor ≠ hoje, usa dayData (buscado do banco); caso contrário, usa o prop agendamentos.
   const agendamentosDoDia = isSameDay(cursor, new Date()) ? agendamentos : dayData;
 
+  const hourListDia = useMemo(
+    () => buildHourList(horarioAtendimento, [cursor], { [toISODate(cursor)]: agendamentosDoDia }),
+    [horarioAtendimento, cursor, agendamentosDoDia]
+  );
+
   const getAgendamentosForSlot = (time: string): Agendamento[] => {
     const slotHour = time.split(':')[0];
     return agendamentosDoDia
@@ -664,7 +710,7 @@ export const Agenda: React.FC<AgendaProps> = ({
             )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {multiSala ? HOUR_LIST.map((slot) => {
+              {multiSala ? hourListDia.map((slot) => {
                 const semSalaAtiva = getAgendamentosSemSalaAtiva(slot);
                 return (
                   <div
@@ -815,7 +861,7 @@ export const Agenda: React.FC<AgendaProps> = ({
                     </div>
                   </div>
                 );
-              }) : HOUR_LIST.map((slot) => {
+              }) : hourListDia.map((slot) => {
                 const slotItems = getAgendamentosForSlot(slot);
                 const isEmpty = slotItems.length === 0;
                 return (
@@ -1087,6 +1133,7 @@ export const Agenda: React.FC<AgendaProps> = ({
                   weekStart={startOfWeek(cursor)}
                   agendamentos={weekData}
                   today={today}
+                  horarioAtendimento={horarioAtendimento}
                   onDayClick={(d) => {
                     setCursor(d);
                     setView('hoje');
@@ -1289,6 +1336,19 @@ export const Agenda: React.FC<AgendaProps> = ({
                 </div>
               </div>
 
+              {newData && newHora && (() => {
+                const dia = horarioAtendimento?.[String(new Date(newData + 'T00:00:00').getDay())];
+                if (!dia) return null;
+                const foraDoHorario = dia.fechado || newHora < dia.abre || newHora >= dia.fecha;
+                if (!foraDoHorario) return null;
+                return (
+                  <p style={{ fontSize: '12px', color: 'var(--color-warning, #b45309)', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <AlertTriangle size={13} />
+                    Fora do horário de atendimento configurado{dia.fechado ? ' (dia fechado)' : ` (${dia.abre}–${dia.fecha})`}. O agendamento será criado mesmo assim.
+                  </p>
+                );
+              })()}
+
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
                 <button
                   type="button"
@@ -1345,6 +1405,7 @@ interface WeekGridProps {
   weekStart: Date;
   agendamentos: Agendamento[];
   today: Date;
+  horarioAtendimento: HorarioAtendimento | null;
   onDayClick: (d: Date) => void;
   onAgendamentoClick?: (a: Agendamento) => void;
 }
@@ -1353,6 +1414,7 @@ const WeekGrid: React.FC<WeekGridProps> = ({
   weekStart,
   agendamentos,
   today,
+  horarioAtendimento,
   onDayClick,
   onAgendamentoClick,
 }) => {
@@ -1365,6 +1427,11 @@ const WeekGrid: React.FC<WeekGridProps> = ({
     }
     return map;
   }, [agendamentos]);
+
+  const hourList = useMemo(
+    () => buildHourList(horarioAtendimento, days, agendamentosByDay),
+    [horarioAtendimento, days, agendamentosByDay]
+  );
 
   return (
     <div>
@@ -1421,7 +1488,7 @@ const WeekGrid: React.FC<WeekGridProps> = ({
 
       {/* Grid de horários */}
       <div>
-        {HOUR_LIST.map((slot) => (
+        {hourList.map((slot) => (
           <div
             key={slot}
             style={{

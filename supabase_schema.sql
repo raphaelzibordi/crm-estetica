@@ -673,6 +673,11 @@ alter table public.usuarios
   add column if not exists booking_min_advance_horas  integer not null default 1,
   add column if not exists booking_max_advance_dias   integer not null default 30;
 
+-- Horário de atendimento configurável por clínica (por dia da semana).
+-- Mapa chave "0".."6" (0=domingo) -> {abre, fecha, fechado}. null = sem restrição (24h).
+alter table public.usuarios
+  add column if not exists horario_atendimento jsonb;
+
 -- Marca agendamentos criados pelo fluxo público
 alter table public.agendamentos
   add column if not exists origem_online boolean not null default false;
@@ -706,10 +711,11 @@ declare
   v_result json;
 begin
   select json_build_object(
-    'userId',          u.id,
-    'nomeClinica',     coalesce(u.nome_clinica, ''),
-    'minAdvanceHoras', u.booking_min_advance_horas,
-    'maxAdvanceDias',  u.booking_max_advance_dias
+    'userId',             u.id,
+    'nomeClinica',        coalesce(u.nome_clinica, ''),
+    'minAdvanceHoras',    u.booking_min_advance_horas,
+    'maxAdvanceDias',     u.booking_max_advance_dias,
+    'horarioAtendimento', u.horario_atendimento
   ) into v_result
   from public.usuarios u
   where u.booking_slug = p_slug
@@ -832,9 +838,11 @@ declare
   v_cliente_id   uuid;
   v_ag_id        uuid;
   v_conflict     boolean := false;
+  v_horario      jsonb;
+  v_dia          jsonb;
 begin
   -- Busca clínica e valida que booking está ativo
-  select u.id into v_user_id
+  select u.id, u.horario_atendimento into v_user_id, v_horario
   from public.usuarios u
   where u.booking_slug   = p_clinic_slug
     and u.booking_enabled = true;
@@ -842,6 +850,17 @@ begin
   if v_user_id is null then
     raise exception 'Clínica não encontrada ou agendamento online desativado.'
       using errcode = 'P0001';
+  end if;
+
+  -- Valida horário de atendimento (null = sem restrição, 24h)
+  if v_horario is not null then
+    v_dia := v_horario -> extract(dow from p_data)::text;
+    if v_dia is null or coalesce((v_dia->>'fechado')::boolean, false) then
+      raise exception 'Clínica fechada neste dia.' using errcode = 'P0001';
+    end if;
+    if p_hora_inicio < (v_dia->>'abre')::time or p_hora_fim > (v_dia->>'fecha')::time then
+      raise exception 'Horário fora do período de atendimento da clínica.' using errcode = 'P0001';
+    end if;
   end if;
 
   -- Lock advisory por profissional+data para serializar concorrência

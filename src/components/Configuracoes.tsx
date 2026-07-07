@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { User, Building2, Users, Plus, X, Check, Edit2, Trash2, Shield, Link, ToggleLeft, ToggleRight, Copy, Eye, EyeOff, Bell, FileText, Network, ChevronRight, Sparkles } from 'lucide-react';
+import { User, Building2, Users, Plus, X, Check, Edit2, Trash2, Shield, Link, ToggleLeft, ToggleRight, Copy, Eye, EyeOff, Bell, FileText, Network, ChevronRight, Sparkles, Clock } from 'lucide-react';
 import { api } from '../lib/api';
-import type { BookingSettings, ConfirmacaoSettings, DocumentoModelo, DocumentoTipo, MembroEquipe, PerfilAcesso, Permissoes, Procedimento, Rede, Unidade } from '../types';
+import type { BookingSettings, ConfirmacaoSettings, DocumentoModelo, DocumentoTipo, HorarioAtendimento, MembroEquipe, PerfilAcesso, Permissoes, Procedimento, Rede, Unidade } from '../types';
 import { RedeClinicas } from './RedeClinicas';
 import { PerfilAcessoModal } from './PerfilAcessoModal';
 import { MODELOS_PADRAO } from './AssinaturaDigital';
@@ -16,7 +16,22 @@ interface ConfiguracoesProps {
   plano?: string | null;
 }
 
-type ActiveTab = 'perfil' | 'equipe' | 'agendamento' | 'confirmacoes' | 'documentos' | 'rede';
+type ActiveTab = 'perfil' | 'equipe' | 'agendamento' | 'horarios' | 'confirmacoes' | 'documentos' | 'rede';
+
+const DIAS_HORARIO: { key: string; label: string }[] = [
+  { key: '1', label: 'Segunda-feira' },
+  { key: '2', label: 'Terça-feira' },
+  { key: '3', label: 'Quarta-feira' },
+  { key: '4', label: 'Quinta-feira' },
+  { key: '5', label: 'Sexta-feira' },
+  { key: '6', label: 'Sábado' },
+  { key: '0', label: 'Domingo' },
+];
+
+const HORARIO_PADRAO: HorarioAtendimento = DIAS_HORARIO.reduce((acc, d) => {
+  acc[d.key] = { abre: '08:00', fecha: '20:00', fechado: d.key === '0' };
+  return acc;
+}, {} as HorarioAtendimento);
 
 const CARGOS_SUGERIDOS = [
   'Diretora da Clínica',
@@ -54,12 +69,18 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
     bookingEnabled: false,
     bookingMinAdvanceHoras: 1,
     bookingMaxAdvanceDias: 30,
+    horarioAtendimento: null,
   });
   const [bookingSlugInput, setBookingSlugInput] = useState('');
   const [savingBooking, setSavingBooking] = useState(false);
   const [bookingOk, setBookingOk]       = useState(false);
   const [bookingCopied, setBookingCopied] = useState(false);
   const [bookingProcedimentos, setBookingProcedimentos] = useState<Procedimento[]>([]);
+
+  // ── Horário de atendimento state ──
+  const [horario, setHorario] = useState<HorarioAtendimento | null>(null);
+  const [savingHorario, setSavingHorario] = useState(false);
+  const [horarioOk, setHorarioOk] = useState(false);
 
   // ── Confirmações automáticas state ──
   const [, setConfirmacao] = useState<ConfirmacaoSettings>({
@@ -110,6 +131,7 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
       setBooking(s);
       setBookingSlugInput(s.bookingSlug ?? '');
       setBookingProcedimentos(procs);
+      setHorario(s.horarioAtendimento);
     } catch (e) { console.error('Erro ao carregar configurações de booking', e); }
   }, [userId]);
 
@@ -288,6 +310,50 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
     } finally { setSavingBooking(false); }
   };
 
+  // ── Horário de atendimento handlers ──
+  const handleToggleHorarioPersonalizado = () => {
+    setHorario(prev => prev === null ? HORARIO_PADRAO : null);
+  };
+
+  const handleChangeDia = (key: string, patch: Partial<{ abre: string; fecha: string; fechado: boolean }>) => {
+    setHorario(prev => {
+      const base = prev ?? HORARIO_PADRAO;
+      return { ...base, [key]: { ...base[key], ...patch } };
+    });
+  };
+
+  const handleCopiarParaTodos = (key: string) => {
+    setHorario(prev => {
+      if (!prev) return prev;
+      const origem = prev[key];
+      const next: HorarioAtendimento = { ...prev };
+      DIAS_HORARIO.forEach(d => { next[d.key] = { ...origem }; });
+      return next;
+    });
+  };
+
+  const handleSaveHorario = async () => {
+    if (horario) {
+      const invalido = DIAS_HORARIO.some(d => {
+        const dia = horario[d.key];
+        return !dia.fechado && dia.abre >= dia.fecha;
+      });
+      if (invalido) {
+        alert('O horário de abertura precisa ser antes do horário de fechamento.');
+        return;
+      }
+    }
+    setSavingHorario(true);
+    try {
+      await api.updateBookingSettings({ horarioAtendimento: horario }, userId);
+      setBooking(prev => ({ ...prev, horarioAtendimento: horario }));
+      setHorarioOk(true);
+      setTimeout(() => setHorarioOk(false), 3000);
+    } catch (err: any) {
+      alert(`Erro ao salvar: ${err?.message || err}`);
+    } finally { setSavingHorario(false); }
+  };
+
   const handleCopyLink = () => {
     const url = `${window.location.origin}/agenda/${booking.bookingSlug}`;
     navigator.clipboard.writeText(url).then(() => {
@@ -352,6 +418,7 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
         {tabBtn('perfil', 'Perfil & Clínica', Building2)}
         {tabBtn('equipe', 'Gestão de Equipe', Users)}
         {tabBtn('agendamento', 'Agendamento Online', Link)}
+        {tabBtn('horarios', 'Horário de Atendimento', Clock)}
         {tabBtn('confirmacoes', 'Confirmações Automáticas', Bell)}
         {tabBtn('documentos', 'Modelos de Documentos', FileText)}
         {(plano === 'enterprise' || plano === 'vip' || plano == null) && tabBtn('rede', 'Rede de Clínicas', Network)}
@@ -860,6 +927,93 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB: HORÁRIO DE ATENDIMENTO ── */}
+      {tab === 'horarios' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          <div className="card" style={{ padding: '28px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+              <Clock size={16} style={{ color: 'var(--color-primary)' }} />
+              <h3 style={{ fontSize: '16px', fontWeight: 600 }}>Horário de Atendimento</h3>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: horario ? 'var(--color-primary-light)' : '#f8f8f6', borderRadius: '10px', marginBottom: '20px', border: '1px solid var(--color-border)' }}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--color-text-main)' }}>Horário personalizado por dia</div>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                  {horario ? 'A agenda e o link público respeitam o período definido abaixo' : 'Desativado — a clínica atende 24 horas, todos os dias'}
+                </div>
+              </div>
+              <button
+                onClick={handleToggleHorarioPersonalizado}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: horario ? 'var(--color-primary)' : 'var(--color-text-muted)' }}
+              >
+                {horario ? <ToggleRight size={36} /> : <ToggleLeft size={36} />}
+              </button>
+            </div>
+
+            {horario && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
+                {DIAS_HORARIO.map(d => {
+                  const dia = horario[d.key];
+                  return (
+                    <div key={d.key} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', border: '1px solid var(--color-border)', borderRadius: '8px', background: dia.fechado ? '#f8f8f6' : 'transparent' }}>
+                      <div style={{ width: 120, fontSize: '13px', fontWeight: 600, color: 'var(--color-text-main)' }}>{d.label}</div>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--color-text-muted)', cursor: 'pointer', width: 80 }}>
+                        <input
+                          type="checkbox"
+                          checked={!dia.fechado}
+                          onChange={e => handleChangeDia(d.key, { fechado: !e.target.checked })}
+                        />
+                        Aberto
+                      </label>
+                      {!dia.fechado && (
+                        <>
+                          <input
+                            type="time"
+                            className="form-input"
+                            value={dia.abre}
+                            onChange={e => handleChangeDia(d.key, { abre: e.target.value })}
+                            style={{ width: '110px' }}
+                          />
+                          <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>até</span>
+                          <input
+                            type="time"
+                            className="form-input"
+                            value={dia.fecha}
+                            onChange={e => handleChangeDia(d.key, { fecha: e.target.value })}
+                            style={{ width: '110px' }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleCopiarParaTodos(d.key)}
+                            className="btn btn-outline"
+                            style={{ fontSize: '11px', padding: '4px 10px', marginLeft: 'auto' }}
+                            title="Aplicar este horário a todos os dias"
+                          >
+                            Copiar p/ todos
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                onClick={handleSaveHorario}
+                className="btn btn-primary"
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '140px', justifyContent: 'center' }}
+                disabled={savingHorario}
+              >
+                {horarioOk ? <><Check size={16} />Salvo!</> : savingHorario ? 'Salvando...' : <><Check size={16} />Salvar Horário</>}
+              </button>
+            </div>
           </div>
         </div>
       )}

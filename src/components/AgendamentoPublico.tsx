@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { api } from '../lib/api';
-import type { ClinicaPublica, ProcedimentoPublico, ProfissionalPublico, SlotOcupado } from '../types';
+import type { ClinicaPublica, HorarioAtendimento, ProcedimentoPublico, ProfissionalPublico, SlotOcupado } from '../types';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -24,13 +24,17 @@ function generateAvailableSlots(
   duracaoMinutos: number,
   dateStr: string,
   minAdvanceHoras: number,
+  horarioAtendimento: HorarioAtendimento | null,
 ): string[] {
-  const CLINIC_START = 0;
-  const CLINIC_END   = 24 * 60;
+  const selected = new Date(dateStr + 'T00:00:00');
+  const diaConfig = horarioAtendimento?.[String(selected.getDay())];
+  if (diaConfig?.fechado) return [];
+
+  const CLINIC_START = diaConfig ? timeToMinutes(diaConfig.abre) : 0;
+  const CLINIC_END   = diaConfig ? timeToMinutes(diaConfig.fecha) : 24 * 60;
   const INTERVAL     = 15;
 
   const now      = new Date();
-  const selected = new Date(dateStr + 'T00:00:00');
   const isToday  = selected.toDateString() === now.toDateString();
   const minAdvMin = minAdvanceHoras * 60;
   const nowMins  = now.getHours() * 60 + now.getMinutes();
@@ -181,7 +185,7 @@ export const AgendamentoPublico: React.FC<Props> = ({ slug }) => {
     setSelTime('');
     try {
       const booked = await api.getSlotsOcupados(slug, date, selProfissional.nome);
-      setSlots(generateAvailableSlots(booked, selProcedimento.duracaoMinutos, date, clinica.minAdvanceHoras));
+      setSlots(generateAvailableSlots(booked, selProcedimento.duracaoMinutos, date, clinica.minAdvanceHoras, clinica.horarioAtendimento));
     } catch {
       setSlots([]);
     } finally {
@@ -201,7 +205,9 @@ export const AgendamentoPublico: React.FC<Props> = ({ slug }) => {
 
   const isDayDisabled = (day: number) => {
     const d = new Date(calYear, calMonth, day);
-    return d < today || d > maxDate;
+    if (d < today || d > maxDate) return true;
+    const diaConfig = clinica?.horarioAtendimento?.[String(d.getDay())];
+    return diaConfig?.fechado === true;
   };
 
   const handleDayClick = (day: number) => {
@@ -229,7 +235,7 @@ export const AgendamentoPublico: React.FC<Props> = ({ slug }) => {
     try {
       // Re-check slot availability before final commit (anti-race-condition)
       const booked = await api.getSlotsOcupados(slug, selDate, selProfissional.nome);
-      const currentSlots = generateAvailableSlots(booked, selProcedimento.duracaoMinutos, selDate, clinica.minAdvanceHoras);
+      const currentSlots = generateAvailableSlots(booked, selProcedimento.duracaoMinutos, selDate, clinica.minAdvanceHoras, clinica.horarioAtendimento);
       if (!currentSlots.includes(selTime)) {
         setSubmitError('Este horário acabou de ser reservado. Escolha outro horário.');
         setSlots(currentSlots);
