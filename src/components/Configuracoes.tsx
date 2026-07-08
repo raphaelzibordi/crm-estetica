@@ -428,8 +428,8 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
       {tab === 'perfil' && (
         <form onSubmit={handleSavePerfil} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
-          {/* Dados da Clínica / Rede */}
-          {redes.length > 0 ? (
+          {/* Dados da Clínica / Rede (card de rede temporariamente desabilitado — ver aba "Rede de Clínicas") */}
+          {false && redes.length > 0 ? (
             /* ── Modo rede: mostra resumo das unidades ── */
             <div className="card" style={{ padding: '28px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
