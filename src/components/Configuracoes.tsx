@@ -1272,7 +1272,27 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
         />
       )}
 
+      {/* ── TAB: REDE DE CLÍNICAS (temporariamente desabilitada) ── */}
       {tab === 'rede' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          {/* Em breve */}
+          <div className="card" style={{ padding: '48px 28px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '16px' }}>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--color-primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Network size={28} style={{ color: 'var(--color-primary)' }} />
+            </div>
+            <div>
+              <span style={{ display: 'inline-block', fontSize: '11px', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--color-primary)', background: 'var(--color-primary-light)', padding: '4px 10px', borderRadius: '999px', marginBottom: '12px' }}>
+                Em breve
+              </span>
+              <h3 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '8px' }}>Rede de Clínicas</h3>
+              <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', maxWidth: '480px', margin: '0 auto' }}>
+                Estamos aprimorando esta funcionalidade para tornar a gestão de múltiplas unidades ainda mais completa. Fique de olho nas próximas atualizações!
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+      {false && (
         <RedeClinicas userId={userId} onRedeUpdated={onRedeUpdated} />
       )}
     </div>
