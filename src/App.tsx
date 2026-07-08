@@ -27,6 +27,7 @@ import type { Agendamento, StatusJornada, UserRole, Unidade, Permissoes } from '
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { api, getFeatureFlags } from './lib/api';
 import { ApiError, isUnauthorized } from './lib/errors';
+import { onlyDigits } from './lib/format';
 
 // Detecta se a URL atual é uma página pública de agendamento (/agenda/:slug)
 function getPublicBookingSlug(): string | null {
@@ -538,21 +539,40 @@ function AppMain() {
       const unidadeParaNovoCadastro = currentUnidadeId ?? (unidadesAtivas.length === 1 ? unidadesAtivas[0].id : null);
 
       if (isTempId) {
-        const novoCliente = await api.createCliente(
-          {
-            nome: newAgendamento.clienteNome,
-            telefone: extra?.telefone || '',
-            email: '',
-            dataNascimento: '',
-            fotoUrl: '',
-            dataUltimaVisita: new Date().toISOString().split('T')[0],
-            statusRetencao: 'em_dia',
-            tags: [],
-            unidadeId: unidadeParaNovoCadastro,
-          },
-          tenantId
+        // Antes de criar um pré-cadastro novo, verifica se o paciente já existe
+        // no Prontuário (por telefone, e na falta dele por nome exato) para não duplicar.
+        const pacienteCompartilhado = redes.length > 0 && redes[0].pacienteCompartilhado;
+        const clientesExistentes = await api.getClientes(
+          tenantId,
+          pacienteCompartilhado ? undefined : unidadeParaNovoCadastro ?? undefined
         );
-        finalClienteId = novoCliente.id;
+        const telefoneDigits = extra?.telefone ? onlyDigits(extra.telefone) : '';
+        const nomeNormalizado = newAgendamento.clienteNome.trim().toLowerCase();
+        const clienteExistente = clientesExistentes.find(c => {
+          if (telefoneDigits && onlyDigits(c.telefone || '') === telefoneDigits) return true;
+          if (!telefoneDigits && c.nome.trim().toLowerCase() === nomeNormalizado) return true;
+          return false;
+        });
+
+        if (clienteExistente) {
+          finalClienteId = clienteExistente.id;
+        } else {
+          const novoCliente = await api.createCliente(
+            {
+              nome: newAgendamento.clienteNome,
+              telefone: extra?.telefone || '',
+              email: '',
+              dataNascimento: '',
+              fotoUrl: '',
+              dataUltimaVisita: new Date().toISOString().split('T')[0],
+              statusRetencao: 'em_dia',
+              tags: [],
+              unidadeId: unidadeParaNovoCadastro,
+            },
+            tenantId
+          );
+          finalClienteId = novoCliente.id;
+        }
       }
 
       await api.createAgendamento({ ...newAgendamento, clienteId: finalClienteId, unidadeId: unidadeParaNovoCadastro }, tenantId);

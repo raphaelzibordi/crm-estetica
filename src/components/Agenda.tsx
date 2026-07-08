@@ -387,7 +387,7 @@ export const Agenda: React.FC<AgendaProps> = ({
       setSalaOptions([]);
       setHasSearched(false);
       setSugestoes([]);
-      alert('Nova(o) paciente acolhida(o) com sucesso!');
+      alert('Paciente agendado com sucesso!');
 
       setCursor(prev => new Date(prev)); // Force range reload
     } catch (err) {
