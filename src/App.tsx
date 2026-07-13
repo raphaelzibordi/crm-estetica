@@ -29,6 +29,7 @@ import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { api, getFeatureFlags } from './lib/api';
 import { ApiError, isUnauthorized } from './lib/errors';
 import { onlyDigits } from './lib/format';
+import { useIdleLogout } from './lib/useIdleLogout';
 
 // Detecta se a URL atual é uma página pública de agendamento (/agenda/:slug)
 function getPublicBookingSlug(): string | null {
@@ -163,7 +164,7 @@ function AppMain() {
     const refreshToken = params.get('refresh_token');
     const type = params.get('type');
 
-    if (type === 'recovery' && accessToken && refreshToken) {
+    if ((type === 'recovery' || type === 'invite') && accessToken && refreshToken) {
       supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
         .then(({ error }) => {
           if (!error) {
@@ -398,6 +399,20 @@ function AppMain() {
       setSession(null);
     }
   }, []);
+
+  // ============================================================
+  // LOGOUT AUTOMÁTICO POR INATIVIDADE (30 minutos)
+  // ============================================================
+  const [idleLoggedOut, setIdleLoggedOut] = useState(false);
+
+  const handleIdle = useCallback(() => {
+    console.warn('[Lumina] Sessão encerrada por inatividade (30min).');
+    supabase.auth.signOut();
+    setSession(null);
+    setIdleLoggedOut(true);
+  }, []);
+
+  useIdleLogout(!!session && !recoveryMode, handleIdle);
 
   // Quando há rede, pacienteCompartilhado vem da primeira rede ativa
   const pacienteCompartilhado = redes.length > 0 && redes[0].pacienteCompartilhado;
@@ -693,7 +708,7 @@ function AppMain() {
   // Verifica o hash antes de redirecionar para não descartar um token de recovery
   // que o SDK ainda não terminou de processar.
   if (!session || !session.user) {
-    if (window.location.hash.includes('type=recovery')) {
+    if (window.location.hash.includes('type=recovery') || window.location.hash.includes('type=invite')) {
       return (
         <div
           style={{
@@ -708,7 +723,12 @@ function AppMain() {
         </div>
       );
     }
-    return <Auth onLogin={(s) => setSession(s)} />;
+    return (
+      <Auth
+        onLogin={(s) => { setSession(s); setIdleLoggedOut(false); }}
+        notice={idleLoggedOut ? 'Sua sessão expirou por inatividade. Faça login novamente.' : null}
+      />
+    );
   }
 
   // Enquanto o perfil ainda não foi resolvido após login, usa o tenantId = user.id

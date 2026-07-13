@@ -6,6 +6,7 @@ import { Sparkles, User, Mail, Lock, Phone, MapPin, ArrowRight, ArrowLeft, Check
 
 interface AuthProps {
   onLogin: (session: Session | null) => void;
+  notice?: string | null;
 }
 
 type PlanoBilling = 'basico' | 'pro' | 'enterprise';
@@ -27,7 +28,7 @@ const PLANOS: {
 const fmtBRL = (v: number) =>
   v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
+export const Auth: React.FC<AuthProps> = ({ onLogin, notice }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [isEquipe, setIsEquipe] = useState(false);
   const [passo, setPasso] = useState<'dados' | 'plano'>('dados');
@@ -288,6 +289,11 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           )}
         </div>
 
+        {notice && !error && (
+          <div style={{ padding: '12px', backgroundColor: '#FEF3C7', color: '#92400E', borderRadius: '6px', fontSize: '13px', marginBottom: '24px', textAlign: 'center' }}>
+            {notice}
+          </div>
+        )}
         {error && (
           <div style={{ padding: '12px', backgroundColor: '#FEE2E2', color: '#991B1B', borderRadius: '6px', fontSize: '13px', marginBottom: '24px', textAlign: 'center' }}>
             {error}

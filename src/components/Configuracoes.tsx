@@ -100,6 +100,9 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
   const [mCargoCustom, setMCargoCustom] = useState(false);
   const [mPerfilId, setMPerfilId] = useState<string | null>(null);
   const [savingMembro, setSavingMembro] = useState(false);
+  const [linkModal, setLinkModal] = useState<{ nome: string; link: string } | null>(null);
+  const [linkCopiado, setLinkCopiado] = useState(false);
+  const [gerandoLinkId, setGerandoLinkId] = useState<string | null>(null);
 
   // ── Perfis de Acesso state ──
   const [perfis, setPerfis] = useState<PerfilAcesso[]>([]);
@@ -251,12 +254,33 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
           userId
         );
         setEquipe(prev => [...prev, novo]);
+        setShowMembroModal(false);
+        try {
+          const { link } = await api.gerarLinkAcessoMembro(novo.id);
+          setLinkModal({ nome: novo.nome, link });
+        } catch {
+          alert('Membro criado, mas não foi possível gerar o link de acesso agora. Use o botão de link na lista de membros para tentar novamente.');
+        }
+        return;
       }
       setShowMembroModal(false);
     } catch (err: any) {
       alert(`Erro ao salvar membro: ${err?.message || err}`);
     } finally {
       setSavingMembro(false);
+    }
+  };
+
+  const handleGerarLinkAcesso = async (membro: MembroEquipe) => {
+    setGerandoLinkId(membro.id);
+    try {
+      const { link } = await api.gerarLinkAcessoMembro(membro.id);
+      setLinkCopiado(false);
+      setLinkModal({ nome: membro.nome, link });
+    } catch (err: any) {
+      alert(`Erro ao gerar link de acesso: ${err?.message || err}`);
+    } finally {
+      setGerandoLinkId(null);
     }
   };
 
@@ -710,7 +734,7 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
 
             <div style={{ marginBottom: '16px', padding: '10px 14px', background: '#f8f8f6', borderRadius: '8px', fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
               <Shield size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-              Membros cadastrados aqui devem criar a própria conta no Lumina usando o e-mail registrado. Atribua um Perfil de Acesso para controlar o que cada um pode ver e fazer.
+              Ao adicionar um membro, um link de acesso é gerado para que ele defina a própria senha — copie e envie por onde preferir. Você pode gerar um novo link a qualquer momento pelo ícone de link. Atribua um Perfil de Acesso para controlar o que cada um pode ver e fazer.
             </div>
 
             {equipe.length === 0 ? (
@@ -745,6 +769,15 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
                         </span>
                       )}
                       <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                        <button
+                          onClick={() => handleGerarLinkAcesso(m)}
+                          disabled={gerandoLinkId === m.id}
+                          title="Gerar link de acesso"
+                          className="btn btn-outline"
+                          style={{ padding: '4px 8px' }}
+                        >
+                          <Link size={12} />
+                        </button>
                         <button onClick={() => openMembroModal(m)} className="btn btn-outline" style={{ padding: '4px 8px' }}><Edit2 size={12} /></button>
                         <button onClick={() => handleDeleteMembro(m.id)} className="btn btn-outline" style={{ padding: '4px 8px', borderColor: '#fca5a5', color: '#ef4444' }}><Trash2 size={12} /></button>
                       </div>
@@ -1218,7 +1251,7 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
               {!editingMembroId && (
                 <div style={{ padding: '12px 14px', background: 'var(--color-primary-light)', borderRadius: '8px', fontSize: '12px', color: 'var(--color-primary)', lineHeight: 1.6 }}>
                   <strong>Como o membro acessa o sistema?</strong><br />
-                  Após salvar, compartilhe o link do Lumina com <strong>{mEmail || 'o membro'}</strong> e peça que crie uma conta com este e-mail. O sistema reconhecerá automaticamente o perfil de equipe.
+                  Ao salvar, um link de acesso será gerado para que <strong>{mNome || 'o membro'}</strong> defina a própria senha. Copie e envie para ele por onde preferir.
                 </div>
               )}
               <div className="form-group">
@@ -1260,6 +1293,41 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ userId, userName, 
                 <button type="submit" className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} disabled={savingMembro}><Check size={14} />{savingMembro ? 'Salvando...' : 'Salvar'}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {linkModal && (
+        <div onClick={() => { setLinkModal(null); setLinkCopiado(false); }} className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2100 }}>
+          <div onClick={e => e.stopPropagation()} className="card" style={{ maxWidth: '460px', width: '92%', padding: '32px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: 600 }}>Link de Acesso Gerado</h3>
+              <button onClick={() => { setLinkModal(null); setLinkCopiado(false); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)' }}><X size={18} /></button>
+            </div>
+            <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginBottom: '16px' }}>
+              Copie o link abaixo e envie para <strong>{linkModal.nome}</strong>. Ao acessá-lo, será possível definir a senha e entrar no sistema.
+            </p>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+              <input readOnly value={linkModal.link} className="form-input" style={{ flex: 1, fontSize: '12px' }} onFocus={e => e.target.select()} />
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(linkModal.link);
+                    setLinkCopiado(true);
+                  } catch {
+                    alert('Não foi possível copiar automaticamente. Selecione o link e copie manualmente.');
+                  }
+                }}
+              >
+                <Copy size={14} />{linkCopiado ? 'Copiado!' : 'Copiar'}
+              </button>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button type="button" onClick={() => { setLinkModal(null); setLinkCopiado(false); }} className="btn btn-outline">Concluir</button>
+            </div>
           </div>
         </div>
       )}

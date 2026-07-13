@@ -2290,6 +2290,18 @@ export const api = {
     });
   },
 
+  async gerarLinkAcessoMembro(membroId: string): Promise<{ link: string }> {
+    return run(async () => {
+      const { data, error } = await supabase.functions.invoke('invite-team-member', {
+        body: { membroId },
+      });
+      if (error || !data?.success || !data?.link) {
+        throw new ApiError(data?.error ?? 'Não foi possível gerar o link de acesso.', 500);
+      }
+      return { link: data.link as string };
+    });
+  },
+
   async deleteMembroEquipe(id: string, userId?: string): Promise<void> {
     return run(async () => {
       const uid = await requireUserId(userId);
