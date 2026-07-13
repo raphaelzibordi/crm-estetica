@@ -13,6 +13,7 @@ import { Gestao } from './components/Gestao';
 import { Auth } from './components/Auth';
 import { Configuracoes } from './components/Configuracoes';
 import { WelcomeModal } from './components/WelcomeModal';
+import { InstallPWA } from './components/InstallPWA';
 import { PlanoModal, type PlanoBilling, type PeriodicidadeBilling } from './components/PlanoModal';
 import { PagamentoPendenteModal } from './components/PagamentoPendenteModal';
 import { AdminSuspendedModal } from './components/AdminSuspendedModal';
@@ -918,6 +919,8 @@ function AppMain() {
           </button>
         </div>
       )}
+
+      <InstallPWA />
     </div>
   );
 }
