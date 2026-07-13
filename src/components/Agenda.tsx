@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import type { Agendamento, HorarioAtendimento, Procedimento, Profissional, Room } from '../types';
+import type { Agendamento, Cliente, HorarioAtendimento, Procedimento, Profissional, Room } from '../types';
 import { Users, Clock, Sparkles, ChevronLeft, ChevronRight, CalendarRange, AlertTriangle } from 'lucide-react';
 import { api } from '../lib/api';
 import { findAgendamentoConflict, calcularEncaixeSugestoes, getSalasStatus, type EncaixeSugestao, type SalaStatus } from '../lib/agendaConflict';
@@ -20,6 +20,8 @@ interface AgendaProps {
   onOpenProntuario?: (clienteId: string) => void;
   permissoes?: import('../types').Permissoes | null;
   plano?: string | null;
+  unidadeId?: string | null;
+  pacienteCompartilhado?: boolean;
 }
 
 type AgendaView = 'hoje' | 'semana' | 'ano';
@@ -114,6 +116,8 @@ export const Agenda: React.FC<AgendaProps> = ({
   onOpenProntuario,
   permissoes,
   plano,
+  unidadeId,
+  pacienteCompartilhado,
 }) => {
   const pode = (acao: 'ver' | 'criar' | 'editar' | 'deletar') =>
     !permissoes || !!(permissoes['agenda']?.[acao]);
@@ -155,6 +159,14 @@ export const Agenda: React.FC<AgendaProps> = ({
   const [newHora, setNewHora] = useState('');
   const [newProfissionalId, setNewProfissionalId] = useState<string>(OWNER_ID);
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
+
+  // Busca de paciente existente no prontuário (autocomplete por nome/telefone)
+  const [pacienteVinculado, setPacienteVinculado] = useState<Cliente | null>(null);
+  const [pacienteSugestoes, setPacienteSugestoes] = useState<Cliente[]>([]);
+  const [buscandoPaciente, setBuscandoPaciente] = useState(false);
+  const [showSugestoesPaciente, setShowSugestoesPaciente] = useState(false);
+  const [pacienteSearchDone, setPacienteSearchDone] = useState(false);
+  const pacienteSearchRef = useRef(0);
 
   // Sala selection for the Add modal
   const [newSala, setNewSala] = useState('');
@@ -218,6 +230,59 @@ export const Agenda: React.FC<AgendaProps> = ({
     () => buildProcedimentosAgendados(procedimentos, newProcedimentoIds),
     [procedimentos, newProcedimentoIds]
   );
+
+  // Autocomplete de paciente já cadastrado no Prontuário (por nome ou telefone).
+  useEffect(() => {
+    if (!showAddModal || pacienteVinculado) { setPacienteSugestoes([]); return; }
+
+    const nomeTermo = newNome.trim();
+    const telefoneDigits = newTelefone.replace(/\D/g, '');
+    const termo = telefoneDigits.length >= 4 ? telefoneDigits : nomeTermo;
+    const termoValido = telefoneDigits.length >= 4 || nomeTermo.length >= 2;
+
+    if (!termoValido) {
+      setPacienteSugestoes([]);
+      setPacienteSearchDone(false);
+      return;
+    }
+
+    const requestId = ++pacienteSearchRef.current;
+    setBuscandoPaciente(true);
+    const timer = setTimeout(() => {
+      const unidadeBusca = pacienteCompartilhado ? undefined : unidadeId ?? undefined;
+      api.searchClientes(termo, userId, unidadeBusca)
+        .then((results) => {
+          if (pacienteSearchRef.current !== requestId) return;
+          setPacienteSugestoes(results);
+          setPacienteSearchDone(true);
+          setShowSugestoesPaciente(true);
+        })
+        .catch(() => {
+          if (pacienteSearchRef.current !== requestId) return;
+          setPacienteSugestoes([]);
+          setPacienteSearchDone(true);
+        })
+        .finally(() => {
+          if (pacienteSearchRef.current === requestId) setBuscandoPaciente(false);
+        });
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [showAddModal, newNome, newTelefone, pacienteVinculado, userId, unidadeId, pacienteCompartilhado]);
+
+  const selecionarPacienteExistente = (cliente: Cliente) => {
+    setPacienteVinculado(cliente);
+    setNewNome(cliente.nome);
+    setNewTelefone(formatTelefone(cliente.telefone || ''));
+    setPacienteSugestoes([]);
+    setShowSugestoesPaciente(false);
+  };
+
+  const desvincularPaciente = () => {
+    setPacienteVinculado(null);
+    setPacienteSearchDone(false);
+    setPacienteSugestoes([]);
+  };
 
   // Auto-compute sala options whenever relevant modal fields change.
   useEffect(() => {
@@ -364,7 +429,7 @@ export const Agenda: React.FC<AgendaProps> = ({
     try {
       await onAddAgendamento(
         {
-          clienteId: 'c_' + crypto.randomUUID().slice(0, 8),
+          clienteId: pacienteVinculado?.id || 'c_' + crypto.randomUUID().slice(0, 8),
           clienteNome: newNome,
           data: newData,
           horaInicio: newHora,
@@ -387,6 +452,7 @@ export const Agenda: React.FC<AgendaProps> = ({
       setSalaOptions([]);
       setHasSearched(false);
       setSugestoes([]);
+      desvincularPaciente();
       alert('Paciente agendado com sucesso!');
 
       setCursor(prev => new Date(prev)); // Force range reload
@@ -554,6 +620,7 @@ export const Agenda: React.FC<AgendaProps> = ({
     setNewTelefone('');
     setNewSala(sug.sala);
     setConflictMessage(null);
+    desvincularPaciente();
     setShowAddModal(true);
   };
 
@@ -782,6 +849,7 @@ export const Agenda: React.FC<AgendaProps> = ({
                                       setNewTelefone('');
                                       setNewSala(room.name);
                                       setConflictMessage(null);
+                                      desvincularPaciente();
                                       setShowAddModal(true);
                                     }}
                                     className="btn btn-secondary"
@@ -921,6 +989,7 @@ export const Agenda: React.FC<AgendaProps> = ({
                               setNewTelefone('');
                               setNewSala('');
                               setConflictMessage(null);
+                              desvincularPaciente();
                               setShowAddModal(true);
                             }}
                             className="btn btn-secondary"
@@ -1217,16 +1286,103 @@ export const Agenda: React.FC<AgendaProps> = ({
           <div className="card" style={{ maxWidth: '440px', width: '92%', padding: '32px' }}>
             <h3 style={{ marginBottom: '20px' }}>Agendar Paciente</h3>
             <form onSubmit={handleCreate}>
-              <div className="form-group">
-                <label className="form-label">Nome da(o) Paciente</label>
+              <div className="form-group" style={{ position: 'relative' }}>
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  Nome da(o) Paciente
+                  {pacienteVinculado && (
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      fontSize: '10px',
+                      fontWeight: 600,
+                      padding: '2px 8px',
+                      borderRadius: '999px',
+                      background: '#d1fae5',
+                      color: '#065f46',
+                    }}>
+                      Paciente do prontuário
+                      <button
+                        type="button"
+                        onClick={desvincularPaciente}
+                        title="Desvincular e digitar livremente"
+                        style={{
+                          border: 'none',
+                          background: 'transparent',
+                          color: '#065f46',
+                          cursor: 'pointer',
+                          fontWeight: 700,
+                          lineHeight: 1,
+                          padding: 0,
+                        }}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  )}
+                </label>
                 <input
                   type="text"
                   className="form-input"
                   value={newNome}
-                  onChange={(e) => setNewNome(e.target.value)}
+                  onChange={(e) => { setNewNome(e.target.value); setShowSugestoesPaciente(true); }}
+                  onFocus={() => setShowSugestoesPaciente(true)}
+                  onBlur={() => setTimeout(() => setShowSugestoesPaciente(false), 150)}
                   placeholder="Ex: Amanda Santos"
+                  readOnly={!!pacienteVinculado}
+                  autoComplete="off"
                   required
                 />
+                {showSugestoesPaciente && !pacienteVinculado && (buscandoPaciente || pacienteSugestoes.length > 0 || pacienteSearchDone) && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    marginTop: '4px',
+                    background: '#fff',
+                    border: '1px solid var(--color-border, #e2e8f0)',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                    zIndex: 20,
+                    maxHeight: '220px',
+                    overflowY: 'auto',
+                  }}>
+                    {buscandoPaciente && (
+                      <div style={{ padding: '10px 12px', fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                        Buscando no prontuário...
+                      </div>
+                    )}
+                    {!buscandoPaciente && pacienteSugestoes.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onMouseDown={(e) => { e.preventDefault(); selecionarPacienteExistente(c); }}
+                        style={{
+                          display: 'block',
+                          width: '100%',
+                          textAlign: 'left',
+                          padding: '8px 12px',
+                          border: 'none',
+                          borderBottom: '1px solid #f1f5f9',
+                          background: 'transparent',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)' }}>{c.nome}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                          {c.telefone ? formatTelefone(c.telefone) : 'Sem telefone'}
+                          {c.dataUltimaVisita ? ` · Última visita: ${new Date(c.dataUltimaVisita + 'T00:00:00').toLocaleDateString('pt-BR')}` : ''}
+                        </div>
+                      </button>
+                    ))}
+                    {!buscandoPaciente && pacienteSearchDone && pacienteSugestoes.length === 0 && (
+                      <div style={{ padding: '10px 12px', fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                        Nenhum cadastro encontrado — será criada uma nova paciente.
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="form-group">
@@ -1235,8 +1391,12 @@ export const Agenda: React.FC<AgendaProps> = ({
                   type="text"
                   className="form-input"
                   value={newTelefone}
-                  onChange={(e) => setNewTelefone(formatTelefone(e.target.value))}
+                  onChange={(e) => { setNewTelefone(formatTelefone(e.target.value)); setShowSugestoesPaciente(true); }}
+                  onFocus={() => setShowSugestoesPaciente(true)}
+                  onBlur={() => setTimeout(() => setShowSugestoesPaciente(false), 150)}
                   placeholder="(XX) 9XXXX-XXXX"
+                  readOnly={!!pacienteVinculado}
+                  autoComplete="off"
                 />
               </div>
 

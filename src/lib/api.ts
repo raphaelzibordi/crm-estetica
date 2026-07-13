@@ -658,6 +658,29 @@ export const api = {
     });
   },
 
+  async searchClientes(termo: string, userId?: string, unidadeId?: string | null): Promise<Cliente[]> {
+    return run(async () => {
+      const uid = await requireUserId(userId);
+      const termoLimpo = termo.trim();
+      if (!termoLimpo) return [];
+      const digitsOnly = termoLimpo.replace(/\D/g, '');
+      const escaped = termoLimpo.replace(/[%_,]/g, (c) => `\\${c}`);
+      const orParts = [`nome.ilike.%${escaped}%`];
+      if (digitsOnly.length >= 3) orParts.push(`telefone.ilike.%${digitsOnly}%`);
+      let query = supabase
+        .from('clientes')
+        .select('*')
+        .eq('user_id', uid)
+        .or(orParts.join(','))
+        .order('nome')
+        .limit(8);
+      if (unidadeId) query = query.eq('unidade_id', unidadeId);
+      const { data, error } = await query;
+      if (error) throw error;
+      return (data ?? []).map(mapCliente);
+    });
+  },
+
   async getCliente(id: string, userId?: string): Promise<Cliente | null> {
     return run(async () => {
       const uid = await requireUserId(userId);

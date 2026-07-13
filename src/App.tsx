@@ -780,6 +780,8 @@ function AppMain() {
             onOpenProntuario={handleOpenProntuario}
             permissoes={userPermissoes}
             plano={userPlano}
+            unidadeId={currentUnidadeId}
+            pacienteCompartilhado={pacienteCompartilhado}
           />
         )}
 
