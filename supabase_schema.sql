@@ -287,11 +287,11 @@ begin
   select count(*) into proc_count from public.procedimentos where user_id = uid;
   if proc_count = 0 then
     insert into public.procedimentos (user_id, nome, duracao_minutos, validade_dias, preco, sala_requerida, profissional_responsavel) values
-      (uid, 'Toxina Botulínica (Botox)', 45, 120, 1200, 'Cabine 01 - Clínica', 'Dra. Helena Martins'),
-      (uid, 'Lavieen (Pele de Porcelana)', 60, 90, 800, 'Cabine 02 - Tecnologias', 'Esteticista Sarah Kelly'),
-      (uid, 'Preenchimento com Ácido Hialurônico', 60, 360, 1600, 'Cabine 01 - Clínica', 'Dra. Helena Martins'),
-      (uid, 'Bioestimulador de Colágeno (Radiesse)', 75, 360, 2200, 'Cabine 01 - Clínica', 'Dra. Helena Martins'),
-      (uid, 'Peeling Químico Renovador', 45, 30, 450, 'Cabine 03 - Facial', 'Esteticista Sarah Kelly');
+      (uid, 'Toxina Botulínica (Botox)', 45, 120, 1200, null, 'Dra. Helena Martins'),
+      (uid, 'Lavieen (Pele de Porcelana)', 60, 90, 800, null, 'Esteticista Sarah Kelly'),
+      (uid, 'Preenchimento com Ácido Hialurônico', 60, 360, 1600, null, 'Dra. Helena Martins'),
+      (uid, 'Bioestimulador de Colágeno (Radiesse)', 75, 360, 2200, null, 'Dra. Helena Martins'),
+      (uid, 'Peeling Químico Renovador', 45, 30, 450, null, 'Esteticista Sarah Kelly');
   end if;
 
   select count(*) into tpl_count from public.templates_mensagens where user_id = uid;

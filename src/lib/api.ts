@@ -2921,24 +2921,15 @@ export const api = {
       const { data: authData } = await supabase.auth.getUser();
       if (authData?.user?.id && authData.user.id !== uid) return;
 
-      // Checks sequenciais (não paralelos) para evitar race condition
-      const { count: roomCount } = await supabase.from('rooms').select('id', { count: 'exact', head: true }).eq('user_id', uid);
-      if ((roomCount ?? 0) === 0) {
-        await supabase.from('rooms').insert([
-          { user_id: uid, name: 'Cabine 01 - Clínica', description: 'Sala para procedimentos médicos estéticos', status: 'ativa' },
-          { user_id: uid, name: 'Cabine 02 - Tecnologias', description: 'Sala para equipamentos de tecnologia estética', status: 'ativa' },
-          { user_id: uid, name: 'Cabine 03 - Facial', description: 'Sala dedicada a tratamentos faciais', status: 'ativa' },
-        ]);
-      }
-
+      // Salas não são mais semeadas por padrão: cada clínica cadastra suas próprias salas manualmente.
       const { count: procCount } = await supabase.from('procedimentos').select('id', { count: 'exact', head: true }).eq('user_id', uid);
       if ((procCount ?? 0) === 0) {
         await supabase.from('procedimentos').insert([
-          { user_id: uid, nome: 'Toxina Botulínica (Botox)', duracao_minutos: 45, validade_dias: 120, preco: 1200, sala_requerida: 'Cabine 01 - Clínica', profissional_responsavel: 'Dra. Helena Martins' },
-          { user_id: uid, nome: 'Lavieen (Pele de Porcelana)', duracao_minutos: 60, validade_dias: 90, preco: 800, sala_requerida: 'Cabine 02 - Tecnologias', profissional_responsavel: 'Esteticista Sarah Kelly' },
-          { user_id: uid, nome: 'Preenchimento com Ácido Hialurônico', duracao_minutos: 60, validade_dias: 360, preco: 1600, sala_requerida: 'Cabine 01 - Clínica', profissional_responsavel: 'Dra. Helena Martins' },
-          { user_id: uid, nome: 'Bioestimulador de Colágeno (Radiesse)', duracao_minutos: 75, validade_dias: 360, preco: 2200, sala_requerida: 'Cabine 01 - Clínica', profissional_responsavel: 'Dra. Helena Martins' },
-          { user_id: uid, nome: 'Peeling Químico Renovador', duracao_minutos: 45, validade_dias: 30, preco: 450, sala_requerida: 'Cabine 03 - Facial', profissional_responsavel: 'Esteticista Sarah Kelly' },
+          { user_id: uid, nome: 'Toxina Botulínica (Botox)', duracao_minutos: 45, validade_dias: 120, preco: 1200, sala_requerida: null, profissional_responsavel: 'Dra. Helena Martins' },
+          { user_id: uid, nome: 'Lavieen (Pele de Porcelana)', duracao_minutos: 60, validade_dias: 90, preco: 800, sala_requerida: null, profissional_responsavel: 'Esteticista Sarah Kelly' },
+          { user_id: uid, nome: 'Preenchimento com Ácido Hialurônico', duracao_minutos: 60, validade_dias: 360, preco: 1600, sala_requerida: null, profissional_responsavel: 'Dra. Helena Martins' },
+          { user_id: uid, nome: 'Bioestimulador de Colágeno (Radiesse)', duracao_minutos: 75, validade_dias: 360, preco: 2200, sala_requerida: null, profissional_responsavel: 'Dra. Helena Martins' },
+          { user_id: uid, nome: 'Peeling Químico Renovador', duracao_minutos: 45, validade_dias: 30, preco: 450, sala_requerida: null, profissional_responsavel: 'Esteticista Sarah Kelly' },
         ]);
       }
 
