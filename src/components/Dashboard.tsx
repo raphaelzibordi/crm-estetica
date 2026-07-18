@@ -482,7 +482,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       <div className="dashboard-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
         <div>
           <h1 style={{ fontSize: '28px', color: 'var(--color-text-main)', marginBottom: '6px' }}>
-            Olá, {userName || 'Helena'}! Aqui está o ritmo da clínica hoje.
+            {userName ? `Olá, ${userName}!` : 'Olá!'} Aqui está o ritmo da clínica hoje.
           </h1>
           <p style={{ color: 'var(--color-text-muted)', fontSize: '14px' }}>
             Acompanhe a jornada de cuidados e proporcione uma experiência memorável.

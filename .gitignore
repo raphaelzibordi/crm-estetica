@@ -20,6 +20,9 @@ dist-ssr
 # QA staff skill - local test credentials, never commit
 .claude/qa/credentials.local.json
 
+# Claude Code skills - local-only, never commit
+.claude/skills/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

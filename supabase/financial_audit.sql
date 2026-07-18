@@ -273,7 +273,11 @@ begin
     tg_table_name, v_record_id, v_action,
     v_before, v_after, v_diff,
     v_ip, v_user_agent,
-    case when v_action = 'ESTORNO' then new.motivo else null end
+    -- Acesso dinâmico via jsonb: 'motivo' só existe em estornos_financeiros.
+    -- new.motivo (campo estático) quebra o trigger em QUALQUER outra tabela
+    -- que não tenha essa coluna (ex.: agendamentos), pois o PL/pgSQL resolve
+    -- o nome do campo do RECORD no PREPARE da instrução, não em runtime da CASE.
+    case when v_action = 'ESTORNO' then (to_jsonb(new) ->> 'motivo') else null end
   );
 
   return coalesce(new, old);

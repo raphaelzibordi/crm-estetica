@@ -184,7 +184,18 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, notice }) => {
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: email.trim(),
           password,
-          options: { data: { nome_clinica: nomeClinica, telefone, endereco } },
+          options: {
+            data: {
+              nome_clinica: nomeClinica,
+              telefone,
+              endereco,
+              // Lido pelo trigger handle_new_user() para honrar o plano escolhido
+              // mesmo quando a confirmação de e-mail impede o checkout abaixo de rodar
+              // agora (signUp() não retorna session até o e-mail ser confirmado).
+              plano: planoCadastro,
+              periodicidade,
+            },
+          },
         });
         if (authError) throw authError;
 

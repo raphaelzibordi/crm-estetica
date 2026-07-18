@@ -107,7 +107,10 @@
       "Bash(curl -s 'https://ypqoqibezpntdfrsuzxz.supabase.co/rest/v1/agendamentos?select=*,clientes\\(nome,foto_url\\),rooms\\(name\\)&limit=1' -H 'apikey: sb_publishable_MtE7de5jaFx5SRNV5NfDFg_ObMNDSIF' -H 'Authorization: Bearer sb_publishable_MtE7de5jaFx5SRNV5NfDFg_ObMNDSIF')",
       "Read(//c/Users/rapha/.claude/projects/C--Users-rapha-OneDrive-Documents-GitHub-crm-estetica/memory/**)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5173/manifest.json)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5173/sw.js)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5173/sw.js)",
+      "Bash(mkdir -p \"C:\\\\Users\\\\rapha\\\\OneDrive\\\\Documents\\\\GitHub\\\\crm-estetica\\\\.claude\\\\skills\\\\security-staff\")",
+      "mcp__84ef42a8-55c6-42bb-9150-d4040d81915a__get_advisors",
+      "Bash(python3 -c ' *)"
     ]
   }
 }

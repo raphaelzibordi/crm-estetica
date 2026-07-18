@@ -865,8 +865,15 @@ export const api = {
             horario_chegada: agendamento.horarioChegada ?? null,
             valor: agendamento.valor,
             unidade_id: agendamento.unidadeId ?? null,
-            plano_tratamento_id: agendamento.planoTratamentoId ?? null,
-            plano_procedimento_nome: agendamento.planoProcedimentoNome ?? null,
+            // Vínculo com plano de tratamento: coluna opcional, omitida do insert quando
+            // não há plano associado para não depender do schema cache do PostgREST
+            // ter essas colunas em ambientes onde a migração ainda não rodou (PGRST204).
+            ...(agendamento.planoTratamentoId
+              ? { plano_tratamento_id: agendamento.planoTratamentoId }
+              : {}),
+            ...(agendamento.planoProcedimentoNome
+              ? { plano_procedimento_nome: agendamento.planoProcedimentoNome }
+              : {}),
           },
         ])
         .select('*, clientes ( nome, foto_url ), rooms ( name )')
