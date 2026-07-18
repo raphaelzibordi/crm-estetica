@@ -345,7 +345,10 @@ export const AssinaturaDigital: React.FC<AssinaturaDigitalProps> = ({
         await api.createDocumentSignature(
           {
             clienteId,
-            modeloId: selectedTemplate.id === '__custom__' ? null : selectedTemplate.id,
+            // Templates padrão (MODELOS_PADRAO) e o modelo customizado usam ids
+            // sintéticos ("__padrao_N__", "__custom__") que não existem na tabela
+            // documentos_modelos — enviar como modelo_id (uuid) quebra com 22P02.
+            modeloId: selectedTemplate.id.startsWith('__') ? null : selectedTemplate.id,
             titulo: selectedTemplate.nome,
             conteudoFinal: conteudo,
             hashIntegridade: hash,
@@ -362,7 +365,7 @@ export const AssinaturaDigital: React.FC<AssinaturaDigitalProps> = ({
         const doc = await api.createDocumentSignature(
           {
             clienteId,
-            modeloId: selectedTemplate.id === '__custom__' ? null : selectedTemplate.id,
+            modeloId: selectedTemplate.id.startsWith('__') ? null : selectedTemplate.id,
             titulo: selectedTemplate.nome,
             conteudoFinal: conteudo,
             hashIntegridade: hash,
