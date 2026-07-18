@@ -574,10 +574,11 @@ export const Agenda: React.FC<AgendaProps> = ({
       .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
   };
 
-  // Quando a clínica tem mais de uma sala ativa, a grade do dia mostra a
-  // ocupação sala a sala (ex: Sala A ocupada às 10h não deve esconder que
-  // a Sala B está livre no mesmo horário).
-  const multiSala = rooms.length > 1;
+  // Quando a clínica tem pelo menos uma sala ativa cadastrada, a grade do dia
+  // mostra a ocupação sala a sala (ex: Sala A ocupada às 10h não deve esconder
+  // que a Sala B está livre no mesmo horário). Sem nenhuma sala cadastrada,
+  // cai no slot único "Novo Paciente" sem quebra por sala.
+  const temSalasAtivas = rooms.length > 0;
   const roomNames = useMemo(() => new Set(rooms.map((r) => normName(r.name))), [rooms]);
 
   const getAgendamentosForSlotESala = (time: string, salaName: string): Agendamento[] =>
@@ -766,7 +767,7 @@ export const Agenda: React.FC<AgendaProps> = ({
               </div>
             </div>
 
-            {multiSala && (
+            {temSalasAtivas && (
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '16px' }}>
                 {rooms.map((r) => (
                   <span key={r.id} className="badge badge-neutral" style={{ fontSize: '11px' }}>
@@ -777,7 +778,7 @@ export const Agenda: React.FC<AgendaProps> = ({
             )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {multiSala ? hourListDia.map((slot) => {
+              {temSalasAtivas ? hourListDia.map((slot) => {
                 const semSalaAtiva = getAgendamentosSemSalaAtiva(slot);
                 return (
                   <div
