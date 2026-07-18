@@ -16,13 +16,36 @@ export function DefinirSenha({ onSuccess }: Props) {
   const [sessionValida, setSessionValida] = useState<boolean | null>(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        onSuccess();
-      } else {
-        setSessionValida(true);
-      }
+    // O App.tsx ainda pode estar processando o token da URL (setSession(), que faz uma
+    // chamada de rede) quando este componente monta. Um getSession() imediato aqui
+    // quase sempre "vence a corrida" e encontra sessão nula, disparando onSuccess()
+    // cedo demais e derrubando o usuário de volta pro login. Em vez de checar uma
+    // única vez, escuta onAuthStateChange e só desiste após um tempo de espera.
+    let settled = false;
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (settled || !session) return;
+      settled = true;
+      setSessionValida(true);
     });
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (settled || !session) return;
+      settled = true;
+      setSessionValida(true);
+    });
+
+    const timeout = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        onSuccess();
+      }
+    }, 5000);
+
+    return () => {
+      sub.subscription.unsubscribe();
+      clearTimeout(timeout);
+    };
   }, [onSuccess]);
 
   async function handleSubmit(e: React.FormEvent) {
