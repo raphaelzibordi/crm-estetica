@@ -90,17 +90,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const menuItems = ALL_MENU_ITEMS.filter(item => {
+    // Feature flags valem para toda a clínica (dono e equipe), não só o dono —
+    // um módulo desligado pelo admin não pode reaparecer para membros da equipe.
+    if (plano != null) {
+      const flag = featureFlags.find(f => f.id === item.id);
+      if (flag && flag.enabledForPlans[plano] !== true) return false;
+    }
+
     if (userRole === 'dono') {
       // Enquanto o plano ainda não foi carregado, exibe tudo para evitar flash
       if (plano == null) return true;
-      
-      // Se tiver feature flag para este módulo, ela manda na visibilidade
-      const flag = featureFlags.find(f => f.id === item.id);
-      if (flag) {
-        return flag.enabledForPlans[plano] === true;
-      }
 
-      // Senão, fallback pro plano mínimo estático
+      // Se tiver feature flag para este módulo, ela já decidiu acima; senão,
+      // fallback pro plano mínimo estático
+      const flag = featureFlags.find(f => f.id === item.id);
+      if (flag) return true;
+
       const planLevel = PLAN_ORDER[plano] ?? 0;
       const required = PLAN_ORDER[item.minPlan] ?? 0;
       return planLevel >= required;

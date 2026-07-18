@@ -302,7 +302,7 @@ function AppMain() {
   // (trial sem ativação após 30 dias, ou assinatura anual vencendo em até 30 dias)
   // ============================================================
   useEffect(() => {
-    if (userRole !== 'dono' || !tenantId) return;
+    if (!tenantId) return;
 
     (async () => {
       try {
@@ -313,8 +313,12 @@ function AppMain() {
           .maybeSingle();
         if (!data) return;
 
-        // Persiste o plano para gate de features na navegação
+        // Persiste o plano para gate de features na navegação (dono e equipe,
+        // já que o Sidebar usa isso para esconder módulos desligados por feature flag)
         setUserPlano((data.plano as string | null) ?? 'basico');
+
+        // Modais de cobrança e suspensão administrativa são responsabilidade do dono.
+        if (userRole !== 'dono') return;
 
         // Suspensão manual pelo administrador: bloqueia tudo, prioridade máxima
         if (data.admin_suspended) {
