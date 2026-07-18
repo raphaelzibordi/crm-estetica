@@ -1,21 +1,15 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGINS') ?? '')
-  .split(',')
-  .map((s) => s.trim())
-  .filter(Boolean);
-
-function corsHeadersFor(origin: string | null): Record<string, string> {
-  const allow =
-    origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0] ?? '';
-  return {
-    'Access-Control-Allow-Origin': allow,
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    Vary: 'Origin',
-  };
-}
+// Rota pública (assinatura de documento sem login) — sem cookies/credenciais
+// envolvidos, então libera geral como as demais functions deste projeto.
+// A versão anterior dependia de uma env var ALLOWED_ORIGINS nunca configurada,
+// o que fazia o header sair vazio e o navegador bloquear toda resposta por CORS.
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
 
 function extractClientIp(req: Request): string | null {
   // Supabase Edge Runtime injeta x-forwarded-for com a cadeia de proxies.
@@ -29,11 +23,8 @@ function extractClientIp(req: Request): string | null {
 }
 
 serve(async (req: Request) => {
-  const origin = req.headers.get('Origin');
-  const corsHeaders = corsHeadersFor(origin);
-
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: CORS });
   }
 
   try {
@@ -45,7 +36,7 @@ serve(async (req: Request) => {
     if (!token || !assinatura) {
       return new Response(
         JSON.stringify({ success: false, error: 'Parâmetros ausentes.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -78,19 +69,19 @@ serve(async (req: Request) => {
         }),
         {
           status: isRateLimit ? 429 : 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...CORS, 'Content-Type': 'application/json' },
         }
       );
     }
 
     return new Response(JSON.stringify(data), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...CORS, 'Content-Type': 'application/json' },
     });
   } catch (err) {
     console.error('[sign-document] erro interno:', err);
     return new Response(
       JSON.stringify({ success: false, error: 'Erro interno.' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...CORS, 'Content-Type': 'application/json' } }
     );
   }
 });
