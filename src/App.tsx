@@ -133,12 +133,13 @@ function AppMain() {
         if (TABS_BLOQUEADAS_EQUIPE.has(tab)) return;
       }
     }
-    if (userRole === 'dono' && userPlano != null) {
-      // Se a aba tiver uma feature flag, verifica a flag ao invés do nível mínimo
+    // Feature flags valem para toda a clínica (dono e equipe) — um módulo
+    // desligado pelo admin não pode ser acessado nem via permissão RBAC.
+    if (userPlano != null) {
       const flag = featureFlags.find(f => f.id === tab);
       if (flag) {
         if (!flag.enabledForPlans[userPlano]) return;
-      } else {
+      } else if (userRole === 'dono') {
         const planLevel = TAB_MIN_PLAN[userPlano] ?? 0;
         const required = TAB_PLAN_REQ[tab] ?? 0;
         if (planLevel < required) return;
@@ -146,7 +147,7 @@ function AppMain() {
     }
     if (tab === 'prontuario') setSelectedClienteId(null);
     setCurrentTab(tab);
-  }, [userRole, userPermissoes, userPlano]);
+  }, [userRole, userPermissoes, userPlano, featureFlags]);
 
   // Evita loop: só busca perfil quando session.user.id muda.
   const lastProfileUid = useRef<string | null>(null);
